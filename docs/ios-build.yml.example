@@ -1,0 +1,15 @@
+name: iOS build
+on:
+  push:
+  pull_request:
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build iOS Simulator app
+        run: >-
+          xcodebuild -project sleeptongshu.xcodeproj
+          -scheme sleeptongshu -configuration Debug
+          -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO build
