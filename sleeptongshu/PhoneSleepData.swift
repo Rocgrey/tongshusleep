@@ -67,6 +67,7 @@ struct PhoneCheckpoint: Codable {
     var epochs: [PhoneEpoch]
     var classifierAvailable: Bool
     var interrupted = false
+    var stoppedAt: Date? = nil
     var payload: SleepPayload {
         SleepPayload(id: id, start: start, end: end, source: .phone, segments: [], heartSamples: [],
                      averageHeartRate: nil, averageSpO2: nil, averageRespiratoryRate: nil,

@@ -79,11 +79,12 @@ struct MonitoringView: View {
                 }.frame(width: 102, height: 102).accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 8) {
                     if let checkpoint = phone.checkpoint {
-                        TimelineView(.periodic(from: .now, by: 1)) { timeline in
-                            Text(duration(from: checkpoint.start, to: phone.isRecording ? timeline.date : checkpoint.end))
-                                .font(.system(size: 29, weight: .semibold, design: .rounded)).monospacedDigit()
-                        }
-                        Text("\(checkpoint.epochs.count) 个分钟窗口 · \(phone.motionAvailable ? "体动可用" : "体动未采集")")
+                        Text(phone.isRecording ? "正在监测 · 已用时" : "本次监测时长")
+                            .font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
+                        Text(duration(seconds: phone.elapsedSeconds))
+                            .font(.system(size: 29, weight: .semibold, design: .rounded)).monospacedDigit()
+                            .accessibilityIdentifier("monitorElapsedTime")
+                        Text("\(checkpoint.epochs.count) 个分钟窗口 · \((phone.isRecording ? phone.motionAvailable : checkpoint.epochs.contains { $0.movement != nil }) ? "体动可用" : "体动未采集")")
                             .font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
                     } else {
                         Text("晚安，放松下来").font(.system(size: 19, weight: .semibold))
@@ -100,11 +101,15 @@ struct MonitoringView: View {
                         .foregroundStyle(trackingEnabled ? Color.white : SleepPalette.muted)
                         .frame(maxWidth: .infinity).padding(.vertical, 8)
                 }.buttonStyle(.borderedProminent).disabled(!trackingEnabled || phone.isStarting).accessibilityIdentifier("startMonitoring")
+                Text("睡前开始，醒来后手动结束；最长监测 23 小时。")
+                    .font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
             } else if phone.isRecording {
                 Label("麦克风信号 \(Int(phone.currentDB)) dBFS", systemImage: "mic.fill").font(.system(size: 12))
                 Button { phone.stop() } label: {
                     Label("结束本次监测", systemImage: "stop.fill").foregroundStyle(.white).frame(maxWidth: .infinity).padding(.vertical, 8)
                 }.buttonStyle(.borderedProminent).accessibilityIdentifier("stopMonitoring")
+                Text("醒来后点“结束本次监测”，再保存报告。当前显示监测时长，不代表已经睡着；本版不会自动判断你已醒来。")
+                    .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
             } else {
                 HStack {
                     Button { savePhone() } label: { Label("保存睡眠报告", systemImage: "checkmark").foregroundStyle(.white).frame(maxWidth: .infinity) }
@@ -235,8 +240,7 @@ struct MonitoringView: View {
             Text(detail).font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
         }
     }
-    private func duration(from: Date, to: Date) -> String {
-        let seconds = max(0, Int(to.timeIntervalSince(from)))
+    private func duration(seconds: Int) -> String {
         return String(format: "%02d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60)
     }
     private func savePhone() {

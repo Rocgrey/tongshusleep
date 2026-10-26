@@ -4,6 +4,27 @@ import SoundAnalysis
 import Combine
 import UIKit
 
+enum PhoneMonitoringPolicy {
+    static let maximumDuration: TimeInterval = 23 * 3600
+    static let signalTimeout: TimeInterval = 30
+    enum StopReason: Equatable { case timeLimit, signalLost }
+
+    static func elapsed(from start: Date, to end: Date) -> Int {
+        max(0, Int(end.timeIntervalSince(start)))
+    }
+
+    static func stopReason(start: Date, lastSignal: Date, now: Date) -> StopReason? {
+        if now.timeIntervalSince(start) >= maximumDuration { return .timeLimit }
+        if now.timeIntervalSince(lastSignal) > signalTimeout { return .signalLost }
+        return nil
+    }
+
+    static func shouldStopForRouteChange(reason: UInt?, inputChanged: Bool, engineRunning: Bool) -> Bool {
+        // Activating our own recording category also posts route changes with the same input.
+        !engineRunning || inputChanged || reason == AVAudioSession.RouteChangeReason.noSuitableRouteForCategory.rawValue
+    }
+}
+
 // SoundAnalysis uses Apple's on-device classifier. Audio buffers are discarded after analysis.
 private final class NightSoundAnalyzer: NSObject, SNResultsObserving {
     let analyzer: SNAudioStreamAnalyzer
@@ -72,6 +93,7 @@ final class PhoneSleepMonitor: ObservableObject {
     @Published private(set) var status = "今晚，从手机开始"
     @Published private(set) var currentDB: Double = -80
     @Published private(set) var motionAvailable = false
+    @Published private(set) var elapsedSeconds = 0
     @Published var error: String?
     private var engine: AVAudioEngine?
     private var sound: NightSoundAnalyzer?
@@ -82,44 +104,66 @@ final class PhoneSleepMonitor: ObservableObject {
     private var lastCheckpoint = Date.distantPast
     private var previousIdleSetting = false
     private var activeID: UUID?
+    private var inputPortIDs: [String] = []
+    private var audioSessionActive = false
+    private let sessionQueue = DispatchQueue(label: "sleeptongshu.audio-session")
 
-    init() {
+    init(draftURL: URL? = nil) {
         let directory = URL.applicationSupportDirectory.appendingPathComponent("PhoneMonitoring", isDirectory: true)
-        url = directory.appendingPathComponent("active.json")
+        url = draftURL ?? directory.appendingPathComponent("active.json")
         if !ProcessInfo.processInfo.arguments.contains("-ui-testing"), let data = try? Data(contentsOf: url) {
             do {
                 var saved = try JSONDecoder().decode(PhoneCheckpoint.self, from: data)
                 if !saved.epochs.isEmpty { try saved.payload.validate() }
                 saved.interrupted = true
                 checkpoint = saved
+                elapsedSeconds = PhoneMonitoringPolicy.elapsed(from: saved.start, to: saved.stoppedAt ?? saved.end)
                 status = "发现上次未结束的采集，请保存或舍弃"
             } catch { self.error = "上次采集草稿无法读取，文件已保留：\(error.localizedDescription)" }
         }
-        for name in [AVAudioSession.interruptionNotification, AVAudioSession.routeChangeNotification, AVAudioSession.mediaServicesWereResetNotification] {
+        for name in [AVAudioSession.interruptionNotification, AVAudioSession.routeChangeNotification,
+                     AVAudioSession.mediaServicesWereResetNotification, .AVAudioEngineConfigurationChange] {
             observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
-                if name == AVAudioSession.interruptionNotification,
-                   (note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt) == AVAudioSession.InterruptionType.ended.rawValue { return }
-                Task { @MainActor in
-                    guard let self, self.isRecording else { return }
-                    self.stop(interrupted: true)
-                    self.status = "声音采集中断，请保存本次记录后重新开始"
-                }
+                Task { @MainActor in self?.handleAudioNotification(note) }
             })
         }
+    }
+
+    private func handleAudioNotification(_ notification: Notification) {
+        guard isRecording else { return }
+        switch notification.name {
+        case AVAudioSession.interruptionNotification:
+            guard (notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt) == AVAudioSession.InterruptionType.began.rawValue else { return }
+        case AVAudioSession.routeChangeNotification:
+            let currentInputs = AVAudioSession.sharedInstance().currentRoute.inputs.map(\.uid).sorted()
+            let reason = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt
+            guard PhoneMonitoringPolicy.shouldStopForRouteChange(reason: reason,
+                inputChanged: currentInputs != inputPortIDs, engineRunning: engine?.isRunning == true) else { return }
+        case .AVAudioEngineConfigurationChange:
+            guard let changedEngine = notification.object as? AVAudioEngine, changedEngine === engine,
+                  !changedEngine.isRunning else { return }
+        default: break
+        }
+        stop(interrupted: true)
+        status = "监测已中断 · 请保存已有数据后重新开始"
     }
 
     func start() async {
         guard !isRecording, !isStarting, checkpoint == nil else { return }
         isStarting = true
+        status = "正在准备麦克风，请允许录音权限"
         defer { isStarting = false }
         let granted = await withCheckedContinuation { continuation in
             AVAudioApplication.requestRecordPermission { continuation.resume(returning: $0) }
         }
-        guard granted else { error = "请在 iPhone 设置 → 隐私与安全性 → 麦克风中允许 sleeptongshu 使用麦克风。"; return }
+        guard granted else {
+            status = "尚未开始 · 麦克风未授权"
+            error = "请在 iPhone 设置 → 隐私与安全性 → 麦克风中允许 sleeptongshu 使用麦克风。"
+            return
+        }
         do {
+            try await activateAudioSession()
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.record, mode: .measurement, options: [])
-            try session.setActive(true)
             let engine = AVAudioEngine()
             let input = engine.inputNode
             let format = input.outputFormat(forBus: 0)
@@ -151,7 +195,9 @@ final class PhoneSleepMonitor: ObservableObject {
             let now = Date()
             checkpoint = PhoneCheckpoint(start: now, end: now, epochs: [], classifierAvailable: sound.available)
             try engine.start()
+            inputPortIDs = session.currentRoute.inputs.map(\.uid).sorted()
             isRecording = true
+            elapsedSeconds = 0
             previousIdleSetting = UIApplication.shared.isIdleTimerDisabled
             UIApplication.shared.isIdleTimerDisabled = true
             motionAvailable = motion.isAccelerometerAvailable
@@ -168,25 +214,33 @@ final class PhoneSleepMonitor: ObservableObject {
                     }
                 }
             }
-            timer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
-                Task { @MainActor in
-                    guard let self, self.isRecording else { return }
-                    if let start = self.checkpoint?.start, Date().timeIntervalSince(start) >= 23 * 3600 {
-                        self.stop(interrupted: true); self.status = "采集已达 23 小时上限，请保存记录"; return
-                    }
-                    // An audio engine that silently stops must not produce an imaginary night.
-                    if let end = self.checkpoint?.end, Date().timeIntervalSince(end) > 30 {
-                        self.stop(interrupted: true); self.status = "未收到音频信号，采集已暂停"; return
-                    }
-                    self.persist()
-                }
+            let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+                Task { @MainActor in self?.heartbeat() }
             }
+            self.timer = timer
+            RunLoop.main.add(timer, forMode: .common)
             status = "正在监测 · 声音仅在本机分析"
             persist(force: true)
         } catch {
             stop(interrupted: true)
             if checkpoint?.epochs.isEmpty == true { discard() }
             self.error = "无法开始采集：\(error.localizedDescription)"
+            status = "未能开始监测，请检查提示后重试"
+        }
+    }
+
+    private func heartbeat() {
+        guard isRecording, let checkpoint else { return }
+        let now = Date()
+        elapsedSeconds = PhoneMonitoringPolicy.elapsed(from: checkpoint.start, to: now)
+        switch PhoneMonitoringPolicy.stopReason(start: checkpoint.start, lastSignal: checkpoint.end, now: now) {
+        case .timeLimit:
+            stop(interrupted: true)
+            status = "已到 23 小时上限 · 请保存报告"
+        case .signalLost:
+            stop(interrupted: true)
+            status = "超过 30 秒未收到麦克风信号 · 监测已停止"
+        case nil: persist()
         }
     }
 
@@ -209,7 +263,10 @@ final class PhoneSleepMonitor: ObservableObject {
             epoch.audioSeconds += weight
         }
         checkpoint?.end = Date()
-        if let start = checkpoint?.start, Date().timeIntervalSince(start) >= 23 * 3600 { stop(interrupted: true) }
+        if let start = checkpoint?.start, Date().timeIntervalSince(start) >= PhoneMonitoringPolicy.maximumDuration {
+            stop(interrupted: true)
+            status = "已到 23 小时上限 · 请保存报告"
+        }
     }
 
     private func receive(label: String, seconds: Double) {
@@ -221,6 +278,11 @@ final class PhoneSleepMonitor: ObservableObject {
 
     func stop(interrupted: Bool = false) {
         let wasRecording = isRecording
+        if wasRecording, let start = checkpoint?.start {
+            let now = Date()
+            elapsedSeconds = PhoneMonitoringPolicy.elapsed(from: start, to: now)
+            checkpoint?.stoppedAt = now
+        }
         isRecording = false
         activeID = nil
         timer?.invalidate(); timer = nil
@@ -229,7 +291,7 @@ final class PhoneSleepMonitor: ObservableObject {
         engine?.inputNode.removeTap(onBus: 0)
         sound?.finish()
         engine = nil; sound = nil
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        deactivateAudioSession()
         if wasRecording { UIApplication.shared.isIdleTimerDisabled = previousIdleSetting }
         if interrupted { checkpoint?.interrupted = true }
         status = "本次采集已结束，等待保存"
@@ -240,7 +302,7 @@ final class PhoneSleepMonitor: ObservableObject {
         stop()
         do {
             if FileManager.default.fileExists(atPath: url.path) { try FileManager.default.removeItem(at: url) }
-            checkpoint = nil; status = "今晚，从手机开始"
+            checkpoint = nil; elapsedSeconds = 0; status = "今晚，从手机开始"
         } catch { self.error = "草稿清理失败：\(error.localizedDescription)" }
     }
 
@@ -259,17 +321,44 @@ final class PhoneSleepMonitor: ObservableObject {
         }
     }
     private func stopAfterStorageFailure() {
+        if let start = checkpoint?.start {
+            let now = Date()
+            elapsedSeconds = PhoneMonitoringPolicy.elapsed(from: start, to: now)
+            checkpoint?.stoppedAt = now
+        }
         isRecording = false
         activeID = nil
         timer?.invalidate(); motion.stopAccelerometerUpdates(); engine?.stop()
         engine?.inputNode.removeTap(onBus: 0); sound?.finish(); engine = nil; sound = nil
         UIApplication.shared.isIdleTimerDisabled = previousIdleSetting
-        try? AVAudioSession.sharedInstance().setActive(false)
+        deactivateAudioSession()
         checkpoint?.interrupted = true
         status = "存储异常，采集已停止；请重试保存"
     }
     private enum CaptureError: LocalizedError {
         case noInput
         var errorDescription: String? { "未找到可用麦克风，请断开耳机后重试。" }
+    }
+
+    private func activateAudioSession() async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            sessionQueue.async {
+                do {
+                    let session = AVAudioSession.sharedInstance()
+                    try session.setCategory(.record, mode: .measurement, options: [])
+                    try session.setActive(true)
+                    continuation.resume()
+                } catch { continuation.resume(throwing: error) }
+            }
+        }
+        audioSessionActive = true
+    }
+
+    private func deactivateAudioSession() {
+        guard audioSessionActive else { return }
+        audioSessionActive = false
+        sessionQueue.async {
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        }
     }
 }
