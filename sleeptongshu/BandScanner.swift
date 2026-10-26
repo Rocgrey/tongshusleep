@@ -15,9 +15,11 @@ final class BandScanner: NSObject, ObservableObject {
     @Published private(set) var isScanning = false
     @Published private(set) var connectedName: String?
     @Published private(set) var connectingID: UUID?
-    @Published private(set) var status = "尚未连接手环"
+    @Published private(set) var status = "尚未连接穿戴设备"
     @Published private(set) var battery: Int?
     @Published private(set) var modelNumber: String?
+    @Published private(set) var liveHeartRate: Int?
+    @Published private(set) var supportsHeartRate = false
     private var central: CBCentralManager?
     private var connected: CBPeripheral?
     private var wantsScan = false
@@ -76,6 +78,8 @@ final class BandScanner: NSObject, ObservableObject {
         connectedName = nil
         battery = nil
         modelNumber = nil
+        liveHeartRate = nil
+        supportsHeartRate = false
         status = "已断开连接"
     }
 }
@@ -108,7 +112,7 @@ extension BandScanner: @preconcurrency CBCentralManagerDelegate, @preconcurrency
         connectedName = peripheral.name ?? "蓝牙设备"
         status = "蓝牙已连接 · 睡眠同步尚未适配"
         peripheral.delegate = self
-        peripheral.discoverServices([CBUUID(string: "180F"), CBUUID(string: "180A")])
+        peripheral.discoverServices([CBUUID(string: "180F"), CBUUID(string: "180A"), CBUUID(string: "180D")])
     }
 
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
@@ -127,14 +131,18 @@ extension BandScanner: @preconcurrency CBCentralManagerDelegate, @preconcurrency
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         guard error == nil else { return }
         for service in peripheral.services ?? [] {
-            peripheral.discoverCharacteristics([CBUUID(string: "2A19"), CBUUID(string: "2A24")], for: service)
+            if service.uuid == CBUUID(string: "180D") { supportsHeartRate = true }
+            peripheral.discoverCharacteristics([CBUUID(string: "2A19"), CBUUID(string: "2A24"), CBUUID(string: "2A37")], for: service)
         }
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
         guard error == nil else { return }
-        for characteristic in service.characteristics ?? [] where characteristic.properties.contains(.read) {
-            peripheral.readValue(for: characteristic)
+        for characteristic in service.characteristics ?? [] {
+            if characteristic.properties.contains(.read) { peripheral.readValue(for: characteristic) }
+            if characteristic.uuid == CBUUID(string: "2A37"), characteristic.properties.contains(.notify) {
+                peripheral.setNotifyValue(true, for: characteristic)
+            }
         }
     }
 
@@ -142,5 +150,26 @@ extension BandScanner: @preconcurrency CBCentralManagerDelegate, @preconcurrency
         guard error == nil, let value = characteristic.value else { return }
         if characteristic.uuid == CBUUID(string: "2A19"), let first = value.first, first <= 100 { battery = Int(first) }
         if characteristic.uuid == CBUUID(string: "2A24") { modelNumber = String(data: value, encoding: .utf8) }
+        if characteristic.uuid == CBUUID(string: "2A37") { liveHeartRate = StandardHeartRate.decode(value) }
     }
+}
+
+enum StandardHeartRate {
+    static func decode(_ data: Data) -> Int? {
+        let bytes = Array(data)
+        guard bytes.count >= 2 else { return nil }
+        let value: Int
+        if bytes[0] & 1 == 0 { value = Int(bytes[1]) }
+        else {
+            guard bytes.count >= 3 else { return nil }
+            value = Int(bytes[1]) | Int(bytes[2]) << 8
+        }
+        return (20...250).contains(value) ? value : nil
+    }
+}
+
+// Device-specific SDKs/protocols can map their history to validated local payloads.
+protocol WearableSleepAdapter {
+    var providerName: String { get }
+    func fetchSleep(since: Date) async throws -> [SleepPayload]
 }

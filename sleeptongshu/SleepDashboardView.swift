@@ -9,7 +9,7 @@ struct SleepDashboardView: View {
     @State private var help: MetricHelp?
     @AppStorage("sleepGoalHours") private var goal = 8.0
 
-    private var selected: SleepRecord? { records.first { $0.id == selectedID } ?? records.first }
+    private var selected: SleepRecord? { records.first { $0.id == selectedID } ?? records.first { $0.source != .sample } ?? records.first }
     private var selectedIndex: Int { records.firstIndex { $0.id == selected?.id } ?? 0 }
 
     var body: some View {
@@ -20,6 +20,7 @@ struct SleepDashboardView: View {
                     if let record = selected {
                         dateNavigation(record)
                         overview(record)
+                        if let phone = record.metadata?.phone { PhoneReportView(night: phone) }
                         stages(record)
                         vitals(record)
                         analysis(record)
@@ -97,20 +98,24 @@ struct SleepDashboardView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     SourceTag(source: record.source)
                     Text("给身体，一晚好眠").font(.system(size: 19, weight: .bold)).foregroundStyle(SleepPalette.ink)
-                    Text("总睡眠时长").font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
+                    Text(record.source == .phone ? "估算睡眠时长" : "总睡眠时长").font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
+                    if !record.hasSleepDuration {
+                        Text("待估算").font(.system(size: 32, weight: .semibold)).foregroundStyle(SleepPalette.ink)
+                    } else {
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Text("\(record.asleepMinutes / 60)").font(.system(size: 41, weight: .semibold, design: .rounded)).monospacedDigit()
                         Text("小时").font(.system(size: 13)).padding(.trailing, 3)
                         Text("\(record.asleepMinutes % 60)").font(.system(size: 41, weight: .semibold, design: .rounded)).monospacedDigit()
                         Text("分").font(.system(size: 13))
                     }.foregroundStyle(SleepPalette.ink).minimumScaleFactor(0.75).lineLimit(1)
+                    }
                 }
                 Spacer(minLength: 8)
                 Button {
                     help = MetricHelp(title: "睡眠参考分", body: "参考分由睡眠时长（60%）与睡眠效率（40%）计算。时长部分以 8 小时为满分。这是 App 自定义的观察指标，并非小米、苹果或医疗机构评分；手动记录没有睡眠阶段，因此不生成分数。")
                 } label: { scoreRing(record) }.buttonStyle(.plain).accessibilityLabel("睡眠参考分说明")
             }
-            VStack(spacing: 7) {
+            if record.hasSleepDuration { VStack(spacing: 7) {
                 GeometryReader { proxy in
                     ZStack(alignment: .leading) {
                         Capsule().fill(SleepPalette.teal.opacity(0.1))
@@ -122,13 +127,13 @@ struct SleepDashboardView: View {
                     Spacer()
                     Text(Double(record.asleepMinutes) >= goal * 60 ? "已达成" : "还差 \(SleepRecord.durationText(max(0, Int(goal * 60) - record.asleepMinutes)))")
                 }.font(.system(size: 10)).foregroundStyle(SleepPalette.muted)
-            }
+            } }
             HStack(spacing: 0) {
-                timeValue("入睡时间", value: SleepRecord.clock(record.start), symbol: "moon.fill")
+                timeValue(record.source == .phone ? "估算入睡" : "入睡时间", value: record.source == .phone ? record.metadata?.phone?.estimatedOnset.map(SleepRecord.clock) ?? "--" : record.segments.first(where: { $0.stage != .awake && $0.stage != .unobserved }).map { SleepRecord.clock($0.start) } ?? SleepRecord.clock(record.start), symbol: "moon.fill")
                 Spacer()
                 Rectangle().fill(SleepPalette.teal.opacity(0.12)).frame(width: 1, height: 32)
                 Spacer()
-                timeValue("起床时间", value: SleepRecord.clock(record.end), symbol: "sun.max.fill")
+                timeValue(record.source == .phone ? "结束采集" : "记录结束", value: SleepRecord.clock(record.end), symbol: "sun.max.fill")
                 Spacer()
                 Rectangle().fill(SleepPalette.teal.opacity(0.12)).frame(width: 1, height: 32)
                 Spacer()
@@ -166,18 +171,22 @@ struct SleepDashboardView: View {
                     help = MetricHelp(title: "关于睡眠阶段", body: "深睡、浅睡和快速眼动（REM）会在一晚中交替出现。REM 与梦境、记忆加工有关，深睡参与身体恢复。手环通过传感器估算阶段，不能替代临床睡眠检查。每段色条都对应记录中的真实时间区间；示例来源表示这些区间是模拟数据。")
                 } label: { Image(systemName: "info.circle").frame(width: 36, height: 36) }.accessibilityLabel("睡眠阶段说明")
             }
-            if record.hasStages {
+            if !record.segments.isEmpty {
                 StageTimeline(record: record)
-                HStack(alignment: .top, spacing: 8) {
+                if record.segments.contains(where: { [.unobserved, .unspecified].contains($0.stage) }) {
+                    Text("未分期睡眠 \(record.minutes(.unspecified)) 分 · 未记录 \(record.minutes(.unobserved)) 分。缺口不会计作清醒或深睡；分期比例可能不可用。")
+                        .font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
+                }
+                if record.hasStages { HStack(alignment: .top, spacing: 8) {
                     ForEach([SleepStage.deep, .light, .rem, .awake]) { stage in
                         VStack(alignment: .leading, spacing: 7) {
                             HStack(spacing: 4) { Circle().fill(stage.color).frame(width: 5, height: 5); Text(stage.label).font(.system(size: 10)) }
                             Text("\(record.minutes(stage))").font(.system(size: 20, weight: .semibold, design: .rounded)) + Text(" 分").font(.system(size: 10))
                         }.foregroundStyle(SleepPalette.ink).frame(maxWidth: .infinity, alignment: .leading)
                     }
-                }
+                } }
             } else {
-                Text("手动记录包含睡眠时间，暂无睡眠分期。")
+                Text(record.source == .manual ? "手动记录包含睡眠时间，暂无睡眠分期。" : "此来源未提供睡眠分期；手机声音与体动不能区分深睡、浅睡或 REM。")
                     .font(.system(size: 13)).foregroundStyle(SleepPalette.muted).padding(.vertical, 22)
             }
         }
@@ -223,13 +232,18 @@ struct SleepDashboardView: View {
     private func analysis(_ record: SleepRecord) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             SectionHeading(title: "这一晚的小结")
+            if record.hasSleepDuration {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "sparkles").foregroundStyle(SleepPalette.teal).padding(.top, 2)
                 VStack(alignment: .leading, spacing: 8) {
                     Text(record.asleepMinutes >= 420 ? "睡眠时长比较充足" : "给睡眠再留一点时间").font(.system(size: 15, weight: .semibold))
-                    Text(record.asleepMinutes >= 420 ? "这一晚睡了 \(SleepRecord.durationText(record.asleepMinutes))。多数成年人可参考每晚 7–9 小时，再结合白天精神状态调整。" : "这一晚睡了 \(SleepRecord.durationText(record.asleepMinutes))。可以尝试把睡前准备提前一些，观察连续几天的变化。")
+                    Text("\(record.source == .phone ? "手机信号估算约" : "这一晚睡了") \(SleepRecord.durationText(record.asleepMinutes))。\(record.asleepMinutes >= 420 ? "多数成年人可参考每晚 7–9 小时，再结合白天精神状态调整。" : "可以尝试把睡前准备提前一些，观察连续几天的变化。")")
                         .font(.system(size: 13)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
                 }
+            }
+            } else {
+                Text("本次仅记录采集时段与环境信号，暂不能判断睡眠时长或睡眠质量。建议按监测页面的摆放提示完成整晚采集。")
+                    .font(.system(size: 13)).foregroundStyle(SleepPalette.muted)
             }
             if let share = record.deepShare {
                 Divider()
@@ -256,7 +270,7 @@ struct RecordRow: View {
                     .font(.system(size: 10)).foregroundStyle(SleepPalette.muted)
             }
             Spacer(minLength: 4)
-            Text(SleepRecord.durationText(record.asleepMinutes)).font(.system(size: 13, weight: .semibold, design: .rounded))
+            Text(record.hasSleepDuration ? SleepRecord.durationText(record.asleepMinutes) : "待估算").font(.system(size: 13, weight: .semibold, design: .rounded))
         }.foregroundStyle(SleepPalette.ink).padding(.vertical, 5).contentShape(Rectangle())
     }
 }
@@ -266,13 +280,16 @@ struct TrendsView: View {
     @State private var days = 7
     @State private var metric = TrendMetric.duration
     @State private var detail: SleepRecord?
+    @State private var sourceFilter: String?
     @AppStorage("sleepGoalHours") private var goal = 8.0
 
     private var periodRecords: [SleepRecord] {
         let start = Calendar.current.date(byAdding: .day, value: 1 - days, to: Calendar.current.startOfDay(for: .now))!
-        return records.filter { $0.end >= start && $0.end <= .now }
+        let source = sourceFilter ?? records.last(where: { $0.source != .sample })?.seriesKey ?? SleepDataSource.sample.rawValue
+        return records.filter { $0.end >= start && $0.end <= .now && $0.seriesKey == source }
     }
-    private var average: Int { periodRecords.isEmpty ? 0 : periodRecords.map(\.asleepMinutes).reduce(0, +) / periodRecords.count }
+    private var durations: [Int] { periodRecords.filter(\.hasSleepDuration).map(\.asleepMinutes) }
+    private var average: Int { durations.isEmpty ? 0 : durations.reduce(0, +) / durations.count }
 
     var body: some View {
         NavigationStack {
@@ -284,14 +301,23 @@ struct TrendsView: View {
                     }
                     Picker("时间范围", selection: $days) { Text("近 7 天").tag(7); Text("近 30 天").tag(30) }.pickerStyle(.segmented)
                         .accessibilityIdentifier("trendPeriod")
+                    Picker("数据来源", selection: $sourceFilter) {
+                        Text("自动选择来源").tag(nil as String?)
+                        ForEach(Array(Set(records.map(\.seriesKey))).sorted(), id: \.self) { key in
+                            Text(records.first { $0.seriesKey == key }?.seriesLabel ?? key).tag(Optional(key))
+                        }
+                    }.font(.system(size: 12))
+                    Text("不同来源分别统计，示例不会与真实记录混合。手机时长为信号估算，未能估算的记录不计入平均。")
+                        .font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
                     if periodRecords.isEmpty {
                         ContentUnavailableView("暂无这段时间的记录", systemImage: "chart.bar", description: Text("添加睡眠记录后查看趋势。"))
                     } else {
                         VStack(alignment: .leading, spacing: 15) {
+                            if let record = periodRecords.last { SourceTag(source: record.source) }
                             HStack(alignment: .firstTextBaseline) {
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text("平均睡眠时长").font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
-                                    Text(SleepRecord.durationText(average)).font(.system(size: 29, weight: .semibold, design: .rounded)).foregroundStyle(SleepPalette.ink)
+                                    Text(durations.isEmpty ? "--" : SleepRecord.durationText(average)).font(.system(size: 29, weight: .semibold, design: .rounded)).foregroundStyle(SleepPalette.ink)
                                 }
                                 Spacer()
                                 Text("\(periodRecords.count) 条记录").font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
@@ -304,9 +330,9 @@ struct TrendsView: View {
                         }
                         Divider()
                         HStack(spacing: 12) {
-                            trendStat("最长一晚", value: SleepRecord.durationText(periodRecords.map(\.asleepMinutes).max() ?? 0))
+                            trendStat("最长一晚", value: durations.max().map(SleepRecord.durationText) ?? "--")
                             Spacer()
-                            trendStat("达成目标", value: "\(periodRecords.filter { Double($0.asleepMinutes) >= goal * 60 }.count) 晚")
+                            trendStat("达成目标", value: durations.isEmpty ? "--" : "\(durations.filter { Double($0) >= goal * 60 }.count) 晚")
                         }
                         SectionHeading(title: "每日记录", subtitle: "点开一晚，查看完整数据")
                         LazyVStack(spacing: 0) {
@@ -340,10 +366,11 @@ struct RecordDetailView: View {
         NavigationStack {
             List {
                 Section { RecordRow(record: record) }
-                if record.hasStages {
+                if let phone = record.metadata?.phone { Section { PhoneReportView(night: phone) } }
+                if !record.segments.isEmpty {
                     Section("睡眠阶段") {
                         StageTimeline(record: record).padding(.vertical, 16)
-                        ForEach(SleepStage.allCases) { stage in
+                        ForEach(SleepStage.allCases.filter { stage in record.segments.contains { $0.stage == stage } }) { stage in
                             LabeledContent(stage.label, value: SleepRecord.durationText(record.minutes(stage)))
                         }
                     }

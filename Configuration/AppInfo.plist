@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+    <key>UIBackgroundModes</key><array><string>audio</string></array>
+    <key>SleepHealthKitEnabled</key><string>$(SLEEP_HEALTHKIT_ENABLED)</string>
+    <key>NSMicrophoneUsageDescription</key><string>手机监测在本机分析夜间声音，估算疑似鼾声和说话声，不保存原始录音。</string>
+    <key>NSMotionUsageDescription</key><string>手机监测使用加速度传感器观察床面体动，辅助估算安静时段。</string>
+    <key>NSHealthShareUsageDescription</key><string>将你允许读取的睡眠、心率、血氧和呼吸率导入本机睡眠报告。</string>
+    <key>NSHealthUpdateUsageDescription</key><string>当前版本不向 Apple 健康写入数据。</string>
+</dict></plist>

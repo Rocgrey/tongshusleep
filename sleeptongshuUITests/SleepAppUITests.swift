@@ -48,11 +48,36 @@ final class SleepAppUITests: XCTestCase {
         scrollDown()
         press(app.buttons["移除示例数据"])
         press(app.buttons.matching(identifier: "移除示例数据").allElementsBoundByIndex.first { $0.isHittable }!)
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "本机记录、1 条")).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "1 条")).firstMatch.waitForExistence(timeout: 5))
         selectTab("睡眠")
         XCTAssertTrue(app.staticTexts["手动记录"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["手动记录包含睡眠时间，暂无睡眠分期。"].exists)
         capture("06-manual-record")
+    }
+
+    func testMonitoringModesAndPhoneReportCharts() {
+        selectTab("监测")
+        XCTAssertTrue(app.staticTexts["好眠，从今晚开始"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["startMonitoring"].isEnabled)
+        capture("07-phone-monitoring")
+        scrollDown()
+        press(app.buttons["previewPhoneReport"])
+        XCTAssertTrue(app.staticTexts["模拟数据 · 仅预览，不会保存到睡眠记录"].waitForExistence(timeout: 5))
+        capture("08-phone-report")
+        press(app.segmentedControls.buttons["体动"])
+        capture("09-motion-chart")
+        press(app.segmentedControls.buttons["声音事件"])
+        capture("10-sound-events")
+        press(app.buttons["完成"])
+        #if targetEnvironment(macCatalyst)
+        app.windows.firstMatch.scroll(byDeltaX: 0, deltaY: 1000)
+        #else
+        app.swipeDown()
+        app.swipeDown()
+        #endif
+        press(app.segmentedControls["monitorMode"].buttons["穿戴设备"])
+        XCTAssertTrue(app.staticTexts["手环、手表与睡眠戒指"].exists)
+        capture("11-wearable-monitoring")
     }
 
     private func capture(_ name: String) {

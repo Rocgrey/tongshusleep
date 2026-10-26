@@ -1,23 +1,29 @@
 # tongshusleep · sleeptongshu
 
-睡眠同书，一个用 SwiftUI 编写的本地优先 iOS 睡眠 App。第一版先把睡眠数据展示、记录和备份做完整，方便用自己的设备逐步验证。
+睡眠同书，一个用 SwiftUI 编写的本地优先 iOS 睡眠 App。当前第二版 **0.2.0** 加入手机监测、Apple 健康导入和通用穿戴设备入口。第一版保存在 `v0.1.0` 标签。
 
-**当前展示的睡眠、阶段、心率和血氧是明确标注的示例。尚未实现小米手环私有认证及睡眠数据下载，也没有接入 HealthKit。通用蓝牙连接成功不代表能同步睡眠。**
+**初次启动的 30 晚记录是明确标注的示例。手机监测可以实际采集麦克风和加速度信号，但睡眠时长只是实验性估算，不生成深睡、REM 或体征。历史穿戴睡眠需通过 Apple 健康或设备专用协议；蓝牙连上不代表可同步睡眠。**
+
+第二版的安装、权限、算法与真机测试步骤见 **[第二版说明](docs/V2.md)**。普通 `sleeptongshu` scheme 保持基础安装能力；`sleeptongshu-Health` scheme 启用 HealthKit，需要对应签名能力。App 不需要小米账号，没有 App 自建账号或服务器。
 
 <p>
-  <img src="docs/screenshots/overview.png" width="280" alt="睡眠首页，Mac Catalyst 窄窗口预览" />
-  <img src="docs/screenshots/trends.png" width="280" alt="睡眠趋势，Mac Catalyst 窄窗口预览" />
+  <img src="docs/screenshots/v2/phone.png" width="260" alt="第二版手机监测，iPhone 模拟器" />
+  <img src="docs/screenshots/v2/phone-report.png" width="260" alt="第二版手机声音报告，使用明确标注的模拟数据" />
+  <img src="docs/screenshots/v2/wearable.png" width="260" alt="第二版穿戴设备入口，iPhone 模拟器" />
 </p>
 
-截图为真实 Mac Catalyst 运行结果，使用模拟睡眠数据；并非 iPhone 模拟器截图。
+以上为实际 iPhone 模拟器截图，报告预览使用明确标注的模拟信号。第一版截图保留在 `docs/screenshots/`。验证结果见 [第二版验证](docs/VALIDATION_V2.md)。
 
 ## 界面与功能
 
+- 监测：手机 / 穿戴设备两种方式；夜间采集开始、结束、保存、舍弃；30 秒本地草稿检查点，异常退出后恢复已有信号。
+- 手机报告：声音强度、体动、疑似鼾声/说话时间图；估算入睡和安静窗口，摆放、电量、权限与后台限制说明。不保存原始录音，不将说话直接断言为梦话。
+- Apple 健康：只读最近 30 天的睡眠与可用体征，选择单一来源/设备导入，同一来源同一晚更新而非重复创建；缺口/冲突保持“未记录”。默认普通安装不启用此能力，请选择健康 scheme。
 - 睡眠：首页总时长、入睡/起床时间、参考分、睡眠效率、深睡占比、阶段时间轴、健康体征、心率曲线及说明。
 - 趋势：最近 7 / 30 天的时长、效率、深睡占比；目标参考线；每日记录详情与单条删除。
 - 手动记录：跨夜时间、睡前笔记。不虚构手动记录的阶段、分数或体征，缺失数据展示为 `--`。
 - 本地数据：SwiftData 持久化，JSON 备份导入/导出，重复 ID 跳过，示例加载/移除与全部清理确认。
-- 设备：BLE 扫描、连接、超时、断线和权限状态。设备支持时读取标准电量/型号特征，不写入私有特征。
+- 设备：BLE 扫描、连接、超时、断线和权限状态。设备支持时读取标准电量/型号及实时心率服务，不写入私有特征。实时心率不冒充整夜平均心率。
 - 同步扩展：`SleepSyncClient` 使用 Codable 值类型预留异步上传/下载接口，当前没有服务端、账号或网络同步。
 
 ## 第一次运行
@@ -30,7 +36,7 @@
 
 ### iPhone 真机
 
-在项目的 **Signing & Capabilities** 中选择自己的 Team（Personal Team 可用于个人调试），必要时把 Bundle Identifier 改成自己的唯一值。连接并信任 iPhone，在设备上开启开发者模式，再选择该 iPhone 运行。工程没有写死其他人的开发者 Team 或证书。
+在项目的 **Signing & Capabilities** 中选择自己的 Team，必要时把 Bundle Identifier 改成自己的唯一值。连接并信任 iPhone，在设备上开启开发者模式，再选择该 iPhone 运行。工程保留了当前项目所有者的 Team 设置；其他开发者需改成自己的 Team。普通 scheme 可用于基础个人调试；健康 scheme 需要 HealthKit 对应的开发能力和描述文件。
 
 ### 命令行
 
@@ -69,6 +75,11 @@ xcodebuild -project sleeptongshu.xcodeproj -scheme sleeptongshu \
 | `SleepEditorView.swift` | 手动跨夜记录 |
 | `BandScanner.swift` | 通用 BLE 扫描、连接和标准只读特征 |
 | `BandConnectionView.swift` | 设备、目标与本地数据管理 |
+| `MonitoringView.swift` | 双模式监测、使用指南、手机报告与信号图 |
+| `PhoneSleepMonitor.swift` | 麦克风、系统声音分类、加速度与本地检查点 |
+| `PhoneSleepData.swift` | 手机分钟窗口与透明的实验性估算规则 |
+| `HealthSleepImporter.swift` | HealthKit 授权、来源选择、分期归一化与导入 |
+| `Configuration/` | 后台音频声明、权限文字、可选 HealthKit 配置 |
 | `sleeptongshuTests/` | 数据一致性、导入验证与持久化测试 |
 | `sleeptongshuUITests/` | 日期、趋势、详情、手动记录与清理操作测试 |
 
@@ -82,4 +93,4 @@ xcodebuild -project sleeptongshu.xcodeproj -scheme sleeptongshu \
 
 ## 接下来适配手环
 
-先确认手环的准确型号及固件，再验证认证和历史数据协议；之后实现 `SleepPayload` 数据适配器。若无法合法、稳定地直接取得所需数据，可另行实现可选的 HealthKit 导入。当前代码不承诺小米手环无需账号即可完成配对或读取睡眠。
+先确认穿戴设备的准确型号及固件，再验证认证和历史数据协议；之后实现 `WearableSleepAdapter`，输出经过校验的 `SleepPayload`。无法直接读取时可使用本版的可选 HealthKit 导入，但设备厂商 App 仍可能要求账号。当前不承诺任意蓝牙设备无需认证即可读取睡眠。

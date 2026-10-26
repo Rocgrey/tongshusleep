@@ -13,7 +13,7 @@ struct SleepBackupDocument: FileDocument {
 struct BandConnectionView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \SleepRecord.end, order: .reverse) private var records: [SleepRecord]
-    @StateObject private var scanner = BandScanner()
+    @EnvironmentObject private var scanner: BandScanner
     @AppStorage("sleepGoalHours") private var goal = 8.0
     @State private var exportDocument: SleepBackupDocument?
     @State private var showsExporter = false
@@ -31,12 +31,13 @@ struct BandConnectionView: View {
                         HStack(spacing: 12) {
                             Image(systemName: "applewatch").font(.system(size: 29)).foregroundStyle(SleepPalette.teal)
                             VStack(alignment: .leading, spacing: 5) {
-                                Text(scanner.connectedName ?? "连接你的手环").font(.system(size: 17, weight: .semibold))
+                                Text(scanner.connectedName ?? "连接穿戴设备").font(.system(size: 17, weight: .semibold))
                                 Text(scanner.status).font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
                             }
                         }
                         if let battery = scanner.battery { Label("电量 \(battery)%", systemImage: "battery.100percent").font(.system(size: 12)) }
                         if let model = scanner.modelNumber { Text("型号：\(model)").font(.system(size: 12)) }
+                        if let value = scanner.liveHeartRate { Label("实时心率 \(value) 次/分", systemImage: "heart.fill").font(.system(size: 14)) }
                         if scanner.connectedName != nil || scanner.connectingID != nil {
                             Button("断开连接", role: .destructive) { scanner.disconnect() }
                         } else {
@@ -47,7 +48,7 @@ struct BandConnectionView: View {
                         }
                     }.padding(.vertical, 8)
                 } footer: {
-                    Text("已支持通用蓝牙扫描与连接。小米手环的睡眠同步仍需适配；当前不读取手环睡眠数据。蓝牙请在 iPhone 真机测试。")
+                    Text("支持扫描手环、手表、戒指等 BLE 设备，读取公开的电量、型号与标准实时心率。历史睡眠需要厂商协议，当前尚未适配；请在真机验证。")
                 }
                 if !scanner.devices.isEmpty {
                     Section("附近设备 · \(scanner.devices.count)") {
@@ -86,7 +87,7 @@ struct BandConnectionView: View {
                     Button("删除全部记录", role: .destructive) { deleteAll = true }.disabled(records.isEmpty)
                 }
                 Section {
-                    LabeledContent("版本", value: "0.1.0")
+                    LabeledContent("版本", value: "0.2.0")
                     Text("睡眠阶段及体征用于观察个人趋势，不用于医疗诊断。")
                         .font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
                 } header: { Text("睡眠同书") }

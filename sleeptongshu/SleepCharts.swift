@@ -13,13 +13,13 @@ struct StageTimeline: View {
             .accessibilityValue("\(SleepRecord.clock(segment.start))，\(segment.minutes)分钟")
         }
         .chartXScale(domain: record.start...record.end)
-        .chartYScale(domain: -0.6...3.6)
+        .chartYScale(domain: (record.minutes(.unobserved) > 0 ? -1.6 : -0.6)...3.6)
         .chartYAxis {
-            AxisMarks(position: .leading, values: [0, 1, 2, 3]) { value in
+            AxisMarks(position: .leading, values: record.minutes(.unobserved) > 0 ? [-1, 0, 1, 2, 3] : [0, 1, 2, 3]) { value in
                 AxisGridLine().foregroundStyle(SleepPalette.line.opacity(0.6))
                 AxisValueLabel {
                     if let level = value.as(Int.self), let stage = SleepStage.allCases.first(where: { $0.level == level }) {
-                        Text(stage == .rem ? "REM" : stage.label).font(.system(size: 10)).foregroundStyle(SleepPalette.muted)
+                        Text(level == 1 && !record.hasStages ? "睡眠" : stage == .rem ? "REM" : stage.label).font(.system(size: 10)).foregroundStyle(SleepPalette.muted)
                     }
                 }
             }
@@ -57,7 +57,7 @@ enum TrendMetric: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     func value(_ record: SleepRecord) -> Double? {
         switch self {
-        case .duration: Double(record.asleepMinutes) / 60
+        case .duration: record.hasSleepDuration ? Double(record.asleepMinutes) / 60 : nil
         case .efficiency: record.efficiency.map(Double.init)
         case .deep: record.deepShare.map(Double.init)
         }

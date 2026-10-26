@@ -44,11 +44,11 @@ enum SleepPalette {
 
 extension SleepStage {
     var color: Color {
-        switch self { case .awake: SleepPalette.awake; case .rem: SleepPalette.rem; case .light: SleepPalette.mint; case .deep: SleepPalette.deep }
+        switch self { case .awake: SleepPalette.awake; case .rem: SleepPalette.rem; case .light: SleepPalette.mint; case .deep: SleepPalette.deep; case .unspecified: SleepPalette.mint; case .unobserved: SleepPalette.line }
     }
 }
 
-enum SleepTab: Hashable { case sleep, trends, devices }
+enum SleepTab: Hashable { case sleep, monitoring, trends, devices }
 
 struct RootTabView: View {
     @Environment(\.modelContext) private var context
@@ -56,14 +56,22 @@ struct RootTabView: View {
     @AppStorage("hasSeededDemoV1") private var hasSeededDemo = false
     @State private var tab = SleepTab.sleep
     @State private var errorMessage: String?
+    @StateObject private var phone = PhoneSleepMonitor()
+    @StateObject private var scanner = BandScanner()
 
     var body: some View {
         TabView(selection: $tab) {
             SleepDashboardView().tabItem { Label("睡眠", systemImage: "moon.zzz.fill") }.tag(SleepTab.sleep)
+            MonitoringView().tabItem { Label("监测", systemImage: "waveform.path") }.tag(SleepTab.monitoring)
             TrendsView().tabItem { Label("趋势", systemImage: "chart.bar.xaxis") }.tag(SleepTab.trends)
             BandConnectionView().tabItem { Label("设备与数据", systemImage: "slider.horizontal.3") }.tag(SleepTab.devices)
         }
+        .environmentObject(phone)
+        .environmentObject(scanner)
         .task {
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("-preview-monitor") { tab = .monitoring }
+            #endif
             #if targetEnvironment(macCatalyst)
             try? await Task.sleep(for: .milliseconds(500))
             if ProcessInfo.processInfo.arguments.contains("-compact-preview"),

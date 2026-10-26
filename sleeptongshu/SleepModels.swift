@@ -2,25 +2,26 @@ import Foundation
 import SwiftData
 
 enum SleepDataSource: String, Codable, CaseIterable {
-    case sample, manual, healthKit, band
+    case sample, manual, healthKit, band, phone
     var label: String {
         switch self {
         case .sample: "示例数据"
         case .manual: "手动记录"
         case .healthKit: "Apple 健康"
-        case .band: "手环记录"
+        case .band: "穿戴设备"
+        case .phone: "手机估算"
         }
     }
 }
 
 enum SleepStage: String, Codable, CaseIterable, Identifiable {
-    case awake, rem, light, deep
+    case awake, rem, light, deep, unspecified, unobserved
     var id: String { rawValue }
     var label: String {
-        switch self { case .awake: "清醒"; case .rem: "快速眼动"; case .light: "浅睡"; case .deep: "深睡" }
+        switch self { case .awake: "清醒"; case .rem: "快速眼动"; case .light: "浅睡"; case .deep: "深睡"; case .unspecified: "睡眠（未分期）"; case .unobserved: "未记录" }
     }
     var level: Int {
-        switch self { case .awake: 3; case .rem: 2; case .light: 1; case .deep: 0 }
+        switch self { case .awake: 3; case .rem: 2; case .light: 1; case .deep: 0; case .unspecified: 1; case .unobserved: -1 }
     }
 }
 
@@ -49,6 +50,7 @@ struct SleepPayload: Codable, Identifiable {
     var averageSpO2: Double?
     var averageRespiratoryRate: Double?
     var note: String
+    var metadata: SleepMetadata? = nil
 
     func validate() throws {
         guard end > start, end.timeIntervalSince(start) <= 24 * 3600, note.count <= 2000 else { throw SleepDataError.invalidRecord }
@@ -66,7 +68,15 @@ struct SleepPayload: Codable, Identifiable {
         if let value = averageSpO2, !value.isFinite || !(0...100).contains(value) { throw SleepDataError.invalidRecord }
         if let value = averageRespiratoryRate, !value.isFinite || !(1...80).contains(value) { throw SleepDataError.invalidRecord }
         guard heartSamples.allSatisfy({ $0.date >= start && $0.date <= end && $0.bpm.isFinite && (20...250).contains($0.bpm) }) else { throw SleepDataError.invalidRecord }
+        if let phone = metadata?.phone {
+            guard phone.epochs.count <= 1441, phone.epochs == phone.epochs.sorted(by: { $0.date < $1.date }),
+                  Set(phone.epochs.map(\.date)).count == phone.epochs.count,
+                  phone.epochs.allSatisfy({ $0.date >= start && $0.date < end && $0.isValid }),
+                  phone.estimatedMinutes.map({ (0...inBedMinutes).contains($0) }) ?? true,
+                  phone.estimatedOnset.map({ $0 >= start && $0 < end }) ?? true else { throw SleepDataError.invalidRecord }
+        }
     }
+    private var inBedMinutes: Int { Int(end.timeIntervalSince(start) / 60) }
 }
 
 enum SleepDataError: LocalizedError {
@@ -92,6 +102,7 @@ final class SleepRecord {
     var averageSpO2: Double?
     var averageRespiratoryRate: Double?
     var note: String
+    var metadataData: Data?
 
     init(_ payload: SleepPayload) {
         id = payload.id
@@ -104,20 +115,35 @@ final class SleepRecord {
         averageSpO2 = payload.averageSpO2
         averageRespiratoryRate = payload.averageRespiratoryRate
         note = payload.note
+        metadataData = payload.metadata.flatMap { try? JSONEncoder().encode($0) }
+    }
+
+    func replace(with payload: SleepPayload) {
+        start = payload.start; end = payload.end; sourceRawValue = payload.source.rawValue
+        segmentsData = (try? JSONEncoder().encode(payload.segments)) ?? Data()
+        heartSamplesData = (try? JSONEncoder().encode(payload.heartSamples)) ?? Data()
+        averageHeartRate = payload.averageHeartRate; averageSpO2 = payload.averageSpO2
+        averageRespiratoryRate = payload.averageRespiratoryRate; note = payload.note
+        metadataData = payload.metadata.flatMap { try? JSONEncoder().encode($0) }
     }
 
     var source: SleepDataSource { SleepDataSource(rawValue: sourceRawValue) ?? .manual }
+    var seriesKey: String { metadata?.externalSource.map { "\(source.rawValue)|\($0)" } ?? source.rawValue }
+    var seriesLabel: String { metadata?.externalSource ?? source.label }
     var segments: [SleepSegment] { (try? JSONDecoder().decode([SleepSegment].self, from: segmentsData)) ?? [] }
     var heartSamples: [HeartSample] { (try? JSONDecoder().decode([HeartSample].self, from: heartSamplesData)) ?? [] }
+    var metadata: SleepMetadata? { metadataData.flatMap { try? JSONDecoder().decode(SleepMetadata.self, from: $0) } }
     var inBedMinutes: Int { max(0, Int(end.timeIntervalSince(start) / 60)) }
     var asleepMinutes: Int {
-        segments.isEmpty ? inBedMinutes : segments.filter { $0.stage != .awake }.map(\.minutes).reduce(0, +)
+        if source == .phone { return metadata?.phone?.estimatedMinutes ?? 0 }
+        return segments.isEmpty ? inBedMinutes : segments.filter { $0.stage != .awake && $0.stage != .unobserved }.map(\.minutes).reduce(0, +)
     }
-    var hasStages: Bool { !segments.isEmpty }
+    var hasStages: Bool { segments.contains { [.deep, .light, .rem].contains($0.stage) } }
+    var hasSleepDuration: Bool { source != .phone || metadata?.phone?.estimatedMinutes != nil }
     func minutes(_ stage: SleepStage) -> Int { segments.filter { $0.stage == stage }.map(\.minutes).reduce(0, +) }
-    var efficiency: Int? { hasStages && inBedMinutes > 0 ? Int(Double(asleepMinutes) / Double(inBedMinutes) * 100) : nil }
-    var deepShare: Int? { hasStages && asleepMinutes > 0 ? Int(Double(minutes(.deep)) / Double(asleepMinutes) * 100) : nil }
-    var awakenings: Int? { hasStages ? segments.dropFirst().filter { $0.stage == .awake }.count : nil }
+    var efficiency: Int? { !segments.isEmpty && !segments.contains { $0.stage == .unobserved } && inBedMinutes > 0 ? Int(Double(asleepMinutes) / Double(inBedMinutes) * 100) : nil }
+    var deepShare: Int? { hasStages && !segments.contains { [.unobserved, .unspecified].contains($0.stage) } && asleepMinutes > 0 ? Int(Double(minutes(.deep)) / Double(asleepMinutes) * 100) : nil }
+    var awakenings: Int? { hasStages && !segments.contains { $0.stage == .unobserved } ? segments.dropFirst().filter { $0.stage == .awake }.count : nil }
     var score: Int? {
         guard let efficiency else { return nil }
         let duration = min(100, Int(Double(asleepMinutes) / 480 * 100))
@@ -126,14 +152,14 @@ final class SleepRecord {
     var payload: SleepPayload {
         SleepPayload(id: id, start: start, end: end, source: source, segments: segments, heartSamples: heartSamples,
                      averageHeartRate: averageHeartRate, averageSpO2: averageSpO2,
-                     averageRespiratoryRate: averageRespiratoryRate, note: note)
+                     averageRespiratoryRate: averageRespiratoryRate, note: note, metadata: metadata)
     }
     static func durationText(_ minutes: Int) -> String { "\(minutes / 60)小时\(minutes % 60)分" }
     static func clock(_ date: Date) -> String { date.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits)) }
 }
 
 struct SleepBackup: Codable {
-    var version = 1
+    var version = 2
     var exportedAt = Date()
     var records: [SleepPayload]
     static func decode(_ data: Data) throws -> SleepBackup {
@@ -141,7 +167,7 @@ struct SleepBackup: Codable {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let backup = try decoder.decode(Self.self, from: data)
-        guard backup.version == 1 else { throw SleepDataError.unsupportedVersion }
+        guard (1...2).contains(backup.version) else { throw SleepDataError.unsupportedVersion }
         try backup.records.forEach { try $0.validate() }
         return backup
     }
