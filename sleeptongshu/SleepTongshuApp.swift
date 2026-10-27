@@ -48,7 +48,7 @@ extension SleepStage {
     }
 }
 
-enum SleepTab: Hashable { case sleep, monitoring, trends, devices }
+enum SleepTab: Hashable { case sleep, monitoring, trends }
 
 struct RootTabView: View {
     @Environment(\.modelContext) private var context
@@ -62,9 +62,8 @@ struct RootTabView: View {
     var body: some View {
         TabView(selection: $tab) {
             SleepDashboardView().tabItem { Label("睡眠", systemImage: "moon.zzz.fill") }.tag(SleepTab.sleep)
-            MonitoringView().tabItem { Label("监测", systemImage: "waveform.path") }.tag(SleepTab.monitoring)
+            MonitoringView().tabItem { Label("监测与设备", systemImage: "waveform.path") }.tag(SleepTab.monitoring)
             TrendsView().tabItem { Label("趋势", systemImage: "chart.bar.xaxis") }.tag(SleepTab.trends)
-            BandConnectionView().tabItem { Label("设备与数据", systemImage: "slider.horizontal.3") }.tag(SleepTab.devices)
         }
         .environmentObject(phone)
         .environmentObject(scanner)

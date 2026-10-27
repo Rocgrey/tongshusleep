@@ -2,6 +2,30 @@ import Foundation
 import CoreBluetooth
 import Combine
 
+enum BLEReadState: Equatable {
+    case unchecked, checking, unavailable, waiting, received, timedOut, failed(String)
+    var label: String {
+        switch self {
+        case .unchecked: "尚未检查"
+        case .checking: "正在检查"
+        case .unavailable: "未发现可用的标准特征"
+        case .waiting: "已请求，等待设备数据"
+        case .received: "已读取"
+        case .timedOut: "未收到数据，可重新读取"
+        case .failed(let reason): reason
+        }
+    }
+}
+
+enum BLEStandardAccess {
+    static func canRead(service: String, characteristic: String) -> Bool {
+        [("180F", "2A19"), ("180A", "2A24"), ("180D", "2A37")].contains { $0 == service && $1 == characteristic }
+    }
+    static func canSubscribe(service: String, characteristic: String) -> Bool {
+        service == "180D" && characteristic == "2A37"
+    }
+}
+
 struct NearbyBand: Identifiable {
     let peripheral: CBPeripheral
     var name: String
@@ -20,13 +44,86 @@ final class BandScanner: NSObject, ObservableObject {
     @Published private(set) var modelNumber: String?
     @Published private(set) var liveHeartRate: Int?
     @Published private(set) var supportsHeartRate = false
+    @Published private(set) var isInspecting = false
+    @Published private(set) var batteryState = BLEReadState.unchecked
+    @Published private(set) var modelState = BLEReadState.unchecked
+    @Published private(set) var heartRateState = BLEReadState.unchecked
+    @Published private(set) var discoveredServices: [String] = []
+    @Published private(set) var discoveredCharacteristics: [String: [String]] = [:]
+    @Published private(set) var readErrors: [String] = []
+    private var inspectionTimeout: Task<Void, Never>?
+    private var pendingServices: Set<String> = []
+    private var inspectedAt: Date?
     private var central: CBCentralManager?
     private var connected: CBPeripheral?
     private var wantsScan = false
     private var scanTimeout: Task<Void, Never>?
     private var connectionTimeout: Task<Void, Never>?
 
+    var diagnosticReport: String {
+        var lines = ["sleeptongshu · 蓝牙读取诊断", "设备：\(connectedName ?? "未连接")",
+                     "检查时间：\(inspectedAt?.formatted(date: .numeric, time: .standard) ?? "尚未检查")",
+                     "状态：\(status)", "电量：\(batteryState.label)", "型号：\(modelNumber ?? modelState.label)",
+                     "心率：\(heartRateState.label)", "历史睡眠：尚未适配厂商协议"]
+        if discoveredServices.isEmpty { lines.append("尚未发现服务，或设备未开放服务。") }
+        for service in discoveredServices {
+            lines.append("服务 \(service)")
+            lines += (discoveredCharacteristics[service] ?? []).map { "  \($0)" }
+        }
+        lines += readErrors.map { "读取提示：\($0)" }
+        lines.append("仅检查服务信息与已支持的标准数据；未发送私有写入命令。诊断不包含录音或睡眠记录。")
+        return lines.joined(separator: "\n")
+    }
+
+    func inspectDevice() {
+        guard let connected, connected.state == .connected, !isInspecting else { return }
+        inspectionTimeout?.cancel()
+        inspectedAt = .now
+        isInspecting = true
+        battery = nil; modelNumber = nil; liveHeartRate = nil; supportsHeartRate = false
+        batteryState = .checking; modelState = .checking; heartRateState = .checking
+        discoveredServices = []; discoveredCharacteristics = [:]; readErrors = []; pendingServices = []
+        status = "已连接 · 正在检查可读取的数据"
+        // Inventory all services, but only read/subscribe to explicitly supported standard characteristics.
+        connected.discoverServices(nil)
+        inspectionTimeout = Task { [weak self] in
+            do { try await Task.sleep(for: .seconds(12)) } catch { return }
+            guard let self else { return }
+            let timedOut = [self.batteryState, self.modelState, self.heartRateState].contains { $0 == .checking || $0 == .waiting }
+            if self.batteryState == .checking || self.batteryState == .waiting { self.batteryState = .timedOut }
+            if self.modelState == .checking || self.modelState == .waiting { self.modelState = .timedOut }
+            if self.heartRateState == .checking || self.heartRateState == .waiting { self.heartRateState = .timedOut }
+            if self.isInspecting { self.recordError("服务检查超时，请重新读取或重连设备。") }
+            self.isInspecting = false
+            if timedOut { self.status = "已连接 · 部分数据未收到，见下方状态" }
+        }
+    }
+
+    private func recordError(_ message: String) {
+        if !readErrors.contains(message) { readErrors.append(message) }
+        if readErrors.count > 20 { readErrors.removeFirst() }
+    }
+
+    private func setState(_ state: BLEReadState, characteristic: CBCharacteristic) {
+        switch (characteristic.service?.uuid.uuidString, characteristic.uuid.uuidString) {
+        case ("180F", "2A19"): batteryState = state; if state != .received { battery = nil }
+        case ("180A", "2A24"): modelState = state; if state != .received { modelNumber = nil }
+        case ("180D", "2A37"): heartRateState = state; if state != .received { liveHeartRate = nil }
+        default: break
+        }
+    }
+
+    private func finishInspectionIfReady() {
+        guard pendingServices.isEmpty else { return }
+        isInspecting = false
+        if batteryState == .checking { batteryState = .unavailable }
+        if modelState == .checking { modelState = .unavailable }
+        if heartRateState == .checking { heartRateState = .unavailable }
+        status = "已连接 · 历史睡眠需要厂商适配"
+    }
+
     func scan() {
+        guard connected == nil, connectingID == nil else { return }
         wantsScan = true
         if central == nil { central = CBCentralManager(delegate: self, queue: .main) }
         else { beginScanIfReady() }
@@ -72,6 +169,7 @@ final class BandScanner: NSObject, ObservableObject {
 
     func disconnect() {
         connectionTimeout?.cancel()
+        inspectionTimeout?.cancel()
         if let connected { central?.cancelPeripheralConnection(connected) }
         connected = nil
         connectingID = nil
@@ -80,6 +178,9 @@ final class BandScanner: NSObject, ObservableObject {
         modelNumber = nil
         liveHeartRate = nil
         supportsHeartRate = false
+        isInspecting = false
+        batteryState = .unchecked; modelState = .unchecked; heartRateState = .unchecked
+        discoveredServices = []; discoveredCharacteristics = [:]; readErrors = []; pendingServices = []; inspectedAt = nil
         status = "已断开连接"
     }
 }
@@ -107,15 +208,16 @@ extension BandScanner: @preconcurrency CBCentralManagerDelegate, @preconcurrency
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+        guard connected?.identifier == peripheral.identifier else { central.cancelPeripheralConnection(peripheral); return }
         connectionTimeout?.cancel()
         connectingID = nil
         connectedName = peripheral.name ?? "蓝牙设备"
-        status = "蓝牙已连接 · 睡眠同步尚未适配"
         peripheral.delegate = self
-        peripheral.discoverServices([CBUUID(string: "180F"), CBUUID(string: "180A"), CBUUID(string: "180D")])
+        inspectDevice()
     }
 
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
+        guard connected?.identifier == peripheral.identifier else { return }
         connectionTimeout?.cancel()
         connected = nil
         connectingID = nil
@@ -129,28 +231,102 @@ extension BandScanner: @preconcurrency CBCentralManagerDelegate, @preconcurrency
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
-        guard error == nil else { return }
-        for service in peripheral.services ?? [] {
-            if service.uuid == CBUUID(string: "180D") { supportsHeartRate = true }
-            peripheral.discoverCharacteristics([CBUUID(string: "2A19"), CBUUID(string: "2A24"), CBUUID(string: "2A37")], for: service)
+        guard connected?.identifier == peripheral.identifier else { return }
+        if let error {
+            recordError("发现服务失败：\(error.localizedDescription)")
+            let failure = BLEReadState.failed("服务读取失败，见设备诊断")
+            batteryState = failure; modelState = failure; heartRateState = failure
+            isInspecting = false
+            status = "已连接 · 服务检查失败"
+            return
         }
+        discoveredServices = (peripheral.services ?? []).map { $0.uuid.uuidString }.sorted()
+        pendingServices = Set(discoveredServices)
+        for service in peripheral.services ?? [] {
+            peripheral.discoverCharacteristics(nil, for: service)
+        }
+        finishInspectionIfReady()
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
-        guard error == nil else { return }
+        guard connected?.identifier == peripheral.identifier else { return }
+        defer { pendingServices.remove(service.uuid.uuidString); finishInspectionIfReady() }
+        if let error {
+            recordError("服务 \(service.uuid.uuidString)：\(error.localizedDescription)")
+            let failure = BLEReadState.failed("特征检查失败，见设备诊断")
+            switch service.uuid.uuidString {
+            case "180F": batteryState = failure
+            case "180A": modelState = failure
+            case "180D": heartRateState = failure
+            default: break
+            }
+            return
+        }
+        discoveredCharacteristics[service.uuid.uuidString] = (service.characteristics ?? []).map { characteristic in
+            let properties = characteristic.properties
+            var flags: [String] = []
+            if properties.contains(.read) { flags.append("可读") }
+            if properties.contains(.notify) { flags.append("通知") }
+            if properties.contains(.indicate) { flags.append("指示") }
+            if properties.contains(.write) || properties.contains(.writeWithoutResponse) { flags.append("可写（未使用）") }
+            return "\(characteristic.uuid.uuidString) · \(flags.joined(separator: "、"))"
+        }.sorted()
         for characteristic in service.characteristics ?? [] {
-            if characteristic.properties.contains(.read) { peripheral.readValue(for: characteristic) }
-            if characteristic.uuid == CBUUID(string: "2A37"), characteristic.properties.contains(.notify) {
+            let canRead = BLEStandardAccess.canRead(service: service.uuid.uuidString, characteristic: characteristic.uuid.uuidString)
+            guard canRead else { continue }
+            if characteristic.properties.contains(.read) {
+                setState(.waiting, characteristic: characteristic)
+                peripheral.readValue(for: characteristic)
+            }
+            if BLEStandardAccess.canSubscribe(service: service.uuid.uuidString, characteristic: characteristic.uuid.uuidString),
+               characteristic.properties.contains(.notify) || characteristic.properties.contains(.indicate) {
+                supportsHeartRate = true
+                setState(.waiting, characteristic: characteristic)
                 peripheral.setNotifyValue(true, for: characteristic)
             }
         }
     }
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
-        guard error == nil, let value = characteristic.value else { return }
-        if characteristic.uuid == CBUUID(string: "2A19"), let first = value.first, first <= 100 { battery = Int(first) }
-        if characteristic.uuid == CBUUID(string: "2A24") { modelNumber = String(data: value, encoding: .utf8) }
-        if characteristic.uuid == CBUUID(string: "2A37") { liveHeartRate = StandardHeartRate.decode(value) }
+        guard connected?.identifier == peripheral.identifier,
+              BLEStandardAccess.canRead(service: characteristic.service?.uuid.uuidString ?? "", characteristic: characteristic.uuid.uuidString) else { return }
+        if let error {
+            recordError("\(characteristic.uuid.uuidString)：\(error.localizedDescription)")
+            setState(.failed("读取失败，见设备诊断"), characteristic: characteristic)
+            return
+        }
+        guard let value = characteristic.value else { setState(.failed("设备返回空数据"), characteristic: characteristic); return }
+        switch characteristic.uuid.uuidString {
+        case "2A19":
+            guard let first = value.first, first <= 100 else { setState(.failed("设备电量格式无法识别"), characteristic: characteristic); return }
+            battery = Int(first)
+        case "2A24":
+            guard let model = String(data: value, encoding: .utf8), !model.isEmpty else { setState(.failed("设备型号格式无法识别"), characteristic: characteristic); return }
+            modelNumber = model
+        case "2A37":
+            guard let rate = StandardHeartRate.decode(value) else { setState(.failed("心率数据无效或格式不兼容"), characteristic: characteristic); return }
+            liveHeartRate = rate
+        default: return
+        }
+        setState(.received, characteristic: characteristic)
+    }
+
+    func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
+        guard connected?.identifier == peripheral.identifier,
+              BLEStandardAccess.canSubscribe(service: characteristic.service?.uuid.uuidString ?? "", characteristic: characteristic.uuid.uuidString) else { return }
+        if let error {
+            recordError("心率订阅失败：\(error.localizedDescription)")
+            if liveHeartRate == nil { heartRateState = .failed("心率订阅失败，见设备诊断") }
+        } else if !characteristic.isNotifying, liveHeartRate == nil {
+            heartRateState = .failed("设备没有开启心率通知")
+        }
+    }
+
+    func peripheral(_ peripheral: CBPeripheral, didModifyServices invalidatedServices: [CBService]) {
+        guard connected?.identifier == peripheral.identifier else { return }
+        inspectionTimeout?.cancel()
+        isInspecting = false
+        inspectDevice()
     }
 }
 

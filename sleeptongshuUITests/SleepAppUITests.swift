@@ -42,7 +42,8 @@ final class SleepAppUITests: XCTestCase {
         XCTAssertTrue(app.buttons["saveSleep"].waitForExistence(timeout: 5))
         capture("04-add-record")
         press(app.buttons["saveSleep"])
-        selectTab("设备与数据")
+        selectTab("监测与设备")
+        press(app.buttons["localData"])
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "31 条")).firstMatch.waitForExistence(timeout: 5))
         capture("05-device-data")
         scrollDown()
@@ -56,7 +57,7 @@ final class SleepAppUITests: XCTestCase {
     }
 
     func testMonitoringModesAndPhoneReportCharts() {
-        selectTab("监测")
+        selectTab("监测与设备")
         XCTAssertTrue(app.staticTexts["好眠，从今晚开始"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["startMonitoring"].isEnabled)
         capture("07-phone-monitoring")
@@ -78,6 +79,17 @@ final class SleepAppUITests: XCTestCase {
         press(app.segmentedControls["monitorMode"].buttons["穿戴设备"])
         XCTAssertTrue(app.staticTexts["手环、手表与睡眠戒指"].exists)
         capture("11-wearable-monitoring")
+    }
+
+    func testUnifiedDeviceAndDataNavigationHasOneScanner() {
+        selectTab("监测与设备")
+        XCTAssertFalse(app.tabBars.buttons["设备与数据"].exists)
+        press(app.segmentedControls["monitorMode"].buttons["穿戴设备"])
+        XCTAssertEqual(app.buttons.matching(identifier: "scanBand").count, 1)
+        press(app.buttons["localData"])
+        XCTAssertTrue(app.buttons["导出 JSON 备份"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["scanBand"].exists)
+        capture("12-local-data")
     }
 
     private func capture(_ name: String) {

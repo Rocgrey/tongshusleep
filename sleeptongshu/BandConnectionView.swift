@@ -10,10 +10,9 @@ struct SleepBackupDocument: FileDocument {
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper { FileWrapper(regularFileWithContents: data) }
 }
 
-struct BandConnectionView: View {
+struct LocalDataView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \SleepRecord.end, order: .reverse) private var records: [SleepRecord]
-    @EnvironmentObject private var scanner: BandScanner
     @AppStorage("sleepGoalHours") private var goal = 8.0
     @State private var exportDocument: SleepBackupDocument?
     @State private var showsExporter = false
@@ -24,49 +23,7 @@ struct BandConnectionView: View {
     @State private var showsEditor = false
 
     var body: some View {
-        NavigationStack {
             List {
-                Section {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack(spacing: 12) {
-                            Image(systemName: "applewatch").font(.system(size: 29)).foregroundStyle(SleepPalette.teal)
-                            VStack(alignment: .leading, spacing: 5) {
-                                Text(scanner.connectedName ?? "连接穿戴设备").font(.system(size: 17, weight: .semibold))
-                                Text(scanner.status).font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
-                            }
-                        }
-                        if let battery = scanner.battery { Label("电量 \(battery)%", systemImage: "battery.100percent").font(.system(size: 12)) }
-                        if let model = scanner.modelNumber { Text("型号：\(model)").font(.system(size: 12)) }
-                        if let value = scanner.liveHeartRate { Label("实时心率 \(value) 次/分", systemImage: "heart.fill").font(.system(size: 14)) }
-                        if scanner.connectedName != nil || scanner.connectingID != nil {
-                            Button("断开连接", role: .destructive) { scanner.disconnect() }
-                        } else {
-                            Button { scanner.isScanning ? scanner.stopScan() : scanner.scan() } label: {
-                                Label(scanner.isScanning ? "停止扫描" : "扫描附近设备", systemImage: scanner.isScanning ? "stop.fill" : "magnifyingglass")
-                                    .frame(maxWidth: .infinity).padding(.vertical, 4)
-                            }.buttonStyle(.borderedProminent).accessibilityIdentifier("scanBand")
-                        }
-                    }.padding(.vertical, 8)
-                } footer: {
-                    Text("支持扫描手环、手表、戒指等 BLE 设备，读取公开的电量、型号与标准实时心率。历史睡眠需要厂商协议，当前尚未适配；请在真机验证。")
-                }
-                if !scanner.devices.isEmpty {
-                    Section("附近设备 · \(scanner.devices.count)") {
-                        ForEach(scanner.devices) { device in
-                            Button { scanner.connect(device) } label: {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(device.name).font(.system(size: 14))
-                                        Text("信号 \(device.rssi) dBm · \(device.id.uuidString.prefix(8))").font(.system(size: 10)).foregroundStyle(SleepPalette.muted)
-                                    }
-                                    Spacer()
-                                    if scanner.connectingID == device.id { ProgressView() }
-                                    else { Image(systemName: "chevron.right").font(.system(size: 11)) }
-                                }
-                            }.disabled(scanner.connectedName != nil || scanner.connectingID != nil)
-                        }
-                    }
-                }
                 Section("我的睡眠目标") {
                     Stepper(value: $goal, in: 5...12, step: 0.5) {
                         LabeledContent("每晚睡眠", value: "\(goal.formatted(.number.precision(.fractionLength(0...1)))) 小时")
@@ -93,9 +50,9 @@ struct BandConnectionView: View {
                 } header: { Text("睡眠同书") }
             }
             .scrollContentBackground(.hidden).background(SleepPalette.background)
-            .navigationTitle("设备与数据")
+            .navigationTitle("本地数据").navigationBarTitleDisplayMode(.inline)
+            .toolbar(.visible, for: .navigationBar)
             .sheet(isPresented: $showsEditor) { SleepEditorView() }
-            .onDisappear { scanner.stopScan() }
             .fileExporter(isPresented: $showsExporter, document: exportDocument, contentType: .json, defaultFilename: "sleeptongshu-backup") { result in
                 switch result { case .success: message = "备份已导出。"; case .failure(let error): message = error.localizedDescription }
             }
@@ -111,7 +68,6 @@ struct BandConnectionView: View {
             .confirmationDialog("删除全部记录？请先导出备份。", isPresented: $deleteAll, titleVisibility: .visible) {
                 Button("删除全部记录", role: .destructive) { remove(records) }
             }
-        }
     }
 
     private func prepareExport() {

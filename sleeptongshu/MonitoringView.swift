@@ -13,6 +13,7 @@ struct MonitoringView: View {
     @State private var showPreview = false
     @State private var showDiscard = false
     @State private var message: String?
+    @State private var showsLocalData = false
 
     var body: some View {
         NavigationStack {
@@ -26,6 +27,14 @@ struct MonitoringView: View {
                         Spacer(minLength: 6)
                         Image(systemName: "moon.stars.fill").font(.system(size: 28)).foregroundStyle(SleepPalette.deep).padding(.top, 4)
                     }
+                    Button { showsLocalData = true } label: {
+                        HStack {
+                            Label("本地数据与睡眠目标", systemImage: "externaldrive")
+                            Spacer()
+                            Text("\(records.count) 条").foregroundStyle(SleepPalette.muted)
+                            Image(systemName: "chevron.right")
+                        }.font(.system(size: 13)).padding(.vertical, 10).contentShape(Rectangle())
+                    }.accessibilityIdentifier("localData")
                     Picker("监测方式", selection: $mode) {
                         Label("手机监测", systemImage: "iphone").tag(0)
                         Label("穿戴设备", systemImage: "applewatch").tag(1)
@@ -36,6 +45,7 @@ struct MonitoringView: View {
             }
             .background(SleepPalette.background).foregroundStyle(SleepPalette.ink)
             .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(isPresented: $showsLocalData) { LocalDataView() }
             .sheet(isPresented: $showPreview) {
                 NavigationStack {
                     ScrollView {
@@ -56,6 +66,7 @@ struct MonitoringView: View {
                 #if DEBUG
                 if ProcessInfo.processInfo.arguments.contains("-preview-wearable") { mode = 1 }
                 if ProcessInfo.processInfo.arguments.contains("-preview-phone-report") { showPreview = true }
+                if ProcessInfo.processInfo.arguments.contains("-preview-local-data") { showsLocalData = true }
                 #endif
             }
         }
@@ -182,8 +193,9 @@ struct MonitoringView: View {
             if let value = scanner.battery { Label("设备电量 \(value)%", systemImage: "battery.100percent").font(.system(size: 12)) }
             if let value = scanner.liveHeartRate { Label("实时心率 \(value) 次/分", systemImage: "heart.fill").font(.system(size: 17, weight: .semibold)).foregroundStyle(.pink) }
             if scanner.connectedName != nil {
-                Text("蓝牙已连接。\(scanner.supportsHeartRate ? "已发现标准心率服务。" : "设备未提供标准心率服务。")历史睡眠需要设备专用协议，目前未适配。")
-                    .font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
+                deviceReadout
+                Button { scanner.inspectDevice() } label: { Label("重新读取", systemImage: "arrow.clockwise") }
+                    .disabled(scanner.isInspecting).accessibilityIdentifier("refreshDeviceData")
                 Button("断开设备", role: .destructive) { scanner.disconnect() }
             } else if scanner.connectingID != nil {
                 ProgressView("连接中…")
@@ -193,7 +205,7 @@ struct MonitoringView: View {
                     Label(scanner.isScanning ? "停止搜索" : "搜索蓝牙设备", systemImage: scanner.isScanning ? "stop.fill" : "magnifyingglass")
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity).padding(.vertical, 7)
-                }.buttonStyle(.borderedProminent)
+                }.buttonStyle(.borderedProminent).accessibilityIdentifier("scanBand")
             }
             ForEach(scanner.devices) { device in
                 Button { scanner.connect(device) } label: {
@@ -216,6 +228,36 @@ struct MonitoringView: View {
             }
             Text("可读取的指标取决于设备开放协议。本版支持公开的电量、型号与实时心率，历史睡眠尚未适配。设备已同步到 Apple 健康的睡眠记录，可以从下方导入。")
                 .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
+        }
+    }
+    private var deviceReadout: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            SectionHeading(title: "连接后的数据状态", subtitle: scanner.isInspecting ? "正在检查设备开放的数据…" : "连接成功后，仍需设备开放对应的数据")
+            readout("电量", value: scanner.battery.map { "\($0)%" }, state: scanner.batteryState)
+            readout("设备型号", value: scanner.modelNumber, state: scanner.modelState)
+            readout("实时心率", value: scanner.liveHeartRate.map { "\($0) 次/分" }, state: scanner.heartRateState)
+            readout("历史睡眠", value: nil, state: .failed("尚未适配厂商协议"))
+            Text("如果心率一直等待，请确认佩戴贴合，并在设备或配套 App 中开启心率广播（若支持）。不要先解绑或恢复出厂设置，以免丢失设备中的记录。")
+                .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
+            DisclosureGroup("读取不到数据怎么办？") {
+                Text("先在设备配套 App 中确认昨晚数据能正常同步。若它支持写入 Apple 健康，可同步后从下方导入。直接读取历史睡眠则需要具体型号的官方 SDK 或公开协议。设备认证、加密或其他 App 占用连接都可能影响读取；读取失败原因请查看诊断。")
+                    .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4).padding(.top, 8)
+            }.font(.system(size: 13))
+            DisclosureGroup("设备诊断") {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(scanner.diagnosticReport).font(.system(size: 11, design: .monospaced)).textSelection(.enabled)
+                    ShareLink(item: scanner.diagnosticReport) { Label("分享设备诊断", systemImage: "square.and.arrow.up") }
+                }.padding(.top, 8)
+            }.font(.system(size: 13))
+        }
+    }
+    private func readout(_ title: String, value: String?, state: BLEReadState) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text(title).font(.system(size: 13, weight: .medium))
+            Spacer(minLength: 8)
+            Text(value ?? state.label).font(.system(size: 12))
+                .foregroundStyle(value == nil ? SleepPalette.muted : SleepPalette.teal)
+                .multilineTextAlignment(.trailing)
         }
     }
     private var differences: some View {
