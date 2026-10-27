@@ -84,7 +84,7 @@ xcodebuild -project sleeptongshu.xcodeproj -scheme sleeptongshu \
 | `sleeptongshuTests/` | 数据一致性、导入验证与持久化测试 |
 | `sleeptongshuUITests/` | 日期、趋势、详情、手动记录与清理操作测试 |
 
-更多说明：[数据与蓝牙](docs/DATA_AND_BLUETOOTH.md)、[测试步骤](docs/TESTING.md)。
+更多说明：[数据与蓝牙](docs/DATA_AND_BLUETOOTH.md)、[测试步骤](docs/TESTING.md)、[L03 Ultra / G Band 日志分析](docs/GBAND_LOG_ANALYSIS.md)。日志已确认设备有私有协议响应，尚未完成该戒指的睡眠同步适配。
 
 ## 说明
 
