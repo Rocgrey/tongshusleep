@@ -1,0 +1,35 @@
+// Experimental hardware build, intentionally separate from the main project.
+SDKROOT = iphoneos
+SUPPORTED_PLATFORMS = iphoneos
+ARCHS = arm64
+SUPPORTS_MACCATALYST = NO
+IPHONEOS_DEPLOYMENT_TARGET = 17.0
+SWIFT_VERSION = 5.0
+SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG SLEEP_VEEPOO
+SWIFT_OBJC_BRIDGING_HEADER = sleeptongshu/VeepooBridge.h
+GCC_PREPROCESSOR_DEFINITIONS = $(inherited) SLEEP_VEEPOO=1
+CLANG_ENABLE_MODULES = YES
+CLANG_ENABLE_OBJC_ARC = YES
+ENABLE_USER_SCRIPT_SANDBOXING = NO
+FRAMEWORK_SEARCH_PATHS = $(inherited) "$(SRCROOT)/Vendor/Veepoo/Frameworks"
+LIBRARY_SEARCH_PATHS = $(inherited) "$(BUILT_PRODUCTS_DIR)"
+LD_RUNPATH_SEARCH_PATHS = $(inherited) @executable_path/Frameworks
+OTHER_LDFLAGS = $(inherited) -ObjC -lsleeptongshuVendorSupport -lsqlite3 -lz -lc++ -framework VeepooBleSDK -framework JL_BLEKit -framework DFUnits -framework GRDFUSDK -framework ZipZap -framework JLDialUnit -framework ABParTool -framework Accelerate -framework CoreBluetooth -framework CoreLocation -framework CoreTelephony -framework SystemConfiguration -framework QuartzCore -framework Security
+GENERATE_INFOPLIST_FILE = YES
+INFOPLIST_FILE = Configuration/AppInfo.plist
+INFOPLIST_KEY_CFBundleDisplayName = sleeptongshu
+INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = 允许睡眠同书连接你选择的戒指，读取睡眠与可用体征。
+INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES
+INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES
+INFOPLIST_KEY_UILaunchScreen_Generation = YES
+INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait
+INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+SLEEP_HEALTHKIT_ENABLED = NO
+ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon
+MARKETING_VERSION = 0.2.2
+CURRENT_PROJECT_VERSION = 4
+PRODUCT_BUNDLE_IDENTIFIER = com.rocgrey.sleeptongshu
+PRODUCT_NAME = sleeptongshu
+TARGETED_DEVICE_FAMILY = 1,2
+CODE_SIGN_STYLE = Automatic
+DEVELOPMENT_TEAM = 6HHDS2N87X

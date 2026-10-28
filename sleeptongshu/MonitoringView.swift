@@ -5,15 +5,19 @@ import Charts
 struct MonitoringView: View {
     @EnvironmentObject private var phone: PhoneSleepMonitor
     @EnvironmentObject private var scanner: BandScanner
+    @EnvironmentObject private var vitals: WearableVitalsStore
     @Environment(\.modelContext) private var context
     @Query private var records: [SleepRecord]
     @StateObject private var health = HealthSleepImporter()
+    @StateObject private var ring = VeepooRingClient()
+    @State private var ringTask: Task<Void, Never>?
     @AppStorage("phoneTrackingEnabled") private var trackingEnabled = false
     @State private var mode = 0
     @State private var showPreview = false
     @State private var showDiscard = false
     @State private var message: String?
     @State private var showsLocalData = false
+    @State private var showsVitals = false
 
     var body: some View {
         NavigationStack {
@@ -46,6 +50,7 @@ struct MonitoringView: View {
             .background(SleepPalette.background).foregroundStyle(SleepPalette.ink)
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(isPresented: $showsLocalData) { LocalDataView() }
+            .navigationDestination(isPresented: $showsVitals) { WearableVitalsView() }
             .sheet(isPresented: $showPreview) {
                 NavigationStack {
                     ScrollView {
@@ -62,6 +67,9 @@ struct MonitoringView: View {
                 Button("舍弃采集", role: .destructive) { phone.discard() }
             }
             .onDisappear { scanner.stopScan() }
+            .onChange(of: scanner.veepooChannelDetected) { _, detected in
+                if detected && VeepooRingClient.enabled && !ring.isBusy { syncRing() }
+            }
             .onAppear {
                 #if DEBUG
                 if ProcessInfo.processInfo.arguments.contains("-preview-wearable") { mode = 1 }
@@ -140,26 +148,26 @@ struct MonitoringView: View {
             HStack {
                 Image(systemName: "heart.text.clipboard.fill").font(.system(size: 23)).foregroundStyle(.pink)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("从 Apple 健康读取").font(.system(size: 16, weight: .semibold))
+                    Text("从系统健康读取").font(.system(size: 16, weight: .semibold))
                     Text("已有记录，也可以直接带过来").font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
                 }
                 Spacer()
             }
-            Text("读取已存在的睡眠与可用体征，不会让 iPhone 自动产生手环级数据。Apple Watch、手环或戒指需先将数据写入“健康”。")
+            Text("读取已存在的睡眠与可用体征。手表、手环或戒指需先将记录写入系统“健康”。")
                 .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
             if !health.providers.isEmpty {
                 Picker("选择数据来源", selection: $health.selectedProvider) {
-                    ForEach(health.providers, id: \.self) { Text($0).tag($0) }
+                    ForEach(health.providers, id: \.self) { Text(DevicePresentation.name($0)).tag($0) }
                 }.font(.system(size: 12))
                 Button { Task { await importHealth() } } label: { Label("导入所选来源", systemImage: "square.and.arrow.down") }
                     .disabled(health.isLoading)
             }
             Button { Task { await health.load() } } label: {
                 if health.isLoading { ProgressView().frame(maxWidth: .infinity) }
-                else { Label("连接 Apple 健康", systemImage: "heart.fill").frame(maxWidth: .infinity).padding(.vertical, 4) }
+                else { Label("连接系统健康", systemImage: "heart.fill").frame(maxWidth: .infinity).padding(.vertical, 4) }
             }.buttonStyle(.bordered).disabled(health.isLoading).accessibilityIdentifier("connectHealth")
             if !HealthSleepImporter.enabled {
-                Text("此安装包的健康读取尚未启用，需配置 HealthKit；不影响手机监测。")
+                Text("当前版本未启用系统健康读取，可使用手机监测或设备同步。")
                     .font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
             }
         }
@@ -190,11 +198,23 @@ struct MonitoringView: View {
                     Text(scanner.status).font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
                 }
             }
+            if scanner.veepooChannelDetected || !ring.events.isEmpty { ringPanel }
+            Button { showsVitals = true } label: {
+                HStack {
+                    Label("体征记录", systemImage: "heart.text.clipboard")
+                    Spacer()
+                    Text("\(vitals.samples.count) 条").foregroundStyle(SleepPalette.muted)
+                    Image(systemName: "chevron.right")
+                }.font(.system(size: 14)).padding(.vertical, 10)
+            }.accessibilityIdentifier("wearableVitals")
             if let value = scanner.battery { Label("设备电量 \(value)%", systemImage: "battery.100percent").font(.system(size: 12)) }
             if let value = scanner.liveHeartRate { Label("实时心率 \(value) 次/分", systemImage: "heart.fill").font(.system(size: 17, weight: .semibold)).foregroundStyle(.pink) }
-            if scanner.connectedName != nil {
-                deviceReadout
-                Button { scanner.inspectDevice() } label: { Label("重新读取", systemImage: "arrow.clockwise") }
+            if ring.isBusy {
+                Button("取消戒指同步", role: .cancel) { ringTask?.cancel(); ring.cancel() }
+            } else if scanner.connectedName != nil {
+                DisclosureGroup("标准数据与设备诊断") { deviceReadout.padding(.top, 10) }
+                    .font(.system(size: 13))
+                Button { scanner.inspectDevice() } label: { Label("重新检查设备", systemImage: "arrow.clockwise") }
                     .disabled(scanner.isInspecting).accessibilityIdentifier("refreshDeviceData")
                 Button("断开设备", role: .destructive) { scanner.disconnect() }
             } else if scanner.connectingID != nil {
@@ -207,7 +227,31 @@ struct MonitoringView: View {
                         .frame(maxWidth: .infinity).padding(.vertical, 7)
                 }.buttonStyle(.borderedProminent).accessibilityIdentifier("scanBand")
             }
-            ForEach(scanner.devices) { device in
+            if scanner.connectedName == nil && !ring.isBusy {
+              if !scanner.rememberedDevices.isEmpty {
+                SectionHeading(title: "已连接过的设备", subtitle: "点击直接重连，无需再次搜索")
+                ForEach(scanner.rememberedDevices) { device in
+                    HStack {
+                        Button { scanner.reconnect(device) } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "link").foregroundStyle(SleepPalette.teal)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("\(DevicePresentation.name(device.name)) · \(device.id.uuidString.prefix(4))").font(.system(size: 14, weight: .medium))
+                                    Text("上次连接 \(device.lastConnected.formatted(.dateTime.month().day().hour().minute()))").font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
+                                }
+                                Spacer()
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                            }.contentShape(Rectangle())
+                        }.buttonStyle(.plain).disabled(scanner.connectingID != nil)
+                        Menu {
+                            Button("忘记此设备", role: .destructive) { scanner.forget(device) }
+                        } label: { Image(systemName: "ellipsis").frame(width: 40, height: 40) }
+                            .accessibilityLabel("设备选项")
+                    }
+                    Divider()
+                }
+              }
+              ForEach(scanner.devices) { device in
                 Button { scanner.connect(device) } label: {
                     HStack {
                         Image(systemName: "sensor.fill").foregroundStyle(SleepPalette.deep)
@@ -218,16 +262,71 @@ struct MonitoringView: View {
                         Spacer()
                         Image(systemName: "chevron.right").font(.system(size: 12))
                     }.padding(.vertical, 8).contentShape(Rectangle())
-                }.buttonStyle(.plain).disabled(scanner.connectedName != nil || scanner.connectingID != nil)
+                }.buttonStyle(.plain).disabled(scanner.connectedName != nil || scanner.connectingID != nil || ring.isBusy)
                 Divider()
+              }
             }
             SectionHeading(title: "设备提供什么，就展示什么", subtitle: "兼容性取决于开放协议与数据权限")
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: 18) {
                 capability("睡眠阶段", icon: "chart.bar.xaxis", detail: "深睡 · 浅睡 · REM · 清醒")
                 capability("夜间体征", icon: "heart.fill", detail: "心率 · 血氧 · 呼吸率")
             }
-            Text("可读取的指标取决于设备开放协议。本版支持公开的电量、型号与实时心率，历史睡眠尚未适配。设备已同步到 Apple 健康的睡眠记录，可以从下方导入。")
+            Text("连接后同步设备已有的睡眠与体征，没有睡眠也可保存体征。仅展示设备实际提供且可验证的值；未开放的指标不会补算。")
                 .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
+        }
+    }
+    private var ringPanel: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Divider()
+            Label("睡眠与体征同步", systemImage: "arrow.triangle.2.circlepath").font(.system(size: 16, weight: .semibold))
+            Text(ring.status).font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
+            if let progress = ring.progress { ProgressView(value: progress).tint(SleepPalette.teal) }
+            else if ring.isBusy { ProgressView().controlSize(.small) }
+            if VeepooRingClient.enabled {
+                Button { syncRing() } label: {
+                    Label("同步睡眠与体征", systemImage: "arrow.down.circle").frame(maxWidth: .infinity).padding(.vertical, 5)
+                }.buttonStyle(.borderedProminent)
+                    .disabled(ring.isBusy || !scanner.veepooChannelDetected || scanner.isInspecting)
+                    .accessibilityIdentifier("syncVeepooRing")
+                Text("连接受支持的戒指后自动同步。请先结束其他 App 的同步，并保持本 App 打开。同步会校准设备时间，结束后释放蓝牙连接。")
+                    .font(.system(size: 11)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
+            } else {
+                Text("已识别设备通道，当前安装包尚未启用此通道的数据读取。")
+                    .font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
+            }
+            if !ring.events.isEmpty {
+                DisclosureGroup("同步详情") {
+                    Text(ring.diagnosticReport).font(.system(size: 11, design: .monospaced)).textSelection(.enabled)
+                    ShareLink(item: ring.diagnosticReport) { Label("分享同步诊断", systemImage: "square.and.arrow.up") }
+                }.font(.system(size: 12))
+            }
+        }
+    }
+
+    private func syncRing() {
+        guard !ring.isBusy else { return }
+        ring.preparing()
+        ringTask = Task {
+            do {
+                let peripheral = try await scanner.releaseForVendorSync()
+                let download = try await ring.sync(peripheral: peripheral)
+                let payloads = download.records
+                let added = try vitals.merge(download.vitals)
+                for payload in payloads {
+                    try payload.validate()
+                    if let existing = records.first(where: { $0.id == payload.id }) { existing.replace(with: payload) }
+                    else { context.insert(SleepRecord(payload)) }
+                }
+                try context.save()
+                ring.saved(count: payloads.count, vitals: download.vitals.count)
+                message = "已保存睡眠 \(payloads.count) 段，新增或更新体征 \(added) 条。\(payloads.isEmpty ? "暂无睡眠记录，请佩戴过夜后再同步。" : "")\(download.vitals.isEmpty ? "本次没有有效体征，请贴合佩戴并完成测量后重试。" : "体征可在“体征记录”中查看。")\(download.rejected > 0 ? "部分睡眠格式尚未验证，未保存。" : "")"
+            } catch is CancellationError {
+                ring.cancel()
+            } catch {
+                context.rollback()
+                ring.reportFailure(error)
+                message = error.localizedDescription
+            }
         }
     }
     private var deviceReadout: some View {
@@ -236,11 +335,11 @@ struct MonitoringView: View {
             readout("电量", value: scanner.battery.map { "\($0)%" }, state: scanner.batteryState)
             readout("设备型号", value: scanner.modelNumber, state: scanner.modelState)
             readout("实时心率", value: scanner.liveHeartRate.map { "\($0) 次/分" }, state: scanner.heartRateState)
-            readout("历史睡眠", value: nil, state: .failed("尚未适配厂商协议"))
+            readout("历史睡眠", value: nil, state: .failed(VeepooRingClient.enabled && scanner.veepooChannelDetected ? "待通过戒指接口同步" : "尚未适配厂商协议"))
             Text("如果心率一直等待，请确认佩戴贴合，并在设备或配套 App 中开启心率广播（若支持）。不要先解绑或恢复出厂设置，以免丢失设备中的记录。")
                 .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
             DisclosureGroup("读取不到数据怎么办？") {
-                Text("先在设备配套 App 中确认昨晚数据能正常同步。若它支持写入 Apple 健康，可同步后从下方导入。直接读取历史睡眠则需要具体型号的官方 SDK 或公开协议。设备认证、加密或其他 App 占用连接都可能影响读取；读取失败原因请查看诊断。")
+                Text("请确认设备已贴合佩戴并生成记录。蓝牙连接成功仅表示通道建立，历史数据可能还需要设备认证或协议适配。若设备支持写入系统健康，也可从下方导入；具体读取状态见设备诊断。")
                     .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4).padding(.top, 8)
             }.font(.system(size: 13))
             DisclosureGroup("设备诊断") {

@@ -58,6 +58,7 @@ struct RootTabView: View {
     @State private var errorMessage: String?
     @StateObject private var phone = PhoneSleepMonitor()
     @StateObject private var scanner = BandScanner()
+    @StateObject private var vitals = WearableVitalsStore.appStore()
 
     var body: some View {
         TabView(selection: $tab) {
@@ -67,6 +68,15 @@ struct RootTabView: View {
         }
         .environmentObject(phone)
         .environmentObject(scanner)
+        .environmentObject(vitals)
+        .onChange(of: scanner.latestVitals) { _, samples in
+            let spaced = samples.filter { sample in
+                let previous = vitals.samples.last { $0.device == sample.device && $0.kind == sample.kind && $0.origin == sample.origin }
+                return previous.map { sample.date.timeIntervalSince($0.date) >= 60 } ?? true
+            }
+            guard !spaced.isEmpty else { return }
+            do { try vitals.merge(spaced) } catch { errorMessage = "体征未能保存：\(error.localizedDescription)" }
+        }
         .task {
             #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("-preview-monitor") { tab = .monitoring }

@@ -7,7 +7,7 @@ enum SleepDataSource: String, Codable, CaseIterable {
         switch self {
         case .sample: "示例数据"
         case .manual: "手动记录"
-        case .healthKit: "Apple 健康"
+        case .healthKit: "系统健康"
         case .band: "穿戴设备"
         case .phone: "手机估算"
         }
@@ -129,7 +129,7 @@ final class SleepRecord {
 
     var source: SleepDataSource { SleepDataSource(rawValue: sourceRawValue) ?? .manual }
     var seriesKey: String { metadata?.externalSource.map { "\(source.rawValue)|\($0)" } ?? source.rawValue }
-    var seriesLabel: String { metadata?.externalSource ?? source.label }
+    var seriesLabel: String { DevicePresentation.name(metadata?.externalSource ?? source.label) }
     var segments: [SleepSegment] { (try? JSONDecoder().decode([SleepSegment].self, from: segmentsData)) ?? [] }
     var heartSamples: [HeartSample] { (try? JSONDecoder().decode([HeartSample].self, from: heartSamplesData)) ?? [] }
     var metadata: SleepMetadata? { metadataData.flatMap { try? JSONDecoder().decode(SleepMetadata.self, from: $0) } }

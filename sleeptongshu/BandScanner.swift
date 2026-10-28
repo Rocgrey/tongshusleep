@@ -19,10 +19,10 @@ enum BLEReadState: Equatable {
 
 enum BLEStandardAccess {
     static func canRead(service: String, characteristic: String) -> Bool {
-        [("180F", "2A19"), ("180A", "2A24"), ("180D", "2A37")].contains { $0 == service && $1 == characteristic }
+        [("180F", "2A19"), ("180A", "2A24"), ("180D", "2A37"), ("1810", "2A35"), ("1822", "2A5E"), ("1822", "2A5F")].contains { $0 == service && $1 == characteristic }
     }
     static func canSubscribe(service: String, characteristic: String) -> Bool {
-        service == "180D" && characteristic == "2A37"
+        [("180D", "2A37"), ("1810", "2A35"), ("1822", "2A5E"), ("1822", "2A5F")].contains { $0 == service && $1 == characteristic }
     }
 }
 
@@ -51,6 +51,12 @@ final class BandScanner: NSObject, ObservableObject {
     @Published private(set) var discoveredServices: [String] = []
     @Published private(set) var discoveredCharacteristics: [String: [String]] = [:]
     @Published private(set) var readErrors: [String] = []
+    @Published private(set) var veepooChannelDetected = false
+    @Published private(set) var isHandingOff = false
+    @Published private(set) var rememberedDevices: [RememberedDevice] = []
+    @Published private(set) var latestVitals: [WearableVital] = []
+    private let rememberedStorage = RememberedDeviceStorage(defaults: .standard)
+    private var pendingReconnect: RememberedDevice?
     private var inspectionTimeout: Task<Void, Never>?
     private var pendingServices: Set<String> = []
     private var inspectedAt: Date?
@@ -60,11 +66,41 @@ final class BandScanner: NSObject, ObservableObject {
     private var scanTimeout: Task<Void, Never>?
     private var connectionTimeout: Task<Void, Never>?
 
+    override init() {
+        super.init()
+        rememberedDevices = rememberedStorage.load()
+    }
+
+    func reconnect(_ device: RememberedDevice) {
+        guard connected == nil, connectingID == nil, !isHandingOff else { return }
+        pendingReconnect = device
+        status = "正在重连已保存的设备…"
+        if central == nil { central = CBCentralManager(delegate: self, queue: .main) }
+        else { reconnectIfReady() }
+    }
+
+    private func reconnectIfReady() {
+        guard let central, central.state == .poweredOn, let device = pendingReconnect else { return }
+        pendingReconnect = nil
+        guard let peripheral = central.retrievePeripherals(withIdentifiers: [device.id]).first else {
+            status = "系统未找到此设备，请重新搜索一次。原设备记录已保留。"
+            return
+        }
+        connect(NearbyBand(peripheral: peripheral, name: DevicePresentation.name(device.name), rssi: 0))
+    }
+
+    func forget(_ device: RememberedDevice) {
+        if pendingReconnect?.id == device.id { pendingReconnect = nil }
+        rememberedDevices.removeAll { $0.id == device.id }
+        rememberedStorage.save(rememberedDevices)
+    }
+
     var diagnosticReport: String {
         var lines = ["sleeptongshu · 蓝牙读取诊断", "设备：\(connectedName ?? "未连接")",
                      "检查时间：\(inspectedAt?.formatted(date: .numeric, time: .standard) ?? "尚未检查")",
                      "状态：\(status)", "电量：\(batteryState.label)", "型号：\(modelNumber ?? modelState.label)",
-                     "心率：\(heartRateState.label)", "历史睡眠：尚未适配厂商协议"]
+                     "心率：\(heartRateState.label)",
+                     "历史睡眠：\(VeepooRingClient.enabled && veepooChannelDetected ? "待通过戒指接口同步，见主按钮" : "尚未适配厂商协议")"]
         if discoveredServices.isEmpty { lines.append("尚未发现服务，或设备未开放服务。") }
         for service in discoveredServices {
             lines.append("服务 \(service)")
@@ -83,6 +119,8 @@ final class BandScanner: NSObject, ObservableObject {
         battery = nil; modelNumber = nil; liveHeartRate = nil; supportsHeartRate = false
         batteryState = .checking; modelState = .checking; heartRateState = .checking
         discoveredServices = []; discoveredCharacteristics = [:]; readErrors = []; pendingServices = []
+        veepooChannelDetected = false
+        latestVitals = []
         status = "已连接 · 正在检查可读取的数据"
         // Inventory all services, but only read/subscribe to explicitly supported standard characteristics.
         connected.discoverServices(nil)
@@ -119,11 +157,11 @@ final class BandScanner: NSObject, ObservableObject {
         if batteryState == .checking { batteryState = .unavailable }
         if modelState == .checking { modelState = .unavailable }
         if heartRateState == .checking { heartRateState = .unavailable }
-        status = "已连接 · 历史睡眠需要厂商适配"
+        status = veepooChannelDetected ? "已连接 · 识别到戒指私有通道" : "已连接 · 历史睡眠需要厂商适配"
     }
 
     func scan() {
-        guard connected == nil, connectingID == nil else { return }
+        guard connected == nil, connectingID == nil, !isHandingOff else { return }
         wantsScan = true
         if central == nil { central = CBCentralManager(delegate: self, queue: .main) }
         else { beginScanIfReady() }
@@ -168,6 +206,7 @@ final class BandScanner: NSObject, ObservableObject {
     }
 
     func disconnect() {
+        pendingReconnect = nil
         connectionTimeout?.cancel()
         inspectionTimeout?.cancel()
         if let connected { central?.cancelPeripheralConnection(connected) }
@@ -181,14 +220,29 @@ final class BandScanner: NSObject, ObservableObject {
         isInspecting = false
         batteryState = .unchecked; modelState = .unchecked; heartRateState = .unchecked
         discoveredServices = []; discoveredCharacteristics = [:]; readErrors = []; pendingServices = []; inspectedAt = nil
+        veepooChannelDetected = false
         status = "已断开连接"
+    }
+
+    func releaseForVendorSync() async throws -> CBPeripheral {
+        guard let peripheral = connected, peripheral.state == .connected, veepooChannelDetected,
+              !isHandingOff else { throw VeepooImportError.failure("请先连接戒指并完成服务检查。") }
+        isHandingOff = true
+        defer { isHandingOff = false }
+        disconnect()
+        for _ in 0..<30 {
+            try Task.checkCancellation()
+            if peripheral.state == .disconnected { return peripheral }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        throw VeepooImportError.failure("原连接未能及时释放，请重新连接戒指再试。")
     }
 }
 
 extension BandScanner: @preconcurrency CBCentralManagerDelegate, @preconcurrency CBPeripheralDelegate {
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         switch central.state {
-        case .poweredOn: status = "蓝牙已开启"; beginScanIfReady()
+        case .poweredOn: status = "蓝牙已开启"; reconnectIfReady(); beginScanIfReady()
         case .poweredOff: disconnect(); stopScan(); status = "蓝牙已关闭，请在系统设置中开启"
         case .unauthorized: stopScan(); status = "蓝牙未授权，请在设置中允许访问"
         case .unsupported: stopScan(); status = "当前设备不支持蓝牙扫描"
@@ -200,7 +254,7 @@ extension BandScanner: @preconcurrency CBCentralManagerDelegate, @preconcurrency
 
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String: Any], rssi RSSI: NSNumber) {
         guard isScanning else { return }
-        let name = advertisementData[CBAdvertisementDataLocalNameKey] as? String ?? peripheral.name ?? "未命名设备"
+        let name = DevicePresentation.name(advertisementData[CBAdvertisementDataLocalNameKey] as? String ?? peripheral.name ?? "未命名设备")
         let device = NearbyBand(peripheral: peripheral, name: name, rssi: RSSI.intValue)
         if let index = devices.firstIndex(where: { $0.id == device.id }) { devices[index] = device }
         else { devices.append(device) }
@@ -211,7 +265,10 @@ extension BandScanner: @preconcurrency CBCentralManagerDelegate, @preconcurrency
         guard connected?.identifier == peripheral.identifier else { central.cancelPeripheralConnection(peripheral); return }
         connectionTimeout?.cancel()
         connectingID = nil
-        connectedName = peripheral.name ?? "蓝牙设备"
+        connectedName = DevicePresentation.name(peripheral.name ?? "穿戴设备")
+        rememberedDevices.removeAll { $0.id == peripheral.identifier }
+        rememberedDevices.insert(RememberedDevice(id: peripheral.identifier, name: connectedName!, lastConnected: .now), at: 0)
+        rememberedStorage.save(rememberedDevices)
         peripheral.delegate = self
         inspectDevice()
     }
@@ -271,6 +328,11 @@ extension BandScanner: @preconcurrency CBCentralManagerDelegate, @preconcurrency
             if properties.contains(.write) || properties.contains(.writeWithoutResponse) { flags.append("可写（未使用）") }
             return "\(characteristic.uuid.uuidString) · \(flags.joined(separator: "、"))"
         }.sorted()
+        if service.uuid.uuidString == VeepooGatt.service {
+            let values = service.characteristics ?? []
+            veepooChannelDetected = values.contains { $0.uuid.uuidString == VeepooGatt.notify && $0.properties.contains(.notify) }
+                && values.contains { $0.uuid.uuidString == VeepooGatt.write && ($0.properties.contains(.write) || $0.properties.contains(.writeWithoutResponse)) }
+        }
         for characteristic in service.characteristics ?? [] {
             let canRead = BLEStandardAccess.canRead(service: service.uuid.uuidString, characteristic: characteristic.uuid.uuidString)
             guard canRead else { continue }
@@ -280,7 +342,7 @@ extension BandScanner: @preconcurrency CBCentralManagerDelegate, @preconcurrency
             }
             if BLEStandardAccess.canSubscribe(service: service.uuid.uuidString, characteristic: characteristic.uuid.uuidString),
                characteristic.properties.contains(.notify) || characteristic.properties.contains(.indicate) {
-                supportsHeartRate = true
+                if characteristic.uuid.uuidString == "2A37" { supportsHeartRate = true }
                 setState(.waiting, characteristic: characteristic)
                 peripheral.setNotifyValue(true, for: characteristic)
             }
@@ -302,22 +364,34 @@ extension BandScanner: @preconcurrency CBCentralManagerDelegate, @preconcurrency
             battery = Int(first)
         case "2A24":
             guard let model = String(data: value, encoding: .utf8), !model.isEmpty else { setState(.failed("设备型号格式无法识别"), characteristic: characteristic); return }
-            modelNumber = model
+            modelNumber = DevicePresentation.name(model)
         case "2A37":
             guard let rate = StandardHeartRate.decode(value) else { setState(.failed("心率数据无效或格式不兼容"), characteristic: characteristic); return }
             liveHeartRate = rate
+            latestVitals = [makeVital(.heart, value: Double(rate), peripheral: peripheral)]
+        case "2A35", "2A5E", "2A5F":
+            latestVitals = StandardVitalDecoder.decode(value, characteristic: characteristic.uuid.uuidString).map {
+                makeVital($0.0, value: $0.1, peripheral: peripheral)
+            }
+            if latestVitals.isEmpty { recordError("设备未返回可验证的血氧或血压测量值。") }
         default: return
         }
         setState(.received, characteristic: characteristic)
+    }
+
+    private func makeVital(_ kind: VitalKind, value: Double, peripheral: CBPeripheral) -> WearableVital {
+        let key = WearableVital.deviceKey(peripheral.identifier.uuidString)
+        return WearableVital(device: key, deviceLabel: "\(connectedName ?? "穿戴设备") · \(key.prefix(6))", date: .now,
+                             kind: kind, value: value, origin: "蓝牙接收时间")
     }
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
         guard connected?.identifier == peripheral.identifier,
               BLEStandardAccess.canSubscribe(service: characteristic.service?.uuid.uuidString ?? "", characteristic: characteristic.uuid.uuidString) else { return }
         if let error {
-            recordError("心率订阅失败：\(error.localizedDescription)")
-            if liveHeartRate == nil { heartRateState = .failed("心率订阅失败，见设备诊断") }
-        } else if !characteristic.isNotifying, liveHeartRate == nil {
+            recordError("\(characteristic.uuid.uuidString) 通知订阅失败：\(error.localizedDescription)")
+            if characteristic.uuid.uuidString == "2A37", liveHeartRate == nil { heartRateState = .failed("心率订阅失败，见设备诊断") }
+        } else if characteristic.uuid.uuidString == "2A37", !characteristic.isNotifying, liveHeartRate == nil {
             heartRateState = .failed("设备没有开启心率通知")
         }
     }

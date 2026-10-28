@@ -1,0 +1,1796 @@
+{
+  "repository": "https://github.com/HBandSDK/iOS_Ble_SDK",
+  "revision": "c1ec1363c659deaa483778315b86e680f8f81af0",
+  "files": [
+    {
+      "source": "LICENSE",
+      "destination": "LICENSE",
+      "sha": "d645695673349e3947e8e5ae42332d0ac3164cd7"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/FMDB/LICENSE.txt",
+      "destination": "FMDB/LICENSE.txt",
+      "sha": "addfc1ada019490cded9fc378d3408f1fad57327"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/FMDB/README.markdown",
+      "destination": "FMDB/README.markdown",
+      "sha": "f0d883db2b8992ebeba54c57b1f2bf92051e4125"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/FMDB/src/fmdb/FMDB.h",
+      "destination": "FMDB/src/fmdb/FMDB.h",
+      "sha": "1ff546504dfe114f9309a76406d50caf0a16dbb1"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/FMDB/src/fmdb/FMDatabase.h",
+      "destination": "FMDB/src/fmdb/FMDatabase.h",
+      "sha": "7dd5f8ce035332b70372155dcbbfdb51fa86b36e"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/FMDB/src/fmdb/FMDatabase.m",
+      "destination": "FMDB/src/fmdb/FMDatabase.m",
+      "sha": "d33c13df10d59b76c6dd3b154f76b6477a54b65b"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/FMDB/src/fmdb/FMDatabaseAdditions.h",
+      "destination": "FMDB/src/fmdb/FMDatabaseAdditions.h",
+      "sha": "9dd0b629e4d3a33449ed6be60fd262e6ef3160de"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/FMDB/src/fmdb/FMDatabaseAdditions.m",
+      "destination": "FMDB/src/fmdb/FMDatabaseAdditions.m",
+      "sha": "61fa747e4bd953595ebfa6dc4b0e282843e4881e"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/FMDB/src/fmdb/FMDatabasePool.h",
+      "destination": "FMDB/src/fmdb/FMDatabasePool.h",
+      "sha": "1915858f302fdea93e3318774c71b2a5143ab922"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/FMDB/src/fmdb/FMDatabasePool.m",
+      "destination": "FMDB/src/fmdb/FMDatabasePool.m",
+      "sha": "e8e52cb5aff9fc9173d888d0f4691235cb695cf4"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/FMDB/src/fmdb/FMDatabaseQueue.h",
+      "destination": "FMDB/src/fmdb/FMDatabaseQueue.h",
+      "sha": "ae45b658860308fbe5085aeb1f62b58cc7ef9a5d"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/FMDB/src/fmdb/FMDatabaseQueue.m",
+      "destination": "FMDB/src/fmdb/FMDatabaseQueue.m",
+      "sha": "c877a341d79ebad8a8385ad86e1f3c2f99929196"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/FMDB/src/fmdb/FMResultSet.h",
+      "destination": "FMDB/src/fmdb/FMResultSet.h",
+      "sha": "af0433b4bb728f086c30c3c5bde3db509cce1fd3"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/FMDB/src/fmdb/FMResultSet.m",
+      "destination": "FMDB/src/fmdb/FMResultSet.m",
+      "sha": "cfc51e115101fef187173ae8b5af81de8d967221"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/MJExtension/LICENSE",
+      "destination": "MJExtension/LICENSE",
+      "sha": "c502f7fc7420e2dbcba14254191691414497bae9"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/MJExtension/MJExtension/MJExtension.h",
+      "destination": "MJExtension/MJExtension/MJExtension.h",
+      "sha": "ad35d09c95a82f9cdcaae8e195c5453876763b9d"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/MJExtension/MJExtension/MJExtensionConst.h",
+      "destination": "MJExtension/MJExtension/MJExtensionConst.h",
+      "sha": "f5cf2aa4a885731b33f7369ec965418704bc79a6"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/MJExtension/MJExtension/MJExtensionConst.m",
+      "destination": "MJExtension/MJExtension/MJExtensionConst.m",
+      "sha": "24bcca51605aa30b891a7992a8daaed17544ae26"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/MJExtension/MJExtension/MJFoundation.h",
+      "destination": "MJExtension/MJExtension/MJFoundation.h",
+      "sha": "8a0e4578d558586596b5a14351e5e5531ad800fc"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/MJExtension/MJExtension/MJFoundation.m",
+      "destination": "MJExtension/MJExtension/MJFoundation.m",
+      "sha": "3adc84204777a8b2e72558dcf80994ffb02e322a"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/MJExtension/MJExtension/MJProperty.h",
+      "destination": "MJExtension/MJExtension/MJProperty.h",
+      "sha": "90ac6bc980b3c0f02d647d38e0b60c2ac7d44605"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/MJExtension/MJExtension/MJProperty.m",
+      "destination": "MJExtension/MJExtension/MJProperty.m",
+      "sha": "ff57c6cb86e1bc3cf70e4e32e3d6bc51c607c150"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/MJExtension/MJExtension/MJPropertyKey.h",
+      "destination": "MJExtension/MJExtension/MJPropertyKey.h",
+      "sha": "3cb254bcef973cabb2b4b5e0d7dcac47c6daf277"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/MJExtension/MJExtension/MJPropertyKey.m",
+      "destination": "MJExtension/MJExtension/MJPropertyKey.m",
+      "sha": "438d019afa3a6200c48cd17adc3a5901c4d87461"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/MJExtension/MJExtension/MJPropertyType.h",
+      "destination": "MJExtension/MJExtension/MJPropertyType.h",
+      "sha": "8c53f27aa3c6efa64cf7c55dbfa3edb9aa428f77"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/MJExtension/MJExtension/MJPropertyType.m",
+      "destination": "MJExtension/MJExtension/MJPropertyType.m",
+      "sha": "012b4489b08beb10014d44eac14b9fd044cdd385"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/MJExtension/MJExtension/NSObject+MJClass.h",
+      "destination": "MJExtension/MJExtension/NSObject+MJClass.h",
+      "sha": "260c8fcacbf2cfd4a7292dfe7a74d278e103b7f9"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/MJExtension/MJExtension/NSObject+MJClass.m",
+      "destination": "MJExtension/MJExtension/NSObject+MJClass.m",
+      "sha": "a9788901d449374e8128584d687eccd518994e0c"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/MJExtension/MJExtension/NSObject+MJCoding.h",
+      "destination": "MJExtension/MJExtension/NSObject+MJCoding.h",
+      "sha": "d4327ddc8eae21bcec110535b8d80a6a3a725ea2"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/MJExtension/MJExtension/NSObject+MJCoding.m",
+      "destination": "MJExtension/MJExtension/NSObject+MJCoding.m",
+      "sha": "27ae8ee4706b58a1eb25d6f3e72e82f28c708631"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/MJExtension/MJExtension/NSObject+MJKeyValue.h",
+      "destination": "MJExtension/MJExtension/NSObject+MJKeyValue.h",
+      "sha": "2428a4abc3096c508b36efb8cc8e608428f322bd"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/MJExtension/MJExtension/NSObject+MJKeyValue.m",
+      "destination": "MJExtension/MJExtension/NSObject+MJKeyValue.m",
+      "sha": "84fe982b59444ad794fb5774532b67935c95b3e8"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/MJExtension/MJExtension/NSObject+MJProperty.h",
+      "destination": "MJExtension/MJExtension/NSObject+MJProperty.h",
+      "sha": "88c903927211fa7df269c3b829209905ea2ab7b2"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/MJExtension/MJExtension/NSObject+MJProperty.m",
+      "destination": "MJExtension/MJExtension/NSObject+MJProperty.m",
+      "sha": "222b575f218befba92b1bc9d6adaf869f806f3f1"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/MJExtension/MJExtension/NSString+MJExtension.h",
+      "destination": "MJExtension/MJExtension/NSString+MJExtension.h",
+      "sha": "40add0435e2c9b3b5054389b63a7efb6db72ee85"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/MJExtension/MJExtension/NSString+MJExtension.m",
+      "destination": "MJExtension/MJExtension/NSString+MJExtension.m",
+      "sha": "569c310856f9804c60f4456c589a659711aa8cc8"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/Pods/MJExtension/README.md",
+      "destination": "MJExtension/README.md",
+      "sha": "5b4f7f9dfbb933e8a0b8873a1ac832029f4a3d48"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/ABParTool.framework/ABParTool",
+      "destination": "Frameworks/ABParTool.framework/ABParTool",
+      "sha": "2d3d103d25a62cd9307df412284c0e92e8d373e3"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/ABParTool.framework/Headers/ABParTool.h",
+      "destination": "Frameworks/ABParTool.framework/Headers/ABParTool.h",
+      "sha": "a28a6fbe978daf9474778cde213fa9c3fc6dec36"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/ABParTool.framework/Headers/ParTool.h",
+      "destination": "Frameworks/ABParTool.framework/Headers/ParTool.h",
+      "sha": "ae3d34ac9b65f79f313b6f9f47f2060f1ac0b4f0"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/ABParTool.framework/Headers/UIImage+RawImageData.h",
+      "destination": "Frameworks/ABParTool.framework/Headers/UIImage+RawImageData.h",
+      "sha": "c76a38700d944e0dd65c1a867d9d6f24e6da354d"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/ABParTool.framework/Info.plist",
+      "destination": "Frameworks/ABParTool.framework/Info.plist",
+      "sha": "0429163c8103b51bdae1264f92a3bc1c4402a7e1"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/ABParTool.framework/Modules/module.modulemap",
+      "destination": "Frameworks/ABParTool.framework/Modules/module.modulemap",
+      "sha": "4f4c0db9be5796d72dc3abad165a4a1c4b3222c0"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/DFUnits",
+      "destination": "Frameworks/DFUnits.framework/DFUnits",
+      "sha": "49aae5f1270f8c85e2fc2358167f548cda6024b5"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Headers/AESx.h",
+      "destination": "Frameworks/DFUnits.framework/Headers/AESx.h",
+      "sha": "cf4ea85e0efe6f47f4f690240ed49377cfd2b336"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Headers/DFAction.h",
+      "destination": "Frameworks/DFUnits.framework/Headers/DFAction.h",
+      "sha": "f69564c6ce65346286b39b15a41bd8284b62e0ad"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Headers/DFAudio.h",
+      "destination": "Frameworks/DFUnits.framework/Headers/DFAudio.h",
+      "sha": "365d0061e1468774fd577fd97f1906649f26f44b"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Headers/DFAudioPlayer.h",
+      "destination": "Frameworks/DFUnits.framework/Headers/DFAudioPlayer.h",
+      "sha": "0b26b13f2f06d0f4105e2091065ba9fe3bccb777"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Headers/DFCircleTextView.h",
+      "destination": "Frameworks/DFUnits.framework/Headers/DFCircleTextView.h",
+      "sha": "630bfab4b4dc5a1d860337538a0c47d881556948"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Headers/DFContacts.h",
+      "destination": "Frameworks/DFUnits.framework/Headers/DFContacts.h",
+      "sha": "923be38845d02dff991bf69baeb9652684531d87"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Headers/DFCrc16.h",
+      "destination": "Frameworks/DFUnits.framework/Headers/DFCrc16.h",
+      "sha": "8f5b281854bbd017e07b03f0ba539fe2475dc3f3"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Headers/DFFadeLabel.h",
+      "destination": "Frameworks/DFUnits.framework/Headers/DFFadeLabel.h",
+      "sha": "69259933220f119b9903029ccbdb3ed6c67236e7"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Headers/DFFile.h",
+      "destination": "Frameworks/DFUnits.framework/Headers/DFFile.h",
+      "sha": "5379ebe83add98c418b325fe9bd2cc2031b50c08"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Headers/DFGzip.h",
+      "destination": "Frameworks/DFUnits.framework/Headers/DFGzip.h",
+      "sha": "28f94a98e5e87db3f1e7f2ae04f563d93ce7b0c5"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Headers/DFHmacMD5.h",
+      "destination": "Frameworks/DFUnits.framework/Headers/DFHmacMD5.h",
+      "sha": "567f9df8120db53badc8178130042221a636d0d8"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Headers/DFHttp.h",
+      "destination": "Frameworks/DFUnits.framework/Headers/DFHttp.h",
+      "sha": "450faa3bcf0ad7790f897c1f00ef39017de5bd13"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Headers/DFImage.h",
+      "destination": "Frameworks/DFUnits.framework/Headers/DFImage.h",
+      "sha": "d38f1b229d32bea916474c34cb790eda199221f2"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Headers/DFLabel.h",
+      "destination": "Frameworks/DFUnits.framework/Headers/DFLabel.h",
+      "sha": "3879beddcd4e00e4d1855e5b7ac702e11ef88669"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Headers/DFNetPlayer.h",
+      "destination": "Frameworks/DFUnits.framework/Headers/DFNetPlayer.h",
+      "sha": "1f1b90f61a9d05b0def8ddaa941b584fd81389b5"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Headers/DFNotice.h",
+      "destination": "Frameworks/DFUnits.framework/Headers/DFNotice.h",
+      "sha": "38508602c601e543fdafb341153503ddee1e4173"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Headers/DFPing.h",
+      "destination": "Frameworks/DFUnits.framework/Headers/DFPing.h",
+      "sha": "2ae13a0b407595f0920cfa73ebd7775a53411be9"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Headers/DFRing.h",
+      "destination": "Frameworks/DFUnits.framework/Headers/DFRing.h",
+      "sha": "df1697a81ba9665128dcb0ad1f4a6b1d4be1ace9"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Headers/DFSort.h",
+      "destination": "Frameworks/DFUnits.framework/Headers/DFSort.h",
+      "sha": "5ed1994e5cfbb2cfcaf61324902f6ac9b4ce16a7"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Headers/DFTime.h",
+      "destination": "Frameworks/DFUnits.framework/Headers/DFTime.h",
+      "sha": "517df77b7003aa4e03879d8ec86717daca0f7511"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Headers/DFTips.h",
+      "destination": "Frameworks/DFUnits.framework/Headers/DFTips.h",
+      "sha": "19ec36b1acb5f0c2a5c1338b9297ebdc6c9d0dd2"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Headers/DFTools.h",
+      "destination": "Frameworks/DFUnits.framework/Headers/DFTools.h",
+      "sha": "fd41db12df69f6bab0fd0589189d08d9ce2b2901"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Headers/DFUIAnimation.h",
+      "destination": "Frameworks/DFUnits.framework/Headers/DFUIAnimation.h",
+      "sha": "08d22d623e1aa322ade73cea1a9ff69d9e249edf"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Headers/DFUIPullView.h",
+      "destination": "Frameworks/DFUnits.framework/Headers/DFUIPullView.h",
+      "sha": "020162eb67deb384f62c751d2029ddd8bc86188c"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Headers/DFUITools.h",
+      "destination": "Frameworks/DFUnits.framework/Headers/DFUITools.h",
+      "sha": "b5bf2c838f648678dcb136692d924d0ca2d38ef6"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Headers/DFUnits.h",
+      "destination": "Frameworks/DFUnits.framework/Headers/DFUnits.h",
+      "sha": "a9587e75aba9b977f5ecd9bfaf17297500a43b26"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Headers/DFVideo.h",
+      "destination": "Frameworks/DFUnits.framework/Headers/DFVideo.h",
+      "sha": "e1285a56ac4377e70c2aefb3ac6ef3174b6695ae"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Headers/MusicOfPhoneMode.h",
+      "destination": "Frameworks/DFUnits.framework/Headers/MusicOfPhoneMode.h",
+      "sha": "e202e83ddc9db1388806c18ea4a41448e4b1183b"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Headers/OPenALM.h",
+      "destination": "Frameworks/DFUnits.framework/Headers/OPenALM.h",
+      "sha": "19dfd3b58569b2fc7d3ce5bdae997e25817e2c09"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Headers/queue.h",
+      "destination": "Frameworks/DFUnits.framework/Headers/queue.h",
+      "sha": "6ba79361328c893ad4f7191c3f8fc1bf50a3940b"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Headers/tcp_client.h",
+      "destination": "Frameworks/DFUnits.framework/Headers/tcp_client.h",
+      "sha": "e6b15fa5dd70a4296d58083b9bfce142c9b33d19"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Headers/tcp_server.h",
+      "destination": "Frameworks/DFUnits.framework/Headers/tcp_server.h",
+      "sha": "4a53579648fb7353232d188388baf05545a4f399"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Info.plist",
+      "destination": "Frameworks/DFUnits.framework/Info.plist",
+      "sha": "1783dc5e90a79ba5f9f1837d5549577ec4cb40c0"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/DFUnits.framework/Modules/module.modulemap",
+      "destination": "Frameworks/DFUnits.framework/Modules/module.modulemap",
+      "sha": "50c7609d27519977534da71a152828e854f94e61"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/GRDFUSDK",
+      "destination": "Frameworks/GRDFUSDK.framework/GRDFUSDK",
+      "sha": "12c6702717d7bd9db6614f2c95a6e71f2f85f8a4"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Headers/AbsCmd.h",
+      "destination": "Frameworks/GRDFUSDK.framework/Headers/AbsCmd.h",
+      "sha": "45a88c88f4d9c01db485cbab24e042a324d00302"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Headers/AbsPeripheralCmd.h",
+      "destination": "Frameworks/GRDFUSDK.framework/Headers/AbsPeripheralCmd.h",
+      "sha": "756d2275eb4acf3823483275475e1317aa4ff6da"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Headers/ErrorCode.h",
+      "destination": "Frameworks/GRDFUSDK.framework/Headers/ErrorCode.h",
+      "sha": "cd9476c5e3ad718ad3cbc87b5a695a947d79d5cd"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Headers/EstablishConnCmd.h",
+      "destination": "Frameworks/GRDFUSDK.framework/Headers/EstablishConnCmd.h",
+      "sha": "0d5e6520b45f29780b06d933edf1969b5817a0b7"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Headers/GCXHexBuilder.h",
+      "destination": "Frameworks/GRDFUSDK.framework/Headers/GCXHexBuilder.h",
+      "sha": "bd98b98090405a1f379189ce2ce825a7e3afedd8"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Headers/GCXHexReader.h",
+      "destination": "Frameworks/GRDFUSDK.framework/Headers/GCXHexReader.h",
+      "sha": "8c94002490940f5c46d1cdd29e39bc2757141e41"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Headers/GCXUtil.h",
+      "destination": "Frameworks/GRDFUSDK.framework/Headers/GCXUtil.h",
+      "sha": "c43d7851761f7dcf6f1514b830949d58337790f0"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Headers/GRCheckDeviceCmd.h",
+      "destination": "Frameworks/GRDFUSDK.framework/Headers/GRCheckDeviceCmd.h",
+      "sha": "a2c7d5d0ac1d7fe806ee3bbbc078063a738a4b5c"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Headers/GRDAbsDfuFrameCmd.h",
+      "destination": "Frameworks/GRDFUSDK.framework/Headers/GRDAbsDfuFrameCmd.h",
+      "sha": "2d5a1a67d78de3e4046d39b645f0fc51789302b0"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Headers/GRDBootInfo.h",
+      "destination": "Frameworks/GRDFUSDK.framework/Headers/GRDBootInfo.h",
+      "sha": "8decd4f0043eef0a292c15f0828780675338508b"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Headers/GRDDelayCmd.h",
+      "destination": "Frameworks/GRDFUSDK.framework/Headers/GRDDelayCmd.h",
+      "sha": "1b93f05682f9f53a8ffa9e0e12e991b6689cd969"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Headers/GRDFULog.h",
+      "destination": "Frameworks/GRDFUSDK.framework/Headers/GRDFULog.h",
+      "sha": "43b73bce27d42ccef488b7d2770113933a393a25"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Headers/GRDFUModeCmd.h",
+      "destination": "Frameworks/GRDFUSDK.framework/Headers/GRDFUModeCmd.h",
+      "sha": "8ff28f6da5707fc5f3d308279a6c015a23406ccc"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Headers/GRDFUSDK-umbrella.h",
+      "destination": "Frameworks/GRDFUSDK.framework/Headers/GRDFUSDK-umbrella.h",
+      "sha": "14f0982ae424c2991c09aa023e8b9575679ba0ba"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Headers/GRDFUTool.h",
+      "destination": "Frameworks/GRDFUSDK.framework/Headers/GRDFUTool.h",
+      "sha": "52cafb3dc607bf4e229e3349eee48a44a1feb475"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Headers/GRDFirmware.h",
+      "destination": "Frameworks/GRDFUSDK.framework/Headers/GRDFirmware.h",
+      "sha": "3b1cae8c92894e429ad24791d63e8221890a4467"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Headers/GRDGetBootInfo.h",
+      "destination": "Frameworks/GRDFUSDK.framework/Headers/GRDGetBootInfo.h",
+      "sha": "78922b6ae33b6afe8c68252686e99f9b555c2eed"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Headers/GRDGetImgInfoList.h",
+      "destination": "Frameworks/GRDFUSDK.framework/Headers/GRDGetImgInfoList.h",
+      "sha": "4935016a22111b7726f1ba8bbe02efc816a7f6b1"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Headers/GRDImgInfo.h",
+      "destination": "Frameworks/GRDFUSDK.framework/Headers/GRDImgInfo.h",
+      "sha": "2297d61e501ecf5da231d0fb67c9ee1640e11f52"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Headers/GRDInitExtFlashCmd.h",
+      "destination": "Frameworks/GRDFUSDK.framework/Headers/GRDInitExtFlashCmd.h",
+      "sha": "2098da5f452d0b460211367fdee356de2b0bb43b"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Headers/GRDProgramFlash.h",
+      "destination": "Frameworks/GRDFUSDK.framework/Headers/GRDProgramFlash.h",
+      "sha": "32556970d603a711165499887bf519033700f093"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Headers/GRDResetCmd.h",
+      "destination": "Frameworks/GRDFUSDK.framework/Headers/GRDResetCmd.h",
+      "sha": "6b47ad96ae4c7b83a3fd7c024bf142312bca4809"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Headers/GRDSerializable.h",
+      "destination": "Frameworks/GRDFUSDK.framework/Headers/GRDSerializable.h",
+      "sha": "ccaaca245e6d75ae8ea8fd5279c1921305101154"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Headers/GRDSetCtrlData.h",
+      "destination": "Frameworks/GRDFUSDK.framework/Headers/GRDSetCtrlData.h",
+      "sha": "6e278a04e4540efda117eff3a879c797e819f39b"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Headers/GRDSetImgInfoList.h",
+      "destination": "Frameworks/GRDFUSDK.framework/Headers/GRDSetImgInfoList.h",
+      "sha": "414d9477182b79b4c16f8d173db32d124ffe91e7"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Headers/GRDSpiCfg.h",
+      "destination": "Frameworks/GRDFUSDK.framework/Headers/GRDSpiCfg.h",
+      "sha": "be6c4600252bf02d92b6ec825e4f8421ac4a4599"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Headers/GRDfuProfile.h",
+      "destination": "Frameworks/GRDFUSDK.framework/Headers/GRDfuProfile.h",
+      "sha": "98b29ad99c9e1a2da1d8d8086b5fc905e365dbe5"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Headers/GRDfuTask.h",
+      "destination": "Frameworks/GRDFUSDK.framework/Headers/GRDfuTask.h",
+      "sha": "812a863546ac201f9b64a4f7ed12ff13a0d85289"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Headers/GRDisconnectCmd.h",
+      "destination": "Frameworks/GRDFUSDK.framework/Headers/GRDisconnectCmd.h",
+      "sha": "faa54a26cb68b3fdb4b29ccfa9ce0d26b7a1683f"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Headers/GRGusCmd.h",
+      "destination": "Frameworks/GRDFUSDK.framework/Headers/GRGusCmd.h",
+      "sha": "0951d9c24076ff5f594fc366801b32618635c0ef"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Headers/SetupPeripheralCmd.h",
+      "destination": "Frameworks/GRDFUSDK.framework/Headers/SetupPeripheralCmd.h",
+      "sha": "175f3834439cbd35653d90ffb7f032603927b37a"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Info.plist",
+      "destination": "Frameworks/GRDFUSDK.framework/Info.plist",
+      "sha": "9e5c4bdceb110db7d9487449fdfae8b29dd39c78"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/GRDFUSDK.framework/Modules/module.modulemap",
+      "destination": "Frameworks/GRDFUSDK.framework/Modules/module.modulemap",
+      "sha": "8939364563b7f25d04ede7ec840bf8d15b2a4350"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JLDialUnit.framework/Headers/DialManager.h",
+      "destination": "Frameworks/JLDialUnit.framework/Headers/DialManager.h",
+      "sha": "1c215628ed30c19ae02f19d199e2eb6a962eb457"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JLDialUnit.framework/Headers/FatfsObject.h",
+      "destination": "Frameworks/JLDialUnit.framework/Headers/FatfsObject.h",
+      "sha": "730c8e4e21edf0872f76f9c77b14456b1d9b810b"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JLDialUnit.framework/Headers/JLDialUnit.h",
+      "destination": "Frameworks/JLDialUnit.framework/Headers/JLDialUnit.h",
+      "sha": "ad9290d9e01a5af1a0534356c84f17d4801ba546"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JLDialUnit.framework/Info.plist",
+      "destination": "Frameworks/JLDialUnit.framework/Info.plist",
+      "sha": "d62a6576fea8c2894b8fdb87d888e41fb28f8d4c"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JLDialUnit.framework/JLDialUnit",
+      "destination": "Frameworks/JLDialUnit.framework/JLDialUnit",
+      "sha": "1689cae554e27c9725f7c76aa461797d4048d6e9"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JLDialUnit.framework/Modules/module.modulemap",
+      "destination": "Frameworks/JLDialUnit.framework/Modules/module.modulemap",
+      "sha": "0ba2a9b9fdde9c6d85ea30087c5e484efd6f8816"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/BitmapTool.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/BitmapTool.h",
+      "sha": "2fc9e2105bd992c6942f931a25d7a5d565c513cc"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLAutoPressureModel.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLAutoPressureModel.h",
+      "sha": "c019440d10a6d4fd058d9b11d0541cb7c9b0e10e"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLConsequentHeartRateModel.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLConsequentHeartRateModel.h",
+      "sha": "3a407f6b523ebfdc170b31f96340deb12c027878"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLDisconnectRemindModel.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLDisconnectRemindModel.h",
+      "sha": "e799fb084df504e0b23feaa0c2129216bb5c7cc8"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLEmergencyContactModel.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLEmergencyContactModel.h",
+      "sha": "87e4b5971cd13adae83ac2e4f40987c6b4578517"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLExerciseHeartRateRemindModel.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLExerciseHeartRateRemindModel.h",
+      "sha": "f88b192e14cec60e8542e3206cf2904a740532b0"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLFallDetectionModel.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLFallDetectionModel.h",
+      "sha": "fc9367ffba1de2d47ed35390979bd5c2f363c7b1"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLModel_ANC.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLModel_ANC.h",
+      "sha": "be2d2c5c0ca81ca4ca6cce7d71d4ee81218811e9"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLModel_AlarmSetting.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLModel_AlarmSetting.h",
+      "sha": "a4b6f853582b83f7ec36fcd95a29d5bd3f2f20c7"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLModel_BT.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLModel_BT.h",
+      "sha": "86b4a409853ddab2a559f88e3e0a3ab77be02085"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLModel_Device.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLModel_Device.h",
+      "sha": "54bed9d55d73218d597571f586c763dd4bbc6248"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLModel_EQ.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLModel_EQ.h",
+      "sha": "ba7dc4c89c78dca11afe6a95d7202806123e9e23"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLModel_FM.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLModel_FM.h",
+      "sha": "34cd8453509406c4d33c2666a938219ba66e7e7b"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLModel_File.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLModel_File.h",
+      "sha": "cd975d2855fd1b06a4df7b58eea22397e0542e38"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLModel_Flash.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLModel_Flash.h",
+      "sha": "a41fc9c3bade712590ce16a965a38168b5c60ff4"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLModel_Headset.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLModel_Headset.h",
+      "sha": "6c4d84336c4a9a28748868ebaaaba1f5673a281f"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLModel_RTC.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLModel_RTC.h",
+      "sha": "46cf1d813e24ce17c85eaffe86a74aedad19a097"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLModel_Ring.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLModel_Ring.h",
+      "sha": "69290ee66ad95e7529b41af1c68c9365f04bab5f"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLModel_SPEEX.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLModel_SPEEX.h",
+      "sha": "995f41fd8be5894f40893585a9ca1b31bcb26616"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLModel_SmallFile.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLModel_SmallFile.h",
+      "sha": "88bc3b756838c57e1e65a0a1131d1cc21524be7f"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLOxygenSturationRemindModel.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLOxygenSturationRemindModel.h",
+      "sha": "4199c3834255f636b19c205b84a74fcb36966bdf"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLPersonInfoModel.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLPersonInfoModel.h",
+      "sha": "9cf61b11a9ad964cb907651a78e028270199f1f1"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLSedentaryRmdModel.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLSedentaryRmdModel.h",
+      "sha": "06cf049ec65da3795a2bf20df2a5d6309d91b2cc"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLSensorFuncModel.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLSensorFuncModel.h",
+      "sha": "39779cfea2a8fa93416992b43ac869a15e17158f"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLSleepMonitorModel.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLSleepMonitorModel.h",
+      "sha": "5e51a67d357e87ca517bdb527e979f042c7b94d0"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLSportDataModel.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLSportDataModel.h",
+      "sha": "df1f1eec63c1790919fec1fc97ebf32231c5e691"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLSportRecordModel.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLSportRecordModel.h",
+      "sha": "038072bc9e46a34aee9eedc98732f7eddf7e3799"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLWatchEnum.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLWatchEnum.h",
+      "sha": "42f082af0e1ea422dfc6c50e1fb7657eaad862e5"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLWearSync.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLWearSync.h",
+      "sha": "ec86628bf1fd0f2e2c9f5eaa073fe16c7ff021c5"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLWearSyncCustom.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLWearSyncCustom.h",
+      "sha": "130e239415052e218bc91f90b1c790205d644e0a"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLWearSyncFinishModel.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLWearSyncFinishModel.h",
+      "sha": "8ef17f472562c303f8cb46614421f14574bf4928"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLWearSyncHealthBloodOxyganChart.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLWearSyncHealthBloodOxyganChart.h",
+      "sha": "df1806e3ce2dddc88b22b0c7e1a549d423348929"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLWearSyncHealthChart.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLWearSyncHealthChart.h",
+      "sha": "ae6d8764766880c4798078cdb51350e60fef8de8"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLWearSyncHealthHeartRateChart.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLWearSyncHealthHeartRateChart.h",
+      "sha": "7d0ca5ffcacad5db6e29f558df88479ab61fbc8c"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLWearSyncHealthSleepChart.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLWearSyncHealthSleepChart.h",
+      "sha": "6077282ecde442167aacf74adc8bdb70cf859200"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLWearSyncHealthStepChart.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLWearSyncHealthStepChart.h",
+      "sha": "e9295945b666af2f6ad989cfebf1272044c95b6f"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLWearSyncHealthWeightChart.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLWearSyncHealthWeightChart.h",
+      "sha": "75a369eed72f9beb43ae80b1a1445576386e42b2"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLWearSyncInfoModel.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLWearSyncInfoModel.h",
+      "sha": "1bfa3f2730be537b38d8a574e511b0f9fd72033f"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLWearSyncRealTimeModel.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLWearSyncRealTimeModel.h",
+      "sha": "ed10d1e500b8c7f7c677b25e278e3d9f1f1b2007"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLWearable.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLWearable.h",
+      "sha": "6096f3264aa3bc9835693bb5507c58966a3ae7ea"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLWristLiftDetectionModel.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLWristLiftDetectionModel.h",
+      "sha": "c7a838e273283aa765f1b11be3aa4eaec7263686"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_AlarmClockManager.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_AlarmClockManager.h",
+      "sha": "dbeff1851e03bb1047b9fcab946a8fcf0f54d022"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_Assist.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_Assist.h",
+      "sha": "8dd2bc53fe93999fc46eb2d9af34a61d99326f49"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_BLEAction.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_BLEAction.h",
+      "sha": "3e062a058f8306a713e5bb9155bc83aa5b826841"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_BLEKit.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_BLEKit.h",
+      "sha": "0d6a6c437d17df7202d3f61e1a4ca2e4d41fd94b"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_BLEMultiple.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_BLEMultiple.h",
+      "sha": "8ee70ec64b0412535dcec62e5ee5e6aeeb09e59f"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_BatchManger.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_BatchManger.h",
+      "sha": "822caa4d9f9ace38b56fa7404d7b18b0baf8038e"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_BinChargeManager.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_BinChargeManager.h",
+      "sha": "88905e11dcd93293f8fde7de80570dcc9b2fe6c3"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_CallManager.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_CallManager.h",
+      "sha": "a634c57ac6ba82f05631d64697c32308fd66d4e4"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_CustomManager.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_CustomManager.h",
+      "sha": "908c0d0f8974d0a5cb1340200c87f126990a4c35"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_DeviceLogs.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_DeviceLogs.h",
+      "sha": "3e0b2f557a7827c46117623d63c014c4f86b3be3"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_EntityM.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_EntityM.h",
+      "sha": "69f654c2bd5c2ce69eedbff5893ec1749b1aedaa"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_FileManager.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_FileManager.h",
+      "sha": "d666c577339cc99ca307d5a11207d94c79ecb395"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_FindDeviceManager.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_FindDeviceManager.h",
+      "sha": "c413d8387af6f0ca371c44a68bef23c1060c7182"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_FlashOperateManager.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_FlashOperateManager.h",
+      "sha": "3a7f71f3c2372569828fffdd8be637f083583615"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_FmManager.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_FmManager.h",
+      "sha": "76a89fd74291a46c1e588a27964766f3ccf090e9"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_FunctionBaseManager.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_FunctionBaseManager.h",
+      "sha": "7a3a0b5f8e0eb303b31b73a1d5eac83a34d0d85d"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_Handle.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_Handle.h",
+      "sha": "5ad2e8ac2acda5759a3ae5c94cf10d84d7257321"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_LRCManager.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_LRCManager.h",
+      "sha": "38dfa0071637b5eadbb6eea33a5153e465c5ae93"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_LightManager.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_LightManager.h",
+      "sha": "8d65c7f702435a633624dfc75ba73e2349c3a774"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_MSG_Func.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_MSG_Func.h",
+      "sha": "91d914f48337252722479316c568401ac0fb0096"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_MSG_Weather.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_MSG_Weather.h",
+      "sha": "6ff75d8056db69d2e4402cf1f106f9017efc60a8"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_ManagerM.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_ManagerM.h",
+      "sha": "c185e02aa6e2a7cd1ac550e54289d2cf114d995f"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_MusicControlManager.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_MusicControlManager.h",
+      "sha": "ebe176202c75abfa29ab0c8ab92a5f4fb88b8cc3"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_NFC.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_NFC.h",
+      "sha": "a3be1d7235bffc0125e1250a08f16cbfdf473a39"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_OTAManager.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_OTAManager.h",
+      "sha": "0e652225a601da436f0d80f6574304a2ac41a9ac"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_RCSP.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_RCSP.h",
+      "sha": "e6e600971511913857dd22b7f2b2eca7c8c39de6"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_SDM_AirPressure.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_SDM_AirPressure.h",
+      "sha": "766e37c2391dac22a1df4247a87227ae9d936147"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_SDM_Altitude.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_SDM_Altitude.h",
+      "sha": "e4e73c39de1289278070b2b9dad8c88b7a6c2203"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_SDM_Header.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_SDM_Header.h",
+      "sha": "9283be0769841a73864500e8383ebd384cd905f9"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_SDM_HeartRate.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_SDM_HeartRate.h",
+      "sha": "0a9925ded9eb7f2c6f444cda9599d74312cd3d07"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_SDM_MaxOxg.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_SDM_MaxOxg.h",
+      "sha": "a0bf6d539b0b5294d3ed6e3a9395e3569514e50e"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_SDM_MoveSteps.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_SDM_MoveSteps.h",
+      "sha": "46fa1076f031f6cc54a99ed3cc5eb5451328028f"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_SDM_OxSaturation.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_SDM_OxSaturation.h",
+      "sha": "f594e25c38f674cd377a268fd581cb81a9f58f11"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_SDM_RecTime.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_SDM_RecTime.h",
+      "sha": "3e0f3c577f360fb807990665d7b28360a49ab78d"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_SDM_SportMessage.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_SDM_SportMessage.h",
+      "sha": "38e84d94030fae4a214becdfb563975c4fbdbcc9"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_SDM_Stress.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_SDM_Stress.h",
+      "sha": "75d9260ad6be5bb5e93e36b89899b9aa356efaa7"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_SDM_TrainLoad.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_SDM_TrainLoad.h",
+      "sha": "c93ff24c1142013d756f14c7acb134a6a1b36f60"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_SmallFileManager.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_SmallFileManager.h",
+      "sha": "708e773077b1be6f4c4ea6f69e27a57d8656188c"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_SoundCardManager.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_SoundCardManager.h",
+      "sha": "4d6c62d62cddd511a59fa88f7e43643106655ad7"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_SpeexManager.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_SpeexManager.h",
+      "sha": "29f0cf7d87bca9d8470e8c09601d6b79c6e4c6ca"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_SystemEQ.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_SystemEQ.h",
+      "sha": "aba3fba460d499d15af84915d6f1f6431ebd28d4"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_SystemTime.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_SystemTime.h",
+      "sha": "f723158956745bb139d051e65bee4f32e889939d"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_SystemVolume.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_SystemVolume.h",
+      "sha": "e08a3a2f4639daefa85a2f5c67ca37b78a231441"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_Tools.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_Tools.h",
+      "sha": "80b8d87bde7d848dcfcdf91ba4344ef569d5da37"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_TwsManager.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_TwsManager.h",
+      "sha": "86070f543b13bf929f4fa8a53704c55201632db6"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_TypeEnum.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_TypeEnum.h",
+      "sha": "d256e61eaae9f4a4ad6ab6c8b266dd63066963de"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_WatchProtocol.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_WatchProtocol.h",
+      "sha": "765d9a70fcc79f78fa860c24041c66c2e46cf565"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_WatchSyncProtocol.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_WatchSyncProtocol.h",
+      "sha": "132a29179549b7d6c1e77a273e4ec7fc65d52794"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_ble_pair.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_ble_pair.h",
+      "sha": "545bbd3d7d24285465f9fbd7042a7aa76525081a"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JL_vad.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JL_vad.h",
+      "sha": "9b8719250f902644c61dbb62aa7b300497aa117a"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/JLwSettingModel.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/JLwSettingModel.h",
+      "sha": "17be0dc71553a453153f317f897d049fcddd774a"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/NSData+ToUnit.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/NSData+ToUnit.h",
+      "sha": "09bf417333eb50c94622cfd4ddad9ade9b7dc438"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/NfcModel.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/NfcModel.h",
+      "sha": "eee6a69fccb152f1687e26d9927c2d869c38ec00"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/RTC_RingInfo.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/RTC_RingInfo.h",
+      "sha": "bbf632f6094caedfffdf8bfebd41230705201039"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Headers/bmp_convert.h",
+      "destination": "Frameworks/JL_BLEKit.framework/Headers/bmp_convert.h",
+      "sha": "da1b0216ca956bb287326b419e2a19a3f9bccf38"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Info.plist",
+      "destination": "Frameworks/JL_BLEKit.framework/Info.plist",
+      "sha": "516f7dad880b2ea5cf536a5d113075b4370b36f2"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/JL_BLEKit",
+      "destination": "Frameworks/JL_BLEKit.framework/JL_BLEKit",
+      "sha": "b5917d4de4a4603495a8e502a20cfdebd9bc78b4"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/JL_BLEKit.framework/Modules/module.modulemap",
+      "destination": "Frameworks/JL_BLEKit.framework/Modules/module.modulemap",
+      "sha": "cb938ecf675492109eebf52037845772423bb9f8"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/ZipZap.framework/Headers/ZZArchive.h",
+      "destination": "Frameworks/ZipZap.framework/Headers/ZZArchive.h",
+      "sha": "a37e0a7e7b4e79111b1d522ac2ef753de1f1bed8"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/ZipZap.framework/Headers/ZZArchiveEntry.h",
+      "destination": "Frameworks/ZipZap.framework/Headers/ZZArchiveEntry.h",
+      "sha": "2fa9b0836e3843d8ef08bc2041aff25d13d629e8"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/ZipZap.framework/Headers/ZZConstants.h",
+      "destination": "Frameworks/ZipZap.framework/Headers/ZZConstants.h",
+      "sha": "698841852b9ca3c98da371716c9dc509e869fb7e"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/ZipZap.framework/Headers/ZZError.h",
+      "destination": "Frameworks/ZipZap.framework/Headers/ZZError.h",
+      "sha": "a307763cfc6026e074b48a1f3ffbd01dbe446ac2"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/ZipZap.framework/Headers/ZipZap.h",
+      "destination": "Frameworks/ZipZap.framework/Headers/ZipZap.h",
+      "sha": "068fc16a08255dea9a435d39d79029720dc12977"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/ZipZap.framework/Info.plist",
+      "destination": "Frameworks/ZipZap.framework/Info.plist",
+      "sha": "1c9a872a4a4429a4af2d35947194354f1f6c2aad"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/ZipZap.framework/Modules/module.modulemap",
+      "destination": "Frameworks/ZipZap.framework/Modules/module.modulemap",
+      "sha": "e8e7e5596d53d0ff1a6b0b1688f0ff603039a342"
+    },
+    {
+      "source": "iOS_sdk_source/Demo/VeepooBleSDKDemo/VeepooBleSDKDemo/ZipZap.framework/ZipZap",
+      "destination": "Frameworks/ZipZap.framework/ZipZap",
+      "sha": "c9d37c3bf8bacfb9c58e0d60e79b2a1eb9368e48"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VP4GFunctionConfigurationInfoModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VP4GFunctionConfigurationInfoModel.h",
+      "sha": "b9851811c6b3f8a1e947b060dff7de7def102ba4"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VP4GFunctionConst.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VP4GFunctionConst.h",
+      "sha": "4b765c9beb6ded83070dda2a5c64b3f9b79e2a58"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPAGPSDataModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPAGPSDataModel.h",
+      "sha": "9271e71a53bf0e8c005f8646c328c5e703cd224b"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPAccelerationModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPAccelerationModel.h",
+      "sha": "43dd83091eea896f9e68bc23948e54c1e14804f7"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPAccurateSleepModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPAccurateSleepModel.h",
+      "sha": "ed0ddf3be52327431cf8fe1ce51c711b4f54505c"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPAnalysisViewFactory.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPAnalysisViewFactory.h",
+      "sha": "2f4cf53e16c65671ba04cfe564eed6100bedbb0a"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPAutoMonitTestModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPAutoMonitTestModel.h",
+      "sha": "2a5240887905551afc19cb24b79ed83b4bcfed36"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPBleCentralManage.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPBleCentralManage.h",
+      "sha": "0f849c4321a0e416b1dc9a2b4ccd9de700ec1654"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPBloodAnalysisResultModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPBloodAnalysisResultModel.h",
+      "sha": "61680d60956e6b094981ce9826cfe7d9b1e73ac7"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPBodyCompositionValueModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPBodyCompositionValueModel.h",
+      "sha": "bef6aa348d313fd150a442874cb55d496ba32e08"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPDBS22OxygenManage.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPDBS22OxygenManage.h",
+      "sha": "f2a9d831635f2b5f0dc43ac62e75060b87920419"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPDFUOperation.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPDFUOperation.h",
+      "sha": "95b4053c5a532711b70f33369c7a260e66863096"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPDailyBloodAnalysisModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPDailyBloodAnalysisModel.h",
+      "sha": "0e546bc77709982b1f8815cd9aa46c150ff4e217"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPDashHRVView.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPDashHRVView.h",
+      "sha": "2b6ef8e1518621090503dc14d69080465a2ad6ef"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPDashOxygenView.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPDashOxygenView.h",
+      "sha": "5ecb8e20ed19b1b9883e5630d3fbd4a654695754"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPDashView.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPDashView.h",
+      "sha": "247a0547a8f5e7421e0d09ed1b1262c68f323506"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPDataBaseOperation.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPDataBaseOperation.h",
+      "sha": "5715cbfb5e98c15b966b836ff140dd7f1c74e803"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPDeviceAlarmModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPDeviceAlarmModel.h",
+      "sha": "8010e149d3f11b6b174ebec8dd58940e3672472c"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPDeviceBrightModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPDeviceBrightModel.h",
+      "sha": "88e24401027b4dbc1f9d1e45f85d63ef03ce51f9"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPDeviceContactsModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPDeviceContactsModel.h",
+      "sha": "ff68a98da784f2065e7a2dc1d1d57791c9d5e73b"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPDeviceCountDownModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPDeviceCountDownModel.h",
+      "sha": "cb1c58687a1a5a91cff31a45d3bb40b4736661fb"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPDeviceFemaleModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPDeviceFemaleModel.h",
+      "sha": "09fd1ea8fb8e01d3a398208fcb569c392a533ef3"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPDeviceGPSModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPDeviceGPSModel.h",
+      "sha": "68a2841b56f6d1dfcd0042a009a7e2d628c5629c"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPDeviceHadjCountModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPDeviceHadjCountModel.h",
+      "sha": "826a548500305b4e6c488a3aeccb72caccd1a37b"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPDeviceHealthRemindModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPDeviceHealthRemindModel.h",
+      "sha": "0d6d32dbf75393b1d5ec68dcf250a85e9f81769d"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPDeviceHeartAlarmModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPDeviceHeartAlarmModel.h",
+      "sha": "af566c55ae465b330bdd9b8aabb71d895ffdc9aa"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPDeviceKAABAGPSModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPDeviceKAABAGPSModel.h",
+      "sha": "1e38577e4d60b3b7736c701fdc795c0698f076a9"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPDeviceLongSeatModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPDeviceLongSeatModel.h",
+      "sha": "ee21a41c8385afbf9c1bd87ebf4f9982860bd7d3"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPDeviceMarketDialModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPDeviceMarketDialModel.h",
+      "sha": "13ef77d599c6630e16629f3ef9ebb4eeb4bee7a9"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPDeviceMessageTypeModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPDeviceMessageTypeModel.h",
+      "sha": "8de4de4131d8cff9e1b44c585830c0d78c998064"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPDeviceNewAlarmModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPDeviceNewAlarmModel.h",
+      "sha": "962ed51ddfd3ee1ed27920d1f1841178946953c3"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPDevicePrivateBloodModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPDevicePrivateBloodModel.h",
+      "sha": "a1c1708ee513a0f02ef89c29b37cdf3e3b3e95da"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPDeviceRaiseHandModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPDeviceRaiseHandModel.h",
+      "sha": "b8e00e340618882a9d8337bb33cd3eebab1178e6"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPDeviceSportControlModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPDeviceSportControlModel.h",
+      "sha": "d109036eb6655261ed1e355e9042d6fa5a2663de"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPDeviceSportModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPDeviceSportModel.h",
+      "sha": "65e466760161e2ebf40a5e58e50c3a84def8f2f5"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPDeviceSportWithGPSModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPDeviceSportWithGPSModel.h",
+      "sha": "410c6e542a7b04d941f7355482c9df7ad2b8836d"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPDeviceTextAlarmModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPDeviceTextAlarmModel.h",
+      "sha": "6f4b8f28e65821498a13ee2b22fdffc9eebc6380"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPDialModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPDialModel.h",
+      "sha": "76784ecbdfd3ebd49c34cb6959bcb709df1e5f19"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPECGMultiLeadBLEDelegate.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPECGMultiLeadBLEDelegate.h",
+      "sha": "69b6967302cf405c5c9e0243a4fd16f7598e464f"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPECGMultiLeadModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPECGMultiLeadModel.h",
+      "sha": "0f4fa34bb6d56e0522c2a4594b22695ab53e83de"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPECGTestDataModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPECGTestDataModel.h",
+      "sha": "8c47578c5bfb8f0e3236a203c3788921a7accc78"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPECGTestResutHandle.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPECGTestResutHandle.h",
+      "sha": "351ccd449cc703cb2d657e7c6df68461c45c4af6"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPFileHandleManager.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPFileHandleManager.h",
+      "sha": "4d4ffab37d6fc5d1288f85b367b035f0d32d783b"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPG15QRCodeInfoModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPG15QRCodeInfoModel.h",
+      "sha": "750ed07ee76fcaf888ccd30bc98176a9d1e94145"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPGSRResultModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPGSRResultModel.h",
+      "sha": "80716874c50730f7aeb197ca51fca51ad7dbc478"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPHRVCurveView.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPHRVCurveView.h",
+      "sha": "93723d3d03345ae1855b0e8222ffb8bd1f98000a"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPHRVLorentAnalysisModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPHRVLorentAnalysisModel.h",
+      "sha": "78182edaadad9264b43acbdca25e40d7ac4f8bc8"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPHRVLorentView.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPHRVLorentView.h",
+      "sha": "86e4345931ee4a4cc6b8de813cfb0bf536dadacd"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPHRVPublicTool.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPHRVPublicTool.h",
+      "sha": "e89fbb6f913f0433a23009e7d7904d2987cfbc66"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPHealthFunctionModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPHealthFunctionModel.h",
+      "sha": "86c64ea5b321c5e898e87a3ee4f0c9c8974dad76"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPHealthGlanceTestModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPHealthGlanceTestModel.h",
+      "sha": "69e74b8fa700f8968d28278bf46929be7c1d97b3"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPImageTransmissionModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPImageTransmissionModel.h",
+      "sha": "e6077f92b5cd686e1b88bfcdd4c49ad688db2fcc"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPJE136PTCMModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPJE136PTCMModel.h",
+      "sha": "334e85bedd73e7458fcb811ab1145e0b4422001b"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPJH58PPGAccelerationModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPJH58PPGAccelerationModel.h",
+      "sha": "0021bb0fed798149ff35da28050547364550c866"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPLogManager.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPLogManager.h",
+      "sha": "93c9725f2d21d730738f37a47ea732844b4a125f"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPLowPowerModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPLowPowerModel.h",
+      "sha": "0a4af1cd862433d644d91dd79443330d987065b8"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPManualBloodCompModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPManualBloodCompModel.h",
+      "sha": "b6f038234f9881ec1ef217711c3fecb19a3c5617"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPManualBloodOxygenModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPManualBloodOxygenModel.h",
+      "sha": "729e3a5cdd39088ccca12e793bc8cc2ba3e16a0e"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPManualBloodPressureModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPManualBloodPressureModel.h",
+      "sha": "031993ea0a1ad9a94ec78cf0c6de6e4a4aa4f84e"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPManualBloodSugarModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPManualBloodSugarModel.h",
+      "sha": "bf1aacce78c3e5ac84c614d795d2eb64e37e9c1c"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPManualBodyTempModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPManualBodyTempModel.h",
+      "sha": "94ad5922f66faed103fe6d30122be8719478b9da"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPManualEmotionModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPManualEmotionModel.h",
+      "sha": "03a3305366aed309bd8bb707d9f22be7d36ecc6b"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPManualFatigueLevelModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPManualFatigueLevelModel.h",
+      "sha": "8ab5a5823aec1ae09069b96d285f9c78956573ee"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPManualGSRModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPManualGSRModel.h",
+      "sha": "d7dde2f786c176120e6f7e1ecfe9200a63a1135b"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPManualHGBodyComModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPManualHGBodyComModel.h",
+      "sha": "ddb48d69361255eda53e5ac7e3d8cc5081beb156"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPManualHRVModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPManualHRVModel.h",
+      "sha": "bd3bbd2ec7efbfc68c5873fda79fd25db2eb2f1f"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPManualHealthGlanceModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPManualHealthGlanceModel.h",
+      "sha": "a64972c269cdcd97db2a6080652ea8e9c14751d5"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPManualHeartRateModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPManualHeartRateModel.h",
+      "sha": "c5ffbfe9a15821fda5cdf0585039ab30b235d45c"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPManualMeasurementDataModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPManualMeasurementDataModel.h",
+      "sha": "14456cf929e7ed8516ff6ee382b1d42ecdad9738"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPManualMeasurementMicroTestModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPManualMeasurementMicroTestModel.h",
+      "sha": "0ea23154d6ecec95f745a9cd314c39f163142706"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPManualMetModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPManualMetModel.h",
+      "sha": "307b3382165cfd8e62e45a37ecadf7c69353ee9a"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPManualStressModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPManualStressModel.h",
+      "sha": "d76f2c67af05788092f876b33c1d608015ed517d"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPManualTestDataModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPManualTestDataModel.h",
+      "sha": "e86a834abd109d2730c1da8262934de4c6829f78"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPMarketDialManager.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPMarketDialManager.h",
+      "sha": "0a6739c404f408cdc9e44d8c684866978e819a52"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPMicroTestModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPMicroTestModel.h",
+      "sha": "43e364e5688e693fac59b9b0461c099394a995f2"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPMultiBloodGlucoseModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPMultiBloodGlucoseModel.h",
+      "sha": "87934ed36aa2254e720567a2f5a9b89920e00776"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPOpusHandle.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPOpusHandle.h",
+      "sha": "db15ccdd4e8d46e95d9e1e40c656bbeca79a6c02"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPOxygenAnalysisModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPOxygenAnalysisModel.h",
+      "sha": "6583c97cacb96ef45f10d2b2187bcc3ae59c5b1b"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPOxygenAnalysisSectionFourView.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPOxygenAnalysisSectionFourView.h",
+      "sha": "268a1ce11cec323a82cabe05c36e47f20cbbd0e7"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPOxygenAnalysisSectionOneView.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPOxygenAnalysisSectionOneView.h",
+      "sha": "6d118408f08ccc378c8591cf8890aa671831f19f"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPOxygenAnalysisSectionResultView.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPOxygenAnalysisSectionResultView.h",
+      "sha": "d54bbdf25a339f306d866acbeeb82a004ad6d5a3"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPOxygenAnalysisSectionThreeView.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPOxygenAnalysisSectionThreeView.h",
+      "sha": "5ef8755433ec0f75f0bca652dfc0169864a51a55"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPOxygenAnalysisSectionTwoView.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPOxygenAnalysisSectionTwoView.h",
+      "sha": "d4f64a63dcc47411ffe3690e9bc29d2c79d49db4"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPOxygenApneaRemindModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPOxygenApneaRemindModel.h",
+      "sha": "81c6f6fee848d16ecec592452990d120d728e19a"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPOxygenCurveView.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPOxygenCurveView.h",
+      "sha": "ca1fabbbc8f25c5a78b5e8d03d7791d544ca3615"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPOxygenDetailController.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPOxygenDetailController.h",
+      "sha": "b864e678dec09fa079aa72e459802e9c7287e6e0"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPOxygenDisconnectTestModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPOxygenDisconnectTestModel.h",
+      "sha": "ac97efea4e2affb3468193b58dd1fe726e553a07"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPPeripheralAddManage.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPPeripheralAddManage.h",
+      "sha": "6ec6963c109666271328216959248d96fb3fae7f"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPPeripheralBaseManage.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPPeripheralBaseManage.h",
+      "sha": "97b9181fdbb9813483d096c0e0643e1b6d2a0c52"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPPeripheralManage.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPPeripheralManage.h",
+      "sha": "618eb18bbc96ffbfbb42ee7c793effb85afafb43"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPPeripheralModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPPeripheralModel.h",
+      "sha": "c7e488fde5c399a4b5a3b1d5c534816ec0a71f46"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPPhotoDialConfigModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPPhotoDialConfigModel.h",
+      "sha": "9297d674b6ecd023e22a4efe61aeef2e7d5df7d7"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPPhotoDialModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPPhotoDialModel.h",
+      "sha": "cbc438ee4d6de044f5d936b541ad888ca90ac217"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPPhotoDialView.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPPhotoDialView.h",
+      "sha": "57da90318b2a51435606697466326f1bd0cdf99b"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPPttValueModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPPttValueModel.h",
+      "sha": "17093a6da10bf49c752138f827b6e93bcc014682"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPPublicDefine.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPPublicDefine.h",
+      "sha": "60a13e8b7c56ff262219d7ed8677efd695ddad29"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPQH15HealthDataModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPQH15HealthDataModel.h",
+      "sha": "5f04b05ece4adb6d22c49594aa2f1dca2939b905"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPQH15SecurityProtectionConst.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPQH15SecurityProtectionConst.h",
+      "sha": "bcd552cacf0d0b7b8803400a161acbb5af7fe6ef"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPQH15SecurityProtectionModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPQH15SecurityProtectionModel.h",
+      "sha": "19035a8273ca8997c1f14ef3d3610fc42f89d59b"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPQH15StepDataModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPQH15StepDataModel.h",
+      "sha": "c1ea8e3011138abb1553f718b851937c23e81fb4"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPQX17GPSModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPQX17GPSModel.h",
+      "sha": "f18432d6287fe41f62f904f9673f79cdc4f7600f"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPQX17HeartRateModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPQX17HeartRateModel.h",
+      "sha": "3c8bfb6ed75d1a5a8b028bcb30e194b814e8f88e"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPQX17IMUModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPQX17IMUModel.h",
+      "sha": "d7e2211ab30850c19cdcf474268fd6dfaeef0cc8"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPQX17PublicDefine.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPQX17PublicDefine.h",
+      "sha": "cd607166ceb9c6622bb788a864697d28eecd2c8d"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPRRIntervalDataHRVHandle.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPRRIntervalDataHRVHandle.h",
+      "sha": "ca451db52d2a91873836829f81e67f5f8688cf70"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPRRIntervalDataModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPRRIntervalDataModel.h",
+      "sha": "03ca9f0b7b7b5a0817f1287edb6676636c5909e8"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPRRIntervalLorentzModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPRRIntervalLorentzModel.h",
+      "sha": "b21ae4f9b4af224f6a3a15ff8bdf5ed3e9cb0fa3"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPReminderEventModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPReminderEventModel.h",
+      "sha": "65cc18196f1e7076fd0a6b8e5138dff1b45b9201"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPSNCodeError.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPSNCodeError.h",
+      "sha": "4c7774d1111909ab8c0d3fc80e73620ee2e92b52"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPScreenDurationModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPScreenDurationModel.h",
+      "sha": "97a00f273787bc3077d8abf4d88e5e37f18d66e0"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPServerMarketDialModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPServerMarketDialModel.h",
+      "sha": "cd1e9ac8b1888df5c8c8ebe1ec254f5720877ead"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPStepChangTool.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPStepChangTool.h",
+      "sha": "e8d9c5bdb4c1f50eee8524741e01384b659ad58c"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPSyncPersonalInfo.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPSyncPersonalInfo.h",
+      "sha": "20f57fb8d1955fb07757c02a291c592f48edc766"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPTCMTestDataModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPTCMTestDataModel.h",
+      "sha": "288c376dbf769e346a02f38ad67c73ad7b50edcc"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPWeatherConfigModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPWeatherConfigModel.h",
+      "sha": "1b906c226a512b3be8c3218829c52ef4721dc0d5"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPWeatherHandle.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPWeatherHandle.h",
+      "sha": "86d4aa48b1f12a74a39b7ca5c1ae8ba5e0a0bb6b"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPWeatherServerForecastModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPWeatherServerForecastModel.h",
+      "sha": "036a7f8ff34f4247b7fd3dc7e7106bdef9fc85ab"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPWeatherServerHourlyModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPWeatherServerHourlyModel.h",
+      "sha": "e9834b2910e6afaec6f0037a5d851668140b6e4a"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPWeatherServerModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPWeatherServerModel.h",
+      "sha": "d7a0eb142af483d82b1133743b6d986d5b5712e8"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VPWorldClockModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VPWorldClockModel.h",
+      "sha": "25d7dc14ad61c44a15d95a0b3cd80044a5c4a578"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VeepooBleSDK-Swift.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VeepooBleSDK-Swift.h",
+      "sha": "e494df45b1360072ef6322b91ec8aa3d0aced1c0"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/VeepooBleSDK.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/VeepooBleSDK.h",
+      "sha": "ef918c35921cfd01bc007e343870f9a9e35804de"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/WLWeatherManager.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/WLWeatherManager.h",
+      "sha": "5778d2ec7384bc7d2010060f501e169c3145464f"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Headers/WLWeatherModel.h",
+      "destination": "Frameworks/VeepooBleSDK.framework/Headers/WLWeatherModel.h",
+      "sha": "38fa93da9dc099d02492a11de53f17337568f11b"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Info.plist",
+      "destination": "Frameworks/VeepooBleSDK.framework/Info.plist",
+      "sha": "df68a66084c68d65d1beaf43814147c5067afff7"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Modules/VeepooBleSDK.swiftmodule/Project/arm64-apple-ios.swiftsourceinfo",
+      "destination": "Frameworks/VeepooBleSDK.framework/Modules/VeepooBleSDK.swiftmodule/Project/arm64-apple-ios.swiftsourceinfo",
+      "sha": "cfa9a3938c091b297d1a455769b26f24a93bc640"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Modules/VeepooBleSDK.swiftmodule/arm64-apple-ios.abi.json",
+      "destination": "Frameworks/VeepooBleSDK.framework/Modules/VeepooBleSDK.swiftmodule/arm64-apple-ios.abi.json",
+      "sha": "da1090ff9fdf9ec8e104efaccf5f674c08f15caf"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Modules/VeepooBleSDK.swiftmodule/arm64-apple-ios.private.swiftinterface",
+      "destination": "Frameworks/VeepooBleSDK.framework/Modules/VeepooBleSDK.swiftmodule/arm64-apple-ios.private.swiftinterface",
+      "sha": "cf752fd0b95c53acdc2495a5baec30564ed5bae3"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Modules/VeepooBleSDK.swiftmodule/arm64-apple-ios.swiftdoc",
+      "destination": "Frameworks/VeepooBleSDK.framework/Modules/VeepooBleSDK.swiftmodule/arm64-apple-ios.swiftdoc",
+      "sha": "0f7f5a9db029ed687bfec8cd5cfd5c22c1836ddd"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Modules/VeepooBleSDK.swiftmodule/arm64-apple-ios.swiftinterface",
+      "destination": "Frameworks/VeepooBleSDK.framework/Modules/VeepooBleSDK.swiftmodule/arm64-apple-ios.swiftinterface",
+      "sha": "cf752fd0b95c53acdc2495a5baec30564ed5bae3"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Modules/VeepooBleSDK.swiftmodule/arm64-apple-ios.swiftmodule",
+      "destination": "Frameworks/VeepooBleSDK.framework/Modules/VeepooBleSDK.swiftmodule/arm64-apple-ios.swiftmodule",
+      "sha": "224c9d5bdfa37c3630f1c6e19c8e0069db296e1f"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/Modules/module.modulemap",
+      "destination": "Frameworks/VeepooBleSDK.framework/Modules/module.modulemap",
+      "sha": "b155933bb2fa12d4598f9a9ff97d9a3a0cb860eb"
+    },
+    {
+      "source": "iOS_sdk_source/Framework/2.2.XX.15/VeepooBleSDK.framework/VeepooBleSDK",
+      "destination": "Frameworks/VeepooBleSDK.framework/VeepooBleSDK",
+      "sha": "a775b2b84013c9d373fb02ed272977e7beae25bb"
+    }
+  ]
+}

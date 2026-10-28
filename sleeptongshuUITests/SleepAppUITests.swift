@@ -92,6 +92,32 @@ final class SleepAppUITests: XCTestCase {
         capture("12-local-data")
     }
 
+    func testWearableVitalsEmptyStateDoesNotInventMeasurements() {
+        selectTab("监测与设备")
+        press(app.segmentedControls["monitorMode"].buttons["穿戴设备"])
+        XCTAssertFalse(app.staticTexts["戒指睡眠同步 · 测试"].exists)
+        press(app.buttons["wearableVitals"])
+        XCTAssertTrue(app.staticTexts["暂无体征记录"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["HRV（设备值）"].exists)
+        capture("13-vitals-empty")
+    }
+
+    func testWearableVitalsChartsUseAvailableMetricsOnly() {
+        app.terminate()
+        app.launchArguments += ["-ui-testing-vitals"]
+        app.launch()
+        selectTab("监测与设备")
+        press(app.segmentedControls["monitorMode"].buttons["穿戴设备"])
+        capture("14-wearable-device-page")
+        press(app.buttons["wearableVitals"])
+        XCTAssertTrue(app.buttons["查看血氧趋势"].waitForExistence(timeout: 5))
+        press(app.buttons["查看血氧趋势"])
+        XCTAssertFalse(app.staticTexts["血糖（设备估计）"].exists)
+        capture("15-vitals-oxygen-chart")
+        press(app.buttons["查看HRV（设备值）趋势"])
+        capture("16-vitals-hrv-chart")
+    }
+
     private func capture(_ name: String) {
         let attachment = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
         attachment.name = name

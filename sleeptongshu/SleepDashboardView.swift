@@ -112,7 +112,7 @@ struct SleepDashboardView: View {
                 }
                 Spacer(minLength: 8)
                 Button {
-                    help = MetricHelp(title: "睡眠参考分", body: "参考分由睡眠时长（60%）与睡眠效率（40%）计算。时长部分以 8 小时为满分。这是 App 自定义的观察指标，并非小米、苹果或医疗机构评分；手动记录没有睡眠阶段，因此不生成分数。")
+                    help = MetricHelp(title: "睡眠参考分", body: "参考分由睡眠时长（60%）与睡眠效率（40%）计算。时长部分以 8 小时为满分。这是 App 自定义的观察指标，不代表设备评分或医学评价；手动记录没有睡眠阶段，因此不生成分数。")
                 } label: { scoreRing(record) }.buttonStyle(.plain).accessibilityLabel("睡眠参考分说明")
             }
             if record.hasSleepDuration { VStack(spacing: 7) {

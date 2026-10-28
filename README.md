@@ -6,6 +6,8 @@
 
 第二版的安装、权限、算法与真机测试步骤见 **[第二版说明](docs/V2.md)**。普通 `sleeptongshu` scheme 保持基础安装能力；`sleeptongshu-Health` scheme 启用 HealthKit，需要对应签名能力。App 不需要小米账号，没有 App 自建账号或服务器。
 
+**设备同步版 0.2.2**：设备页面使用通用名称，记住成功连接的设备并支持直接重连；匹配戒指连接后自动同步睡眠与体征，没有睡眠也可保存有效体征。新增按设备、指标、7/30 天筛选的体征图表、本机存储、单独导出与清空。真实 L03 已验证连接及认证，真实过夜分期和各体征仍需逐项验收；手环加密历史协议尚未适配，不能承诺免首次绑定。真机读取使用 `sleeptongshu-Ring.xcodeproj`，首次检出先运行依赖下载脚本。详见 [0.2.2 使用与支持范围](docs/DEVICE_SYNC_V022.md) 和 [戒指工程与验证](docs/L03_RING_TEST.md)。
+
 <p>
   <img src="docs/screenshots/device-merge/monitor-devices.png" width="260" alt="合并后的监测与设备，iPhone 模拟器" />
   <img src="docs/screenshots/v2/phone-report.png" width="260" alt="第二版手机声音报告，使用明确标注的模拟数据" />
@@ -24,7 +26,7 @@
 - 趋势：最近 7 / 30 天的时长、效率、深睡占比；目标参考线；每日记录详情与单条删除。
 - 手动记录：跨夜时间、睡前笔记。不虚构手动记录的阶段、分数或体征，缺失数据展示为 `--`。
 - 本地数据：SwiftData 持久化，JSON 备份导入/导出，重复 ID 跳过，示例加载/移除与全部清理确认。
-- 设备：BLE 扫描、连接、超时、断线和权限状态。连接后检查开放服务，分别展示标准电量、型号和实时心率读取状态；支持重新读取、读取错误提示和诊断分享，不写入私有特征。实时心率不冒充整夜平均心率。解决“连接了但没有数据”见 [蓝牙排查](docs/BLUETOOTH_TROUBLESHOOTING.md)。
+- 设备：成功连接后保留设备标识、通用名称与时间，使用系统缓存标识直接重连，支持忘记设备。公开特征支持电量、型号、心率、血氧、血压；每种数据均需设备实际开放服务。独立戒指工程使用官方 SDK 进行匹配设备的认证、历史读取及已验证值保存，普通工程不发送私有写入命令。体征不冒充睡眠平均值。解决“连接了但没有数据”见 [蓝牙排查](docs/BLUETOOTH_TROUBLESHOOTING.md)。
 - 同步扩展：`SleepSyncClient` 使用 Codable 值类型预留异步上传/下载接口，当前没有服务端、账号或网络同步。
 
 ## 第一次运行
@@ -84,7 +86,7 @@ xcodebuild -project sleeptongshu.xcodeproj -scheme sleeptongshu \
 | `sleeptongshuTests/` | 数据一致性、导入验证与持久化测试 |
 | `sleeptongshuUITests/` | 日期、趋势、详情、手动记录与清理操作测试 |
 
-更多说明：[数据与蓝牙](docs/DATA_AND_BLUETOOTH.md)、[测试步骤](docs/TESTING.md)、[L03 Ultra / G Band 日志分析](docs/GBAND_LOG_ANALYSIS.md)。日志已确认设备有私有协议响应，尚未完成该戒指的睡眠同步适配。
+更多说明：[数据与蓝牙](docs/DATA_AND_BLUETOOTH.md)、[测试步骤](docs/TESTING.md)、[L03 Ultra / G Band 日志分析](docs/GBAND_LOG_ANALYSIS.md)。日志分析之后已接入 SDK 并验证真实戒指认证；完整睡眠与体征一致性尚待实际记录核对。
 
 ## 说明
 

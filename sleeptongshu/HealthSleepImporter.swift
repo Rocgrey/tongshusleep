@@ -52,10 +52,10 @@ final class HealthSleepImporter: ObservableObject {
 
     func load() async {
         guard Self.enabled else {
-            message = "此安装版本未启用 Apple 健康能力。手机监测仍可直接使用；健康读取需要在 Xcode 配置 HealthKit 签名，步骤见项目的第二版说明。"
+            message = "此安装版本未启用系统健康读取。可直接使用手机监测或连接设备同步。"
             return
         }
-        guard HKHealthStore.isHealthDataAvailable() else { message = "当前设备不支持 Apple 健康读取，请在 iPhone 上使用。"; return }
+        guard HKHealthStore.isHealthDataAvailable() else { message = "当前设备不支持系统健康读取，请在手机上使用。"; return }
         isLoading = true
         defer { isLoading = false }
         do {
@@ -64,7 +64,7 @@ final class HealthSleepImporter: ObservableObject {
             sleeps = try await samples(type: sleep, start: start, end: .now, limit: 10000).compactMap { $0 as? HKCategorySample }
             providers = Set(sleeps.map(providerKey)).sorted()
             if !providers.contains(selectedProvider) { selectedProvider = providers.first ?? "" }
-            if providers.isEmpty { message = "没有读到最近 30 天的睡眠记录。请确认健康 App 内已有记录，并允许读取。Apple 不会向 App 告知你是否拒绝了读取权限。" }
+            if providers.isEmpty { message = "没有读到最近 30 天的睡眠记录。请确认系统健康内已有记录，并允许读取；未授权和没有记录时均可能返回空数据。" }
         } catch { message = "健康读取失败：\(error.localizedDescription)" }
     }
 
