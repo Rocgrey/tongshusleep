@@ -26,7 +26,7 @@ struct WearableVitalsView: View {
                 } else {
                     Picker("设备", selection: $device) {
                         ForEach(devices, id: \.self) { key in
-                            Text(DevicePresentation.name(store.samples.first { $0.device == key }?.deviceLabel ?? "穿戴设备")).tag(key)
+                            Text(DevicePresentation.name(store.samples.first { $0.device == key }?.deviceLabel ?? "戒指")).tag(key)
                         }
                     }.pickerStyle(.menu)
                     Picker("时间范围", selection: $days) { Text("近 7 天").tag(7); Text("近 30 天").tag(30) }.pickerStyle(.segmented)

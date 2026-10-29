@@ -57,7 +57,7 @@ struct LocalDataView: View {
                     Button("删除全部记录", role: .destructive) { deleteAll = true }.disabled(records.isEmpty)
                 }
                 Section {
-                    LabeledContent("版本", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.2.2")
+                    LabeledContent("版本", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.2.3")
                     Text("睡眠阶段及体征用于观察个人趋势，不用于医疗诊断。")
                         .font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
                 } header: { Text("睡眠同书") }

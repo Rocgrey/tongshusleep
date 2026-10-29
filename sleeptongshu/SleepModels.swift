@@ -8,7 +8,7 @@ enum SleepDataSource: String, Codable, CaseIterable {
         case .sample: "示例数据"
         case .manual: "手动记录"
         case .healthKit: "系统健康"
-        case .band: "穿戴设备"
+        case .band: "设备记录"
         case .phone: "手机估算"
         }
     }
@@ -142,7 +142,12 @@ final class SleepRecord {
     var hasSleepDuration: Bool { source != .phone || metadata?.phone?.estimatedMinutes != nil }
     func minutes(_ stage: SleepStage) -> Int { segments.filter { $0.stage == stage }.map(\.minutes).reduce(0, +) }
     var efficiency: Int? { !segments.isEmpty && !segments.contains { $0.stage == .unobserved } && inBedMinutes > 0 ? Int(Double(asleepMinutes) / Double(inBedMinutes) * 100) : nil }
-    var deepShare: Int? { hasStages && !segments.contains { [.unobserved, .unspecified].contains($0.stage) } && asleepMinutes > 0 ? Int(Double(minutes(.deep)) / Double(asleepMinutes) * 100) : nil }
+    func share(_ stage: SleepStage) -> Int? {
+        guard [.deep, .light, .rem].contains(stage), hasStages,
+              !segments.contains(where: { [.unobserved, .unspecified].contains($0.stage) }), asleepMinutes > 0 else { return nil }
+        return Int(Double(minutes(stage)) / Double(asleepMinutes) * 100)
+    }
+    var deepShare: Int? { share(.deep) }
     var awakenings: Int? { hasStages && !segments.contains { $0.stage == .unobserved } ? segments.dropFirst().filter { $0.stage == .awake }.count : nil }
     var score: Int? {
         guard let efficiency else { return nil }

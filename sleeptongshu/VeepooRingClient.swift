@@ -11,7 +11,7 @@ final class VeepooRingClient: ObservableObject {
     static let enabled = false
     #endif
     @Published private(set) var isBusy = false
-    @Published private(set) var status = "等待开始戒指同步"
+    @Published private(set) var status = "连接戒指后自动同步"
     @Published private(set) var progress: Double?
     @Published private(set) var rejectedCount = 0
     @Published private(set) var events: [String] = []

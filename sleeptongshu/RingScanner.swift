@@ -26,7 +26,7 @@ enum BLEStandardAccess {
     }
 }
 
-struct NearbyBand: Identifiable {
+struct NearbyRing: Identifiable {
     let peripheral: CBPeripheral
     var name: String
     var rssi: Int
@@ -34,12 +34,12 @@ struct NearbyBand: Identifiable {
 }
 
 @MainActor
-final class BandScanner: NSObject, ObservableObject {
-    @Published private(set) var devices: [NearbyBand] = []
+final class RingScanner: NSObject, ObservableObject {
+    @Published private(set) var devices: [NearbyRing] = []
     @Published private(set) var isScanning = false
     @Published private(set) var connectedName: String?
     @Published private(set) var connectingID: UUID?
-    @Published private(set) var status = "尚未连接穿戴设备"
+    @Published private(set) var status = "尚未连接戒指"
     @Published private(set) var battery: Int?
     @Published private(set) var modelNumber: String?
     @Published private(set) var liveHeartRate: Int?
@@ -68,7 +68,7 @@ final class BandScanner: NSObject, ObservableObject {
 
     override init() {
         super.init()
-        rememberedDevices = rememberedStorage.load()
+        rememberedDevices = rememberedStorage.load().filter { $0.verifiedRing == true || RingDevicePolicy.recognizes(name: $0.name) }
     }
 
     func reconnect(_ device: RememberedDevice) {
@@ -86,7 +86,7 @@ final class BandScanner: NSObject, ObservableObject {
             status = "系统未找到此设备，请重新搜索一次。原设备记录已保留。"
             return
         }
-        connect(NearbyBand(peripheral: peripheral, name: DevicePresentation.name(device.name), rssi: 0))
+        connect(NearbyRing(peripheral: peripheral, name: DevicePresentation.name(device.name), rssi: 0))
     }
 
     func forget(_ device: RememberedDevice) {
@@ -100,7 +100,7 @@ final class BandScanner: NSObject, ObservableObject {
                      "检查时间：\(inspectedAt?.formatted(date: .numeric, time: .standard) ?? "尚未检查")",
                      "状态：\(status)", "电量：\(batteryState.label)", "型号：\(modelNumber ?? modelState.label)",
                      "心率：\(heartRateState.label)",
-                     "历史睡眠：\(VeepooRingClient.enabled && veepooChannelDetected ? "待通过戒指接口同步，见主按钮" : "尚未适配厂商协议")"]
+                     "历史睡眠：\(VeepooRingClient.enabled && veepooChannelDetected ? "通道检查完成后自动同步" : "未识别到受支持的戒指通道")"]
         if discoveredServices.isEmpty { lines.append("尚未发现服务，或设备未开放服务。") }
         for service in discoveredServices {
             lines.append("服务 \(service)")
@@ -157,7 +157,12 @@ final class BandScanner: NSObject, ObservableObject {
         if batteryState == .checking { batteryState = .unavailable }
         if modelState == .checking { modelState = .unavailable }
         if heartRateState == .checking { heartRateState = .unavailable }
-        status = veepooChannelDetected ? "已连接 · 识别到戒指私有通道" : "已连接 · 历史睡眠需要厂商适配"
+        status = veepooChannelDetected ? "已连接 · 即将自动同步" : "已连接 · 尚不支持此戒指的数据通道"
+        if veepooChannelDetected, let connected {
+            rememberedDevices.removeAll { $0.id == connected.identifier }
+            rememberedDevices.insert(RememberedDevice(id: connected.identifier, name: connectedName ?? "戒指", lastConnected: .now, verifiedRing: true), at: 0)
+            rememberedStorage.save(rememberedDevices)
+        }
     }
 
     func scan() {
@@ -172,7 +177,7 @@ final class BandScanner: NSObject, ObservableObject {
         scanTimeout?.cancel()
         devices.removeAll()
         isScanning = true
-        status = "正在搜索附近设备…"
+        status = "正在搜索附近戒指…"
         central.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: true])
         scanTimeout = Task { [weak self] in
             do { try await Task.sleep(for: .seconds(12)) } catch { return }
@@ -186,11 +191,11 @@ final class BandScanner: NSObject, ObservableObject {
         central?.stopScan()
         isScanning = false
         if connectedName == nil && connectingID == nil && central?.state == .poweredOn {
-            status = devices.isEmpty ? "未发现设备，可将手环靠近后重试" : "发现 \(devices.count) 个设备"
+            status = devices.isEmpty ? "未发现戒指，请靠近手机并确认戒指有电" : "发现 \(devices.count) 枚戒指"
         }
     }
 
-    func connect(_ device: NearbyBand) {
+    func connect(_ device: NearbyRing) {
         guard connectingID == nil, connected == nil, let central, central.state == .poweredOn else { return }
         stopScan()
         connectingID = device.id
@@ -239,7 +244,7 @@ final class BandScanner: NSObject, ObservableObject {
     }
 }
 
-extension BandScanner: @preconcurrency CBCentralManagerDelegate, @preconcurrency CBPeripheralDelegate {
+extension RingScanner: @preconcurrency CBCentralManagerDelegate, @preconcurrency CBPeripheralDelegate {
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         switch central.state {
         case .poweredOn: status = "蓝牙已开启"; reconnectIfReady(); beginScanIfReady()
@@ -254,8 +259,13 @@ extension BandScanner: @preconcurrency CBCentralManagerDelegate, @preconcurrency
 
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String: Any], rssi RSSI: NSNumber) {
         guard isScanning else { return }
-        let name = DevicePresentation.name(advertisementData[CBAdvertisementDataLocalNameKey] as? String ?? peripheral.name ?? "未命名设备")
-        let device = NearbyBand(peripheral: peripheral, name: name, rssi: RSSI.intValue)
+        let rawName = advertisementData[CBAdvertisementDataLocalNameKey] as? String ?? peripheral.name ?? "未命名戒指"
+        let services = ((advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] ?? [])
+                        + (advertisementData[CBAdvertisementDataOverflowServiceUUIDsKey] as? [CBUUID] ?? [])).map(\.uuidString)
+        guard RingDevicePolicy.recognizes(name: rawName, services: services)
+                || rememberedDevices.contains(where: { $0.id == peripheral.identifier }) else { return }
+        let name = DevicePresentation.name(rawName)
+        let device = NearbyRing(peripheral: peripheral, name: name, rssi: RSSI.intValue)
         if let index = devices.firstIndex(where: { $0.id == device.id }) { devices[index] = device }
         else { devices.append(device) }
         devices.sort { $0.rssi > $1.rssi }
@@ -265,10 +275,7 @@ extension BandScanner: @preconcurrency CBCentralManagerDelegate, @preconcurrency
         guard connected?.identifier == peripheral.identifier else { central.cancelPeripheralConnection(peripheral); return }
         connectionTimeout?.cancel()
         connectingID = nil
-        connectedName = DevicePresentation.name(peripheral.name ?? "穿戴设备")
-        rememberedDevices.removeAll { $0.id == peripheral.identifier }
-        rememberedDevices.insert(RememberedDevice(id: peripheral.identifier, name: connectedName!, lastConnected: .now), at: 0)
-        rememberedStorage.save(rememberedDevices)
+        connectedName = DevicePresentation.name(peripheral.name ?? "戒指")
         peripheral.delegate = self
         inspectDevice()
     }
@@ -381,7 +388,7 @@ extension BandScanner: @preconcurrency CBCentralManagerDelegate, @preconcurrency
 
     private func makeVital(_ kind: VitalKind, value: Double, peripheral: CBPeripheral) -> WearableVital {
         let key = WearableVital.deviceKey(peripheral.identifier.uuidString)
-        return WearableVital(device: key, deviceLabel: "\(connectedName ?? "穿戴设备") · \(key.prefix(6))", date: .now,
+        return WearableVital(device: key, deviceLabel: "\(connectedName ?? "戒指") · \(key.prefix(6))", date: .now,
                              kind: kind, value: value, origin: "蓝牙接收时间")
     }
 

@@ -25,7 +25,7 @@ struct SleepDashboardView: View {
                         vitals(record)
                         analysis(record)
                         if record.source == .sample {
-                            Label("示例记录仅供预览，尚未从手环获取数据。", systemImage: "info.circle")
+                            Label("当前为预览记录，真实睡眠单独保存。可在本地数据中移除预览记录。", systemImage: "info.circle")
                                 .font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
                         }
                     } else {
@@ -112,7 +112,7 @@ struct SleepDashboardView: View {
                 }
                 Spacer(minLength: 8)
                 Button {
-                    help = MetricHelp(title: "睡眠参考分", body: "参考分由睡眠时长（60%）与睡眠效率（40%）计算。时长部分以 8 小时为满分。这是 App 自定义的观察指标，不代表设备评分或医学评价；手动记录没有睡眠阶段，因此不生成分数。")
+                    help = SleepMetricGuide.score(record)
                 } label: { scoreRing(record) }.buttonStyle(.plain).accessibilityLabel("睡眠参考分说明")
             }
             if record.hasSleepDuration { VStack(spacing: 7) {
@@ -137,7 +137,9 @@ struct SleepDashboardView: View {
                 Spacer()
                 Rectangle().fill(SleepPalette.teal.opacity(0.12)).frame(width: 1, height: 32)
                 Spacer()
-                timeValue("睡眠效率", value: record.efficiency.map { "\($0)%" } ?? "--", symbol: "leaf.fill")
+                Button { help = SleepMetricGuide.efficiency(record) } label: {
+                    timeValue("睡眠效率", value: record.efficiency.map { "\($0)%" } ?? "--", symbol: "leaf.fill", showsInfo: true)
+                }.buttonStyle(.plain).accessibilityLabel("睡眠效率说明")
             }
         }
         .padding(20).background(Color(red: 0.90, green: 0.95, blue: 0.93), in: RoundedRectangle(cornerRadius: 8))
@@ -155,9 +157,12 @@ struct SleepDashboardView: View {
         }.frame(width: 82, height: 82).padding(.top, 24)
     }
 
-    private func timeValue(_ title: String, value: String, symbol: String) -> some View {
+    private func timeValue(_ title: String, value: String, symbol: String, showsInfo: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Label(title, systemImage: symbol).font(.system(size: 10)).foregroundStyle(SleepPalette.muted)
+            HStack(spacing: 3) {
+                Label(title, systemImage: symbol)
+                if showsInfo { Image(systemName: "info.circle") }
+            }.font(.system(size: 10)).foregroundStyle(SleepPalette.muted)
             Text(value).font(.system(size: 17, weight: .semibold, design: .rounded)).foregroundStyle(SleepPalette.ink)
         }
     }
@@ -168,7 +173,7 @@ struct SleepDashboardView: View {
                 SectionHeading(title: "睡眠阶段", subtitle: "看见身体整夜的恢复节奏")
                 Spacer()
                 Button {
-                    help = MetricHelp(title: "关于睡眠阶段", body: "深睡、浅睡和快速眼动（REM）会在一晚中交替出现。REM 与梦境、记忆加工有关，深睡参与身体恢复。手环通过传感器估算阶段，不能替代临床睡眠检查。每段色条都对应记录中的真实时间区间；示例来源表示这些区间是模拟数据。")
+                    help = SleepMetricGuide.stages(record)
                 } label: { Image(systemName: "info.circle").frame(width: 36, height: 36) }.accessibilityLabel("睡眠阶段说明")
             }
             if !record.segments.isEmpty {
@@ -179,12 +184,32 @@ struct SleepDashboardView: View {
                 }
                 if record.hasStages { HStack(alignment: .top, spacing: 8) {
                     ForEach([SleepStage.deep, .light, .rem, .awake]) { stage in
-                        VStack(alignment: .leading, spacing: 7) {
+                        Button { help = SleepMetricGuide.stage(stage, record: record) } label: { VStack(alignment: .leading, spacing: 7) {
                             HStack(spacing: 4) { Circle().fill(stage.color).frame(width: 5, height: 5); Text(stage.label).font(.system(size: 10)) }
                             Text("\(record.minutes(stage))").font(.system(size: 20, weight: .semibold, design: .rounded)) + Text(" 分").font(.system(size: 10))
-                        }.foregroundStyle(SleepPalette.ink).frame(maxWidth: .infinity, alignment: .leading)
+                            Text(stage == .awake ? "清醒时段" : record.share(stage).map { "\($0)%" } ?? "--")
+                                .font(.system(size: 12, weight: .medium)).foregroundStyle(SleepPalette.muted)
+                        }.foregroundStyle(SleepPalette.ink).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle()) }
+                            .buttonStyle(.plain).accessibilityLabel("\(stage.label)说明")
                     }
                 } }
+                if record.hasStages {
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach([SleepStage.deep, .light, .rem]) { stage in
+                            Button { help = SleepMetricGuide.stage(stage, record: record) } label: {
+                                HStack(alignment: .top, spacing: 10) {
+                                    Circle().fill(stage.color).frame(width: 7, height: 7).padding(.top, 5)
+                                    Text(stage.label).font(.system(size: 12, weight: .medium))
+                                    Spacer(minLength: 4)
+                                    Text(SleepMetricGuide.referenceText(stage)).font(.system(size: 11)).multilineTextAlignment(.trailing)
+                                    Image(systemName: "info.circle").font(.system(size: 12))
+                                }.frame(minHeight: 44).contentShape(Rectangle()).foregroundStyle(SleepPalette.muted)
+                            }.buttonStyle(.plain).accessibilityLabel("\(stage.label)参考范围")
+                        }
+                        Text("成人科普参考，非戒指分期合格线；年龄与算法会影响比例。")
+                            .font(.system(size: 10)).foregroundStyle(SleepPalette.muted)
+                    }
+                }
             } else {
                 Text(record.source == .manual ? "手动记录包含睡眠时间，暂无睡眠分期。" : "此来源未提供睡眠分期；手机声音与体动不能区分深睡、浅睡或 REM。")
                     .font(.system(size: 13)).foregroundStyle(SleepPalette.muted).padding(.vertical, 22)
@@ -199,12 +224,16 @@ struct SleepDashboardView: View {
                 metric("平均心率", value: record.averageHeartRate.map { String(format: "%.0f", $0) } ?? "--", unit: "次/分", icon: "heart.fill", color: SleepPalette.awake,
                        explanation: "睡眠期间的平均心率。关注多晚的个人趋势比比较单次数字更有意义。没有测量数据时显示 --。")
                 metric("平均血氧", value: record.averageSpO2.map { String(format: "%.1f", $0) } ?? "--", unit: "%", icon: "drop.fill", color: SleepPalette.deep,
-                       explanation: "睡眠期间的平均血氧饱和度。腕部松紧、动作和传感器贴合会影响结果；平均值不能反映所有短暂波动。")
-                metric("平均呼吸率", value: record.averageRespiratoryRate.map { String(format: "%.1f", $0) } ?? "--", unit: "次/分", icon: "wind", color: SleepPalette.teal,
-                       explanation: "睡眠期间每分钟平均呼吸次数。只有数据来源确实提供测量时才显示，不从其他指标猜测。")
-                metric("夜间清醒", value: record.awakenings.map(String.init) ?? "--", unit: "次", icon: "eye", color: SleepPalette.rem,
-                       explanation: "入睡后被记录为清醒的时间段数量。短暂清醒很常见，不等于整夜睡眠差。起始清醒段不计入夜间清醒次数。")
+                       explanation: "睡眠期间的平均血氧饱和度。佩戴松紧、动作和传感器贴合会影响结果；平均值不能反映所有短暂波动。")
             }.background(SleepPalette.line).clipShape(RoundedRectangle(cornerRadius: 8))
+            Button { help = SleepMetricGuide.stage(.awake, record: record) } label: {
+                HStack {
+                    Label("夜间清醒", systemImage: "eye")
+                    Spacer()
+                    Text(record.awakenings.map { "\($0) 次" } ?? "--")
+                    Image(systemName: "info.circle")
+                }.frame(minHeight: 44).contentShape(Rectangle()).font(.system(size: 13)).foregroundStyle(SleepPalette.muted)
+            }.buttonStyle(.plain).accessibilityLabel("夜间清醒说明")
             if !record.heartSamples.isEmpty {
                 Text("睡眠心率变化").font(.system(size: 12, weight: .medium)).foregroundStyle(SleepPalette.muted).padding(.top, 5)
                 HeartRateChart(samples: record.heartSamples)
@@ -362,6 +391,7 @@ struct RecordDetailView: View {
     let record: SleepRecord
     @State private var confirmDelete = false
     @State private var error: String?
+    @State private var help: MetricHelp?
     var body: some View {
         NavigationStack {
             List {
@@ -371,19 +401,35 @@ struct RecordDetailView: View {
                     Section("睡眠阶段") {
                         StageTimeline(record: record).padding(.vertical, 16)
                         ForEach(SleepStage.allCases.filter { stage in record.segments.contains { $0.stage == stage } }) { stage in
-                            LabeledContent(stage.label, value: SleepRecord.durationText(record.minutes(stage)))
+                            Button { help = SleepMetricGuide.stage(stage, record: record) } label: {
+                                HStack {
+                                    Text(stage.label)
+                                    Spacer()
+                                    Text(SleepRecord.durationText(record.minutes(stage)))
+                                    if let share = record.share(stage) { Text("\(share)%") }
+                                    Image(systemName: "info.circle")
+                                }
+                            }.buttonStyle(.plain)
                         }
+                    }
+                }
+                Section("指标与计算依据") {
+                    Button { help = SleepMetricGuide.efficiency(record) } label: {
+                        LabeledContent("睡眠效率 · 查看说明", value: record.efficiency.map { "\($0)%" } ?? "--")
+                    }
+                    Button { help = SleepMetricGuide.score(record) } label: {
+                        LabeledContent("参考分 · 查看算法", value: record.score.map(String.init) ?? "--")
                     }
                 }
                 Section("健康体征") {
                     LabeledContent("平均心率", value: record.averageHeartRate.map { String(format: "%.0f 次/分", $0) } ?? "暂无数据")
                     LabeledContent("平均血氧", value: record.averageSpO2.map { String(format: "%.1f%%", $0) } ?? "暂无数据")
-                    LabeledContent("平均呼吸率", value: record.averageRespiratoryRate.map { String(format: "%.1f 次/分", $0) } ?? "暂无数据")
                 }
                 if !record.note.isEmpty { Section("睡前笔记") { Text(record.note) } }
                 Section { Button("删除这条记录", role: .destructive) { confirmDelete = true } }
             }
             .navigationTitle("睡眠详情").navigationBarTitleDisplayMode(.inline)
+            .sheet(item: $help) { MetricHelpSheet(help: $0) }
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } } }
             .confirmationDialog("删除后可通过之前的备份恢复", isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button("删除记录", role: .destructive) {

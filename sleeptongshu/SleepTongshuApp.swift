@@ -57,7 +57,7 @@ struct RootTabView: View {
     @State private var tab = SleepTab.sleep
     @State private var errorMessage: String?
     @StateObject private var phone = PhoneSleepMonitor()
-    @StateObject private var scanner = BandScanner()
+    @StateObject private var scanner = RingScanner()
     @StateObject private var vitals = WearableVitalsStore.appStore()
 
     var body: some View {
@@ -132,6 +132,7 @@ struct SourceTag: View {
 struct MetricHelp: Identifiable {
     let title: String
     let body: String
+    var references: [SleepReference] = []
     var id: String { title }
 }
 
@@ -139,15 +140,32 @@ struct MetricHelpSheet: View {
     @Environment(\.dismiss) private var dismiss
     let help: MetricHelp
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack {
-                SectionHeading(title: help.title)
-                Spacer()
-                Button { dismiss() } label: { Image(systemName: "xmark").frame(width: 36, height: 36) }
-                    .accessibilityLabel("关闭说明")
-            }
-            Text(help.body).font(.system(size: 16)).foregroundStyle(SleepPalette.muted).lineSpacing(6)
-            Spacer(minLength: 0)
-        }.padding(26).padding(.top, 18).presentationDetents([.medium]).presentationDragIndicator(.visible)
+        NavigationStack {
+            VStack(spacing: 0) {
+                HStack {
+                    SectionHeading(title: help.title)
+                    Spacer()
+                    Button { dismiss() } label: { Image(systemName: "xmark").frame(width: 44, height: 44) }
+                        .accessibilityLabel("关闭说明")
+                }.padding(.horizontal, 26).padding(.top, 18).padding(.bottom, 8)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        Text(help.body).font(.system(size: 15)).foregroundStyle(SleepPalette.muted).lineSpacing(6)
+                        if !help.references.isEmpty {
+                            Divider()
+                            Text("参考资料").font(.system(size: 14, weight: .semibold))
+                            ForEach(help.references) { reference in
+                                if let url = URL(string: reference.url) {
+                                    Link(destination: url) {
+                                        Label(reference.title, systemImage: "arrow.up.right.square")
+                                            .font(.system(size: 13)).frame(maxWidth: .infinity, alignment: .leading)
+                                    }
+                                }
+                            }
+                        }
+                    }.padding(26).padding(.top, -8).frame(maxWidth: 680).frame(maxWidth: .infinity)
+                }
+            }.background(SleepPalette.background)
+        }.presentationDetents([.large]).presentationDragIndicator(.visible)
     }
 }

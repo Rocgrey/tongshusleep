@@ -104,7 +104,7 @@ final class HealthSleepImporter: ObservableObject {
                                       averageHeartRate: average(hearts.map(\.bpm)),
                                       averageSpO2: average(oxygen.map { $0.quantity.doubleValue(for: .percent()) * 100 }),
                                       averageRespiratoryRate: average(breathing.map { $0.quantity.doubleValue(for: HKUnit.count().unitDivided(by: .minute())) }),
-                                      note: "来源：\(selectedProvider)。缺口及冲突区间保留为未记录；体征是已读取样本的算术平均。",
+                                      note: "来源：\(DevicePresentation.name(selectedProvider))。缺口及冲突区间保留为未记录；体征是已读取样本的算术平均。",
                                       metadata: SleepMetadata(externalSource: selectedProvider, externalID: key))
             try payload.validate()
             payloads.append(payload)

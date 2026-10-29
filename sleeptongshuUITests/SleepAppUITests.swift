@@ -18,8 +18,24 @@ final class SleepAppUITests: XCTestCase {
         XCTAssertTrue(app.buttons["下一晚"].isEnabled)
         press(app.buttons["下一晚"])
         press(app.buttons["睡眠参考分说明"])
-        XCTAssertTrue(app.staticTexts["睡眠参考分"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["睡眠参考分怎么算？"].waitForExistence(timeout: 3))
         press(app.buttons["关闭说明"])
+    }
+
+    func testSleepEfficiencyAndStageReferencesAreAccessible() {
+        press(app.buttons["睡眠效率说明"])
+        XCTAssertTrue(app.staticTexts["睡眠效率怎么算？"].waitForExistence(timeout: 3))
+        capture("17-efficiency-explanation")
+        press(app.buttons["关闭说明"])
+        scrollDown()
+        let rem = app.buttons["快速眼动参考范围"]
+        if !rem.isHittable { scrollDown() }
+        press(rem)
+        XCTAssertTrue(app.staticTexts["快速眼动占比"].waitForExistence(timeout: 3))
+        capture("18-rem-explanation")
+        press(app.buttons["关闭说明"])
+        XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "平均呼吸率")).firstMatch.exists)
+        capture("19-sleep-stages-and-references")
     }
 
     func testTrendsAndRecordDetails() {
@@ -49,6 +65,12 @@ final class SleepAppUITests: XCTestCase {
         scrollDown()
         press(app.buttons["移除示例数据"])
         press(app.buttons.matching(identifier: "移除示例数据").allElementsBoundByIndex.first { $0.isHittable }!)
+        #if targetEnvironment(macCatalyst)
+        app.windows.firstMatch.scroll(byDeltaX: 0, deltaY: 1000)
+        #else
+        app.swipeDown()
+        app.swipeDown()
+        #endif
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "1 条")).firstMatch.waitForExistence(timeout: 5))
         selectTab("睡眠")
         XCTAssertTrue(app.staticTexts["手动记录"].waitForExistence(timeout: 5))
@@ -76,25 +98,26 @@ final class SleepAppUITests: XCTestCase {
         app.swipeDown()
         app.swipeDown()
         #endif
-        press(app.segmentedControls["monitorMode"].buttons["穿戴设备"])
-        XCTAssertTrue(app.staticTexts["手环、手表与睡眠戒指"].exists)
+        press(app.segmentedControls["monitorMode"].buttons["戒指监测"])
+        XCTAssertTrue(app.staticTexts["睡眠戒指"].exists)
         capture("11-wearable-monitoring")
     }
 
     func testUnifiedDeviceAndDataNavigationHasOneScanner() {
         selectTab("监测与设备")
         XCTAssertFalse(app.tabBars.buttons["设备与数据"].exists)
-        press(app.segmentedControls["monitorMode"].buttons["穿戴设备"])
-        XCTAssertEqual(app.buttons.matching(identifier: "scanBand").count, 1)
+        press(app.segmentedControls["monitorMode"].buttons["戒指监测"])
+        XCTAssertEqual(app.buttons.matching(identifier: "scanRing").count, 1)
+        XCTAssertFalse(app.buttons["syncVeepooRing"].exists)
         press(app.buttons["localData"])
         XCTAssertTrue(app.buttons["导出 JSON 备份"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["scanBand"].exists)
+        XCTAssertFalse(app.buttons["scanRing"].exists)
         capture("12-local-data")
     }
 
     func testWearableVitalsEmptyStateDoesNotInventMeasurements() {
         selectTab("监测与设备")
-        press(app.segmentedControls["monitorMode"].buttons["穿戴设备"])
+        press(app.segmentedControls["monitorMode"].buttons["戒指监测"])
         XCTAssertFalse(app.staticTexts["戒指睡眠同步 · 测试"].exists)
         press(app.buttons["wearableVitals"])
         XCTAssertTrue(app.staticTexts["暂无体征记录"].waitForExistence(timeout: 5))
@@ -107,7 +130,7 @@ final class SleepAppUITests: XCTestCase {
         app.launchArguments += ["-ui-testing-vitals"]
         app.launch()
         selectTab("监测与设备")
-        press(app.segmentedControls["monitorMode"].buttons["穿戴设备"])
+        press(app.segmentedControls["monitorMode"].buttons["戒指监测"])
         capture("14-wearable-device-page")
         press(app.buttons["wearableVitals"])
         XCTAssertTrue(app.buttons["查看血氧趋势"].waitForExistence(timeout: 5))

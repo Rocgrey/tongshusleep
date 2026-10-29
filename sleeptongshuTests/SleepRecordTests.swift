@@ -33,6 +33,49 @@ final class SleepRecordTests: XCTestCase {
         XCTAssertNil(record.averageHeartRate)
     }
 
+    func testStageSharesExcludeAwakeAndUnknownIntervalsDoNotBecomeZeroShares() throws {
+        let start = Date(timeIntervalSince1970: 1_790_000_000)
+        let pattern: [(SleepStage, Int)] = [(.awake, 60), (.deep, 84), (.light, 231), (.rem, 105)]
+        var cursor = start
+        let segments = pattern.map { stage, minutes in
+            let end = cursor.addingTimeInterval(Double(minutes) * 60)
+            defer { cursor = end }
+            return SleepSegment(stage: stage, start: cursor, end: end)
+        }
+        var payload = SleepPayload(id: UUID(), start: start, end: cursor, source: .band, segments: segments,
+                                   heartSamples: [], averageHeartRate: nil, averageSpO2: nil, averageRespiratoryRate: nil, note: "")
+        try payload.validate()
+        let record = SleepRecord(payload)
+        XCTAssertEqual(record.asleepMinutes, 420)
+        XCTAssertEqual(record.efficiency, 87)
+        XCTAssertEqual(record.share(.deep), 20)
+        XCTAssertEqual(record.share(.light), 55)
+        XCTAssertEqual(record.share(.rem), 25)
+        XCTAssertNil(record.share(.awake))
+        XCTAssertEqual(record.score, 87)
+        payload.segments[2].stage = .unobserved
+        let incomplete = SleepRecord(payload)
+        XCTAssertNil(incomplete.share(.deep))
+        XCTAssertNil(incomplete.share(.light))
+        XCTAssertNil(incomplete.share(.rem))
+        XCTAssertNil(incomplete.efficiency)
+        XCTAssertNil(incomplete.score)
+        payload.segments[2].stage = .unspecified
+        XCTAssertNil(SleepRecord(payload).share(.rem))
+    }
+
+    func testStageHelpUsesTheSelectedRecordSource() throws {
+        var payload = try XCTUnwrap(SampleSleepRecords.makeMonth().first?.payload)
+        XCTAssertTrue(SleepMetricGuide.stages(SleepRecord(payload)).body.contains("当前选中的是预览记录"))
+        payload.source = .band
+        let ringHelp = SleepMetricGuide.stages(SleepRecord(payload))
+        XCTAssertTrue(ringHelp.body.contains("本晚来自戒指"))
+        XCTAssertFalse(ringHelp.body.contains("预览记录"))
+        XCTAssertFalse(ringHelp.references.isEmpty)
+        payload.source = .healthKit
+        XCTAssertTrue(SleepMetricGuide.stages(SleepRecord(payload)).body.contains("本晚来自系统健康"))
+    }
+
     func testBackupRoundTripPreservesSegmentsAndSources() throws {
         let samples = SampleSleepRecords.makeMonth(now: Date(timeIntervalSince1970: 1_790_000_000))
         let backup = SleepBackup(records: samples.map(\.payload))

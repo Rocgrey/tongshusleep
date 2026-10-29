@@ -3,10 +3,18 @@ import Foundation
 enum DevicePresentation {
     static func name(_ raw: String) -> String {
         let lower = raw.lowercased().replacingOccurrences(of: " ", with: "")
-        if ["xiaomi", "小米", "miband", "smartband"].contains(where: lower.contains) { return "手环" }
+        if ["xiaomi", "小米", "miband", "smartband"].contains(where: lower.contains) { return "设备" }
         if ["gband", "veepoo", "协立"].contains(where: lower.contains) { return "戒指" }
-        if ["apple", "苹果"].contains(where: lower.contains) { return "穿戴设备" }
+        if ["apple", "苹果"].contains(where: lower.contains) { return "系统健康来源" }
         return raw
+    }
+}
+
+enum RingDevicePolicy {
+    static func recognizes(name: String, services: [String] = []) -> Bool {
+        let value = name.lowercased().replacingOccurrences(of: " ", with: "")
+        if services.contains(where: { $0.uppercased() == VeepooGatt.service }) { return true }
+        return ["ring", "戒指", "l03", "gband", "veepoo", "协立"].contains(where: value.contains)
     }
 }
 
@@ -14,6 +22,7 @@ struct RememberedDevice: Identifiable, Codable, Equatable {
     var id: UUID
     var name: String
     var lastConnected: Date
+    var verifiedRing: Bool? = nil
 }
 
 struct RememberedDeviceStorage {
