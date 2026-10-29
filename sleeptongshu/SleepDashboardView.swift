@@ -206,7 +206,7 @@ struct SleepDashboardView: View {
                                 }.frame(minHeight: 44).contentShape(Rectangle()).foregroundStyle(SleepPalette.muted)
                             }.buttonStyle(.plain).accessibilityLabel("\(stage.label)参考范围")
                         }
-                        Text("成人科普参考，非戒指分期合格线；年龄与算法会影响比例。")
+                        Text("成人的一般参考。年龄和设备会影响结果，不必每晚都达到。")
                             .font(.system(size: 10)).foregroundStyle(SleepPalette.muted)
                     }
                 }
@@ -277,7 +277,7 @@ struct SleepDashboardView: View {
             if let share = record.deepShare {
                 Divider()
                 HStack { Text("深睡占比").foregroundStyle(SleepPalette.muted); Spacer(); Text("\(share)%").fontWeight(.semibold) }.font(.system(size: 13))
-                Text("按深睡时长 ÷ 总睡眠时长计算。单晚比例自然波动，建议结合多晚观察。")
+                Text("深睡时间 ÷ 睡着的总时间。每晚有所不同，连续几晚一起看更有用。")
                     .font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
             }
             if !record.note.isEmpty { Divider(); Label(record.note, systemImage: "note.text").font(.system(size: 13)) }

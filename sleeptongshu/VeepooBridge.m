@@ -213,24 +213,6 @@
             if (![value isKindOfClass:[NSDictionary class]] || ![value[@"time"] isKindOfClass:[NSString class]]) continue;
             [vitals addObject:@{@"time": [NSString stringWithFormat:@"%@ %@", day, value[@"time"]], @"hrv": value[@"hrvValue"] ?: @0}];
         }
-        if (device.bloodGlucoseType != 0) {
-            for (NSDictionary *value in [VPDataBaseOperation veepooSDKGetDeviceBloodGlucoseDataWithDate:day andTableID:address]) {
-                if (![value isKindOfClass:[NSDictionary class]] || ![value[@"time"] isKindOfClass:[NSString class]]) continue;
-                [vitals addObject:@{@"time": [NSString stringWithFormat:@"%@ %@", day, value[@"time"]],
-                    @"glucose": [self meanOfPositiveValues:value[@"bloodGlucoses"]], @"origin": @"设备时段均值（血糖单位待确认）"}];
-            }
-        }
-        if (device.bloodAnalysisType != 0) {
-            for (VPDailyBloodAnalysisModel *value in [VPDataBaseOperation veepooSDKGetDeviceBloodAnalysisDataWithDate:day andTableID:address]) {
-                if (![value isKindOfClass:[VPDailyBloodAnalysisModel class]] || !value.time.length) continue;
-                [vitals addObject:@{@"time": [NSString stringWithFormat:@"%@ %@", day, value.time],
-                    @"cholesterol": [self meanOfPositiveValues:value.totalCholesterols],
-                    @"triglycerides": [self meanOfPositiveValues:value.triglycerides],
-                    @"hdl": [self meanOfPositiveValues:value.highDensityLipoproteins],
-                    @"ldl": [self meanOfPositiveValues:value.lowDensityLipoproteins],
-                    @"uricAcid": [self meanOfPositiveValues:value.uricAcids], @"origin": @"设备时段均值"}];
-            }
-        }
         NSArray *oxygen = [VPDataBaseOperation veepooSDKGetDeviceOxygenDataWithDate:day andTableID:address];
         for (NSDictionary *value in oxygen) {
             if (![value isKindOfClass:[NSDictionary class]] || ![value[@"Time"] isKindOfClass:[NSString class]]) continue;

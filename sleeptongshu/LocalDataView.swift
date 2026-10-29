@@ -39,12 +39,12 @@ struct LocalDataView: View {
                     Button { showsImporter = true } label: { Label("导入 JSON 备份", systemImage: "square.and.arrow.down") }
                 } header: { Text("本地数据") } footer: { Text("无需账号，App 不上传记录。导出后可由你选择保存位置；相同 ID 的记录在导入时会跳过。") }
                 Section("本机体征") {
-                    LabeledContent("体征记录", value: "\(vitals.samples.count) 条")
+                    LabeledContent("体征记录", value: "\(vitals.visibleSamples.count) 条")
                     NavigationLink { WearableVitalsView() } label: { Label("查看体征与图表", systemImage: "heart.text.clipboard") }
                     Button {
                         do { exportDocument = SleepBackupDocument(data: try vitals.export()); showsExporter = true }
                         catch { message = error.localizedDescription }
-                    } label: { Label("导出体征 JSON", systemImage: "square.and.arrow.up") }.disabled(vitals.samples.isEmpty)
+                    } label: { Label("导出体征 JSON", systemImage: "square.and.arrow.up") }.disabled(vitals.visibleSamples.isEmpty)
                     Button("清空本机体征", role: .destructive) { deleteVitals = true }.disabled(vitals.samples.isEmpty && vitals.error == nil)
                     Text("体征单独备份。清空只删除本 App 的体征记录，不删除设备端及设备接口缓存中的记录，再同步时可能重新导入。")
                         .font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
@@ -57,7 +57,7 @@ struct LocalDataView: View {
                     Button("删除全部记录", role: .destructive) { deleteAll = true }.disabled(records.isEmpty)
                 }
                 Section {
-                    LabeledContent("版本", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.2.3")
+                    LabeledContent("版本", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.2.4")
                     Text("睡眠阶段及体征用于观察个人趋势，不用于医疗诊断。")
                         .font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
                 } header: { Text("睡眠同书") }

@@ -155,11 +155,9 @@ struct MetricHelpSheet: View {
                             Divider()
                             Text("参考资料").font(.system(size: 14, weight: .semibold))
                             ForEach(help.references) { reference in
-                                if let url = URL(string: reference.url) {
-                                    Link(destination: url) {
-                                        Label(reference.title, systemImage: "arrow.up.right.square")
-                                            .font(.system(size: 13)).frame(maxWidth: .infinity, alignment: .leading)
-                                    }
+                                VStack(alignment: .leading, spacing: 5) {
+                                    Text(reference.title).font(.system(size: 13, weight: .medium))
+                                    Text(reference.author).font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
                                 }
                             }
                         }

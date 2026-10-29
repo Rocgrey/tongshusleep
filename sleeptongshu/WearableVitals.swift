@@ -7,21 +7,17 @@ enum VitalKind: String, Codable, CaseIterable, Identifiable {
     case heart, oxygen, respiration, systolic, diastolic, hrv, stress, glucose
     case cholesterol, triglycerides, hdl, ldl, uricAcid
     var id: String { rawValue }
+    var isVisible: Bool { ![.glucose, .cholesterol, .triglycerides, .hdl, .ldl, .uricAcid].contains(self) }
     var title: String {
         switch self {
         case .heart: "心率"
         case .oxygen: "血氧"
         case .respiration: "呼吸率"
-        case .systolic: "收缩压"
-        case .diastolic: "舒张压"
-        case .hrv: "HRV（设备值）"
-        case .stress: "压力（设备值）"
-        case .glucose: "血糖（设备估计）"
-        case .cholesterol: "总胆固醇（设备估计）"
-        case .triglycerides: "甘油三酯（设备估计）"
-        case .hdl: "高密度脂蛋白（设备估计）"
-        case .ldl: "低密度脂蛋白（设备估计）"
-        case .uricAcid: "尿酸（设备估计）"
+        case .systolic: "血压高压"
+        case .diastolic: "血压低压"
+        case .hrv: "HRV"
+        case .stress: "压力"
+        case .glucose, .cholesterol, .triglycerides, .hdl, .ldl, .uricAcid: "已隐藏项目"
         }
     }
     var unit: String {
@@ -86,7 +82,7 @@ enum WearableVitalDecoder {
                 if let parsed = formatter.date(from: time), formatter.string(from: parsed) == time { date = parsed; break }
             }
             guard let date, date <= Date.now.addingTimeInterval(300) else { continue }
-            for kind in VitalKind.allCases {
+            for kind in VitalKind.allCases where kind.isVisible {
                 guard let value = number(row[kind.rawValue]), kind.accepts(value) else { continue }
                 if kind == .systolic || kind == .diastolic {
                     guard let systolic = number(row["systolic"]), let diastolic = number(row["diastolic"]),
@@ -114,6 +110,7 @@ enum WearableVitalDecoder {
 final class WearableVitalsStore: ObservableObject {
     @Published private(set) var samples: [WearableVital] = []
     @Published private(set) var error: String?
+    var visibleSamples: [WearableVital] { samples.filter { $0.kind.isVisible } }
     private let url: URL?
 
     static func appStore() -> WearableVitalsStore {
@@ -149,7 +146,7 @@ final class WearableVitalsStore: ObservableObject {
         guard error == nil else { throw VeepooImportError.failure(error!) }
         var indexed = Dictionary(samples.map { ($0.id, $0) }, uniquingKeysWith: { _, newer in newer })
         var changed = 0
-        for sample in incoming where sample.kind.accepts(sample.value) && sample.date <= Date.now.addingTimeInterval(300) {
+        for sample in incoming where sample.kind.isVisible && sample.kind.accepts(sample.value) && sample.date <= Date.now.addingTimeInterval(300) {
             if indexed[sample.id] != sample { changed += 1 }
             indexed[sample.id] = sample
         }
@@ -160,7 +157,7 @@ final class WearableVitalsStore: ObservableObject {
     }
 
     func clear() throws { try persist([]); samples = []; error = nil }
-    func export() throws -> Data { try JSONEncoder().encode(samples) }
+    func export() throws -> Data { try JSONEncoder().encode(visibleSamples) }
 
     private func persist(_ next: [WearableVital]) throws {
         if let url { try JSONEncoder().encode(next).write(to: url, options: [.atomic, .completeFileProtection]) }

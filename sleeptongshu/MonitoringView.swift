@@ -42,7 +42,7 @@ struct MonitoringView: View {
                     }.accessibilityIdentifier("localData")
                     Picker("监测方式", selection: $mode) {
                         Label("手机监测", systemImage: "iphone").tag(0)
-                        Label("戒指监测", systemImage: "circle.circle").tag(1)
+                        Label("设备检测", systemImage: "sensor.fill").tag(1)
                     }.pickerStyle(.segmented).accessibilityIdentifier("monitorMode")
                     if mode == 0 { phonePanel; healthPanel; phoneGuide; differences }
                     else { wearablePanel; healthPanel; differences }
@@ -206,7 +206,7 @@ struct MonitoringView: View {
                 HStack {
                     Label("体征记录", systemImage: "heart.text.clipboard")
                     Spacer()
-                    Text("\(vitals.samples.count) 条").foregroundStyle(SleepPalette.muted)
+                    Text("\(vitals.visibleSamples.count) 条").foregroundStyle(SleepPalette.muted)
                     Image(systemName: "chevron.right")
                 }.font(.system(size: 14)).padding(.vertical, 10)
             }.accessibilityIdentifier("wearableVitals")
@@ -225,10 +225,10 @@ struct MonitoringView: View {
                 Button("取消连接") { scanner.disconnect() }
             } else {
                 Button { scanner.isScanning ? scanner.stopScan() : scanner.scan() } label: {
-                    Label(scanner.isScanning ? "停止搜索" : "搜索戒指", systemImage: scanner.isScanning ? "stop.fill" : "magnifyingglass")
+                    Label(scanner.isScanning ? "停止搜索" : "搜索蓝牙", systemImage: scanner.isScanning ? "stop.fill" : "magnifyingglass")
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity).padding(.vertical, 7)
-                }.buttonStyle(.borderedProminent).accessibilityIdentifier("scanRing")
+                }.buttonStyle(.borderedProminent).accessibilityIdentifier("scanBluetooth")
             }
             if scanner.connectedName == nil && !ring.isBusy {
               if !scanner.rememberedDevices.isEmpty {

@@ -19,6 +19,7 @@ final class SleepAppUITests: XCTestCase {
         press(app.buttons["下一晚"])
         press(app.buttons["睡眠参考分说明"])
         XCTAssertTrue(app.staticTexts["睡眠参考分怎么算？"].waitForExistence(timeout: 3))
+        XCTAssertEqual(app.links.count, 0)
         press(app.buttons["关闭说明"])
     }
 
@@ -32,6 +33,8 @@ final class SleepAppUITests: XCTestCase {
         if !rem.isHittable { scrollDown() }
         press(rem)
         XCTAssertTrue(app.staticTexts["快速眼动占比"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Danielle Pacheco"].exists)
+        XCTAssertEqual(app.links.count, 0)
         capture("18-rem-explanation")
         press(app.buttons["关闭说明"])
         XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "平均呼吸率")).firstMatch.exists)
@@ -98,7 +101,7 @@ final class SleepAppUITests: XCTestCase {
         app.swipeDown()
         app.swipeDown()
         #endif
-        press(app.segmentedControls["monitorMode"].buttons["戒指监测"])
+        press(app.segmentedControls["monitorMode"].buttons["设备检测"])
         XCTAssertTrue(app.staticTexts["睡眠戒指"].exists)
         capture("11-wearable-monitoring")
     }
@@ -106,22 +109,23 @@ final class SleepAppUITests: XCTestCase {
     func testUnifiedDeviceAndDataNavigationHasOneScanner() {
         selectTab("监测与设备")
         XCTAssertFalse(app.tabBars.buttons["设备与数据"].exists)
-        press(app.segmentedControls["monitorMode"].buttons["戒指监测"])
-        XCTAssertEqual(app.buttons.matching(identifier: "scanRing").count, 1)
+        press(app.segmentedControls["monitorMode"].buttons["设备检测"])
+        XCTAssertEqual(app.buttons.matching(identifier: "scanBluetooth").count, 1)
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "搜索蓝牙")).firstMatch.exists)
         XCTAssertFalse(app.buttons["syncVeepooRing"].exists)
         press(app.buttons["localData"])
         XCTAssertTrue(app.buttons["导出 JSON 备份"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["scanRing"].exists)
+        XCTAssertFalse(app.buttons["scanBluetooth"].exists)
         capture("12-local-data")
     }
 
     func testWearableVitalsEmptyStateDoesNotInventMeasurements() {
         selectTab("监测与设备")
-        press(app.segmentedControls["monitorMode"].buttons["戒指监测"])
+        press(app.segmentedControls["monitorMode"].buttons["设备检测"])
         XCTAssertFalse(app.staticTexts["戒指睡眠同步 · 测试"].exists)
         press(app.buttons["wearableVitals"])
         XCTAssertTrue(app.staticTexts["暂无体征记录"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.staticTexts["HRV（设备值）"].exists)
+        XCTAssertFalse(app.staticTexts["HRV"].exists)
         capture("13-vitals-empty")
     }
 
@@ -130,14 +134,29 @@ final class SleepAppUITests: XCTestCase {
         app.launchArguments += ["-ui-testing-vitals"]
         app.launch()
         selectTab("监测与设备")
-        press(app.segmentedControls["monitorMode"].buttons["戒指监测"])
+        press(app.segmentedControls["monitorMode"].buttons["设备检测"])
         capture("14-wearable-device-page")
         press(app.buttons["wearableVitals"])
         XCTAssertTrue(app.buttons["查看血氧趋势"].waitForExistence(timeout: 5))
         press(app.buttons["查看血氧趋势"])
-        XCTAssertFalse(app.staticTexts["血糖（设备估计）"].exists)
+        XCTAssertFalse(app.staticTexts["已隐藏项目"].exists)
         capture("15-vitals-oxygen-chart")
-        press(app.buttons["查看HRV（设备值）趋势"])
+        scrollDown()
+        if !app.staticTexts["每天的高低变化"].isHittable { scrollDown() }
+        XCTAssertTrue(app.staticTexts["每天的高低变化"].exists)
+        capture("20-vitals-daily-range")
+        scrollDown()
+        if !app.staticTexts["哪些数值出现得多"].isHittable { scrollDown() }
+        XCTAssertTrue(app.staticTexts["哪些数值出现得多"].exists)
+        capture("21-vitals-distribution")
+        #if targetEnvironment(macCatalyst)
+        app.windows.firstMatch.scroll(byDeltaX: 0, deltaY: 2500)
+        #else
+        app.swipeDown()
+        app.swipeDown()
+        app.swipeDown()
+        #endif
+        press(app.buttons["查看HRV趋势"])
         capture("16-vitals-hrv-chart")
     }
 
