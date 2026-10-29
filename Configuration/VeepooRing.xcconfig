@@ -27,7 +27,7 @@ INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = UIInterfaceOrientationPort
 #include "HealthKit.xcconfig"
 ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon
 MARKETING_VERSION = 0.2.4
-CURRENT_PROJECT_VERSION = 6
+CURRENT_PROJECT_VERSION = 7
 PRODUCT_BUNDLE_IDENTIFIER = com.rocgrey.sleeptongshu
 PRODUCT_NAME = sleeptongshu
 TARGETED_DEVICE_FAMILY = 1,2

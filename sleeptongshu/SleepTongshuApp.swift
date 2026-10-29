@@ -157,6 +157,7 @@ struct MetricHelpSheet: View {
                             ForEach(help.references) { reference in
                                 VStack(alignment: .leading, spacing: 5) {
                                     Text(reference.title).font(.system(size: 13, weight: .medium))
+                                    Text("原文：\(reference.originalTitle)").font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
                                     Text(reference.author).font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
                                 }
                             }

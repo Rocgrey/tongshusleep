@@ -2,16 +2,17 @@ import SwiftUI
 
 struct SleepReference: Identifiable {
     let title: String
+    let originalTitle: String
     let author: String
-    var id: String { title + author }
+    var id: String { originalTitle + author }
 }
 
 enum SleepMetricGuide {
-    static let stagesReference = SleepReference(title: "《睡眠阶段：一晚的睡眠是怎样变化的？》（译名）", author: "Eric Suni")
-    static let deepReference = SleepReference(title: "《你需要多少深睡？》（译名）", author: "Danielle Pacheco")
-    static let physiologyReference = SleepReference(title: "《睡眠的各个阶段》（译名）", author: "美国国家心肺血液研究所")
-    static let qualityReference = SleepReference(title: "《哪些原因会让睡眠质量变差？》（译名）", author: "Eric Suni")
-    static let consensusReference = SleepReference(title: "《国家睡眠基金会睡眠质量建议：第一份报告》（译名）", author: "Maurice Ohayon 等，2017")
+    static let stagesReference = SleepReference(title: "《睡眠阶段：一晚的睡眠是怎样变化的？》（译名）", originalTitle: "Stages of Sleep: What Happens in a Normal Sleep Cycle?", author: "Eric Suni")
+    static let deepReference = SleepReference(title: "《你需要多少深睡？》（译名）", originalTitle: "How Much Deep Sleep Do You Need?", author: "Danielle Pacheco")
+    static let physiologyReference = SleepReference(title: "《睡眠的各个阶段》（译名）", originalTitle: "Stages of Sleep", author: "美国国家心肺血液研究所（NHLBI）")
+    static let qualityReference = SleepReference(title: "《哪些原因会让睡眠质量变差？》（译名）", originalTitle: "What Causes Poor Sleep Quality?", author: "Eric Suni")
+    static let consensusReference = SleepReference(title: "《国家睡眠基金会睡眠质量建议：第一份报告》（译名）", originalTitle: "National Sleep Foundation's sleep quality recommendations: first report", author: "Maurice Ohayon 等，2017")
 
     static func efficiency(_ record: SleepRecord) -> MetricHelp {
         MetricHelp(title: "睡眠效率怎么算？", body: "睡眠效率，就是这段记录里有多少时间真正睡着了。\n\n计算：睡着的时间 ÷ 整段记录的时间 × 100%。显示整数，小数不计。\n本晚：\(SleepRecord.durationText(record.asleepMinutes)) ÷ \(SleepRecord.durationText(record.inBedMinutes))\(record.efficiency.map { " ≈ \($0)%" } ?? "；资料不完整，暂不计算")。\n\n成人通常可参考 85% 及以上。比如躺床 8 小时、睡着 7 小时，效率约为 87%。但时间睡得太短，即使效率高，也可能没休息够。\n\n这个参考通常把躺床但还没睡着的时间也算进去。设备可能在你睡着后才开始记录，让结果看起来偏高。请结合睡眠时长和白天精神状态一起看。缺少一段记录时，不给出结果。", references: [qualityReference, consensusReference])

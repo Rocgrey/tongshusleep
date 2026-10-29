@@ -34,6 +34,7 @@ final class SleepAppUITests: XCTestCase {
         press(rem)
         XCTAssertTrue(app.staticTexts["快速眼动占比"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["Danielle Pacheco"].exists)
+        XCTAssertTrue(app.staticTexts["原文：How Much Deep Sleep Do You Need?"].exists)
         XCTAssertEqual(app.links.count, 0)
         capture("18-rem-explanation")
         press(app.buttons["关闭说明"])

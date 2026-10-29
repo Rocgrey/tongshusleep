@@ -24,10 +24,10 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		B10000000000000000000001 /* HealthKit.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Configuration/HealthKit.xcconfig; sourceTree = SOURCE_ROOT; };
 		A10000000000000000000006 /* sleeptongshu.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = sleeptongshu.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A20000000000000000000006 /* sleeptongshuTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = sleeptongshuTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A30000000000000000000006 /* sleeptongshuUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = sleeptongshuUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B10000000000000000000001 /* Configuration/HealthKit.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Configuration/HealthKit.xcconfig; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -64,7 +64,7 @@
 		A10000000000000000000002 = {
 			isa = PBXGroup;
 			children = (
-				B10000000000000000000001 /* HealthKit.xcconfig */,
+				B10000000000000000000001 /* Configuration/HealthKit.xcconfig */,
 				A10000000000000000000003 /* sleeptongshu */,
 				A20000000000000000000003 /* sleeptongshuTests */,
 				A30000000000000000000003 /* sleeptongshuUITests */,
@@ -239,46 +239,17 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		B10000000000000000000002 /* Health */ = {
+		510E00D8308F5A9100CC97AF /* Health */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CLANG_ENABLE_MODULES = YES;
-				DEBUG_INFORMATION_FORMAT = dwarf;
-				ENABLE_TESTABILITY = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				ONLY_ACTIVE_ARCH = YES;
-				SDKROOT = iphoneos;
-				SUPPORTS_MACCATALYST = YES;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_VERSION = 5.0;
+				PRODUCT_NAME = sleeptongshuTests;
 			};
 			name = Health;
 		};
-		B10000000000000000000003 /* Health */ = {
+		510E00D9308F5A9100CC97AF /* Health */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = B10000000000000000000001 /* HealthKit.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CLANG_ENABLE_OBJC_WEAK = YES;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
-				DEVELOPMENT_TEAM = 6HHDS2N87X;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Configuration/AppInfo.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = sleeptongshu;
-				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "允许睡眠同书发现和连接你选择的戒指。";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				MARKETING_VERSION = 0.2.4;
-				PRODUCT_BUNDLE_IDENTIFIER = com.rocgrey.sleeptongshu;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				PRODUCT_NAME = sleeptongshuUITests;
 			};
 			name = Health;
 		};
@@ -376,8 +347,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_OBJC_WEAK = YES;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphone*]" = Configuration/HealthKit.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = 6HHDS2N87X;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Configuration/AppInfo.plist;
@@ -392,7 +364,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.rocgrey.sleeptongshu;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SLEEP_HEALTHKIT_ENABLED = YES;
-				"CODE_SIGN_ENTITLEMENTS[sdk=iphone*]" = Configuration/HealthKit.entitlements;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -403,8 +374,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_OBJC_WEAK = YES;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphone*]" = Configuration/HealthKit.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = 6HHDS2N87X;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Configuration/AppInfo.plist;
@@ -419,7 +391,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.rocgrey.sleeptongshu;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SLEEP_HEALTHKIT_ENABLED = YES;
-				"CODE_SIGN_ENTITLEMENTS[sdk=iphone*]" = Configuration/HealthKit.entitlements;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -479,6 +450,49 @@
 			};
 			name = Release;
 		};
+		B10000000000000000000002 /* Health */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Health;
+		};
+		B10000000000000000000003 /* Health */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = B10000000000000000000001 /* Configuration/HealthKit.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 7;
+				DEVELOPMENT_TEAM = 6HHDS2N87X;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Configuration/AppInfo.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = sleeptongshu;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "允许睡眠同书发现和连接你选择的戒指。";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				MARKETING_VERSION = 0.2.4;
+				PRODUCT_BUNDLE_IDENTIFIER = com.rocgrey.sleeptongshu;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Health;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -507,6 +521,7 @@
 			buildConfigurations = (
 				A2000000000000000000001A /* Debug */,
 				A2000000000000000000001B /* Release */,
+				510E00D8308F5A9100CC97AF /* Health */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -516,6 +531,7 @@
 			buildConfigurations = (
 				A3000000000000000000001A /* Debug */,
 				A3000000000000000000001B /* Release */,
+				510E00D9308F5A9100CC97AF /* Health */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
