@@ -1,6 +1,13 @@
 import Foundation
 
 enum DevicePresentation {
+    static func bluetoothName(advertised: String?, peripheral: String?, previous: String? = nil, id: UUID) -> String {
+        for candidate in [advertised, peripheral, previous] {
+            if let name = candidate?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty { return name }
+        }
+        return "未命名蓝牙设备 · \(id.uuidString.prefix(4))"
+    }
+
     static func name(_ raw: String) -> String {
         let lower = raw.lowercased().replacingOccurrences(of: " ", with: "")
         if ["xiaomi", "小米", "miband", "smartband"].contains(where: lower.contains) { return "设备" }

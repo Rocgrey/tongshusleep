@@ -62,6 +62,7 @@ final class RingScanner: NSObject, ObservableObject {
     private var inspectedAt: Date?
     private var central: CBCentralManager?
     private var connected: CBPeripheral?
+    private var selectedName: String?
     private var wantsScan = false
     private var scanTimeout: Task<Void, Never>?
     private var connectionTimeout: Task<Void, Never>?
@@ -86,7 +87,7 @@ final class RingScanner: NSObject, ObservableObject {
             status = "系统未找到此设备，请重新搜索一次。原设备记录已保留。"
             return
         }
-        connect(NearbyRing(peripheral: peripheral, name: DevicePresentation.name(device.name), rssi: 0))
+        connect(NearbyRing(peripheral: peripheral, name: device.name, rssi: 0))
     }
 
     func forget(_ device: RememberedDevice) {
@@ -157,7 +158,7 @@ final class RingScanner: NSObject, ObservableObject {
         if batteryState == .checking { batteryState = .unavailable }
         if modelState == .checking { modelState = .unavailable }
         if heartRateState == .checking { heartRateState = .unavailable }
-        status = veepooChannelDetected ? "已连接 · 即将自动同步" : "已连接 · 尚不支持此戒指的数据通道"
+        status = veepooChannelDetected ? "已连接 · 即将自动同步" : "已连接 · 尚不支持此设备的睡眠与体征同步"
         if veepooChannelDetected, let connected {
             rememberedDevices.removeAll { $0.id == connected.identifier }
             rememberedDevices.insert(RememberedDevice(id: connected.identifier, name: connectedName ?? "戒指", lastConnected: .now, verifiedRing: true), at: 0)
@@ -177,7 +178,7 @@ final class RingScanner: NSObject, ObservableObject {
         scanTimeout?.cancel()
         devices.removeAll()
         isScanning = true
-        status = "正在搜索附近戒指…"
+        status = "正在搜索附近蓝牙设备…"
         central.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: true])
         scanTimeout = Task { [weak self] in
             do { try await Task.sleep(for: .seconds(12)) } catch { return }
@@ -191,7 +192,7 @@ final class RingScanner: NSObject, ObservableObject {
         central?.stopScan()
         isScanning = false
         if connectedName == nil && connectingID == nil && central?.state == .poweredOn {
-            status = devices.isEmpty ? "未发现戒指，请靠近手机并确认戒指有电" : "发现 \(devices.count) 枚戒指"
+            status = devices.isEmpty ? "未发现蓝牙设备，请靠近手机并确认设备有电" : "发现 \(devices.count) 台蓝牙设备"
         }
     }
 
@@ -200,6 +201,7 @@ final class RingScanner: NSObject, ObservableObject {
         stopScan()
         connectingID = device.id
         connected = device.peripheral
+        selectedName = device.name
         status = "正在连接 \(device.name)…"
         central.connect(device.peripheral)
         connectionTimeout = Task { [weak self] in
@@ -218,6 +220,7 @@ final class RingScanner: NSObject, ObservableObject {
         connected = nil
         connectingID = nil
         connectedName = nil
+        selectedName = nil
         battery = nil
         modelNumber = nil
         liveHeartRate = nil
@@ -259,12 +262,11 @@ extension RingScanner: @preconcurrency CBCentralManagerDelegate, @preconcurrency
 
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String: Any], rssi RSSI: NSNumber) {
         guard isScanning else { return }
-        let rawName = advertisementData[CBAdvertisementDataLocalNameKey] as? String ?? peripheral.name ?? "未命名戒指"
-        let services = ((advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] ?? [])
-                        + (advertisementData[CBAdvertisementDataOverflowServiceUUIDsKey] as? [CBUUID] ?? [])).map(\.uuidString)
-        guard RingDevicePolicy.recognizes(name: rawName, services: services)
-                || rememberedDevices.contains(where: { $0.id == peripheral.identifier }) else { return }
-        let name = DevicePresentation.name(rawName)
+        let name = DevicePresentation.bluetoothName(
+            advertised: advertisementData[CBAdvertisementDataLocalNameKey] as? String,
+            peripheral: peripheral.name,
+            previous: devices.first(where: { $0.id == peripheral.identifier })?.name,
+            id: peripheral.identifier)
         let device = NearbyRing(peripheral: peripheral, name: name, rssi: RSSI.intValue)
         if let index = devices.firstIndex(where: { $0.id == device.id }) { devices[index] = device }
         else { devices.append(device) }
@@ -275,7 +277,7 @@ extension RingScanner: @preconcurrency CBCentralManagerDelegate, @preconcurrency
         guard connected?.identifier == peripheral.identifier else { central.cancelPeripheralConnection(peripheral); return }
         connectionTimeout?.cancel()
         connectingID = nil
-        connectedName = DevicePresentation.name(peripheral.name ?? "戒指")
+        connectedName = selectedName ?? DevicePresentation.bluetoothName(advertised: nil, peripheral: peripheral.name, id: peripheral.identifier)
         peripheral.delegate = self
         inspectDevice()
     }
@@ -285,6 +287,7 @@ extension RingScanner: @preconcurrency CBCentralManagerDelegate, @preconcurrency
         connectionTimeout?.cancel()
         connected = nil
         connectingID = nil
+        selectedName = nil
         status = "连接失败：\(error?.localizedDescription ?? "请重试")"
     }
 

@@ -10,6 +10,8 @@
 @property(nonatomic, strong) NSTimer *oxygenDeadline;
 @property(nonatomic, strong) CBPeripheral *pendingPeripheral;
 @property(nonatomic) BOOL connectionStarted;
+@property(nonatomic) BOOL historyStarted;
+@property(nonatomic, strong) NSTimer *batteryDeadline;
 @end
 
 @implementation STVeepooBridge
@@ -20,6 +22,7 @@
     self.hrvReading = NO;
     self.pendingPeripheral = peripheral;
     self.connectionStarted = NO;
+    self.historyStarted = NO;
     VPBleCentralManage *manager = [VPBleCentralManage sharedBleManager];
     manager.isLogEnable = NO;
     manager.automaticConnection = NO;
@@ -80,6 +83,30 @@
 - (void)readHistory {
     if (self.reading || self.stopped) return;
     self.reading = YES;
+    if (self.event) self.event(@"设备验证通过，正在读取电量…");
+    __weak typeof(self) weakSelf = self;
+    // A missing battery response must not block the existing history transfer.
+    self.batteryDeadline = [NSTimer scheduledTimerWithTimeInterval:4 repeats:NO block:^(NSTimer *timer) {
+        STVeepooBridge *owner = weakSelf;
+        if (!owner || owner.stopped) return;
+        if (owner.event) owner.event(@"暂未收到电量，继续同步睡眠与体征。");
+        [owner readBaseHistory];
+    }];
+    [[VPBleCentralManage sharedBleManager].peripheralManage veepooSDKReadDeviceBatteryInfo:^(BOOL isPercent, BOOL isLow, NSUInteger level) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            STVeepooBridge *owner = weakSelf;
+            if (!owner || owner.stopped) return;
+            if (level <= (isPercent ? 100 : 4) && owner.batteryChanged) owner.batteryChanged(isPercent, isLow, level);
+            [owner readBaseHistory];
+        });
+    }];
+}
+
+- (void)readBaseHistory {
+    if (self.stopped || self.historyStarted) return;
+    self.historyStarted = YES;
+    [self.batteryDeadline invalidate];
+    self.batteryDeadline = nil;
     VPPeripheralModel *device = [VPBleCentralManage sharedBleManager].peripheralModel;
     if (self.event) self.event([NSString stringWithFormat:@"设备验证通过 · 固件 %@ · 睡眠类型 %ld", device.deviceVersion ?: @"未知", (long)device.sleepType]);
     if (self.event) self.event(@"验证通过，正在读取历史睡眠与体征…");
@@ -228,6 +255,8 @@
 
 - (void)cancel {
     self.stopped = YES;
+    [self.batteryDeadline invalidate];
+    self.batteryDeadline = nil;
     self.pendingPeripheral = nil;
     [self.oxygenDeadline invalidate];
     self.oxygenDeadline = nil;

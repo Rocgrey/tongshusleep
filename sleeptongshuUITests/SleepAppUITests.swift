@@ -130,6 +130,31 @@ final class SleepAppUITests: XCTestCase {
         capture("13-vitals-empty")
     }
 
+    func testDeviceBatteryPercentageAndDisconnectedReadingAreVisible() {
+        app.terminate()
+        app.launchArguments += ["-ui-testing-battery"]
+        app.launch()
+        selectTab("监测与设备")
+        press(app.segmentedControls["monitorMode"].buttons["设备检测"])
+        XCTAssertTrue(app.staticTexts["deviceBatteryValue"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["deviceBatteryValue"].label, "68%")
+        XCTAssertTrue(app.staticTexts["最近读取的电量"].exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "当前已断开")).firstMatch.exists)
+        capture("22-device-battery-percentage")
+    }
+
+    func testDeviceBatteryGridDoesNotInventAPercentage() {
+        app.terminate()
+        app.launchArguments += ["-ui-testing-battery", "-battery-grid"]
+        app.launch()
+        selectTab("监测与设备")
+        press(app.segmentedControls["monitorMode"].buttons["设备检测"])
+        XCTAssertTrue(app.staticTexts["deviceBatteryValue"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["deviceBatteryValue"].label, "3/4 格")
+        XCTAssertTrue(app.staticTexts["设备只提供电量格数，暂不显示百分比。"].exists)
+        capture("23-device-battery-grid")
+    }
+
     func testWearableVitalsChartsUseAvailableMetricsOnly() {
         app.terminate()
         app.launchArguments += ["-ui-testing-vitals"]

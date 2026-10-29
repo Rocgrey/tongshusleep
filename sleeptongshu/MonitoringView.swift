@@ -197,9 +197,15 @@ struct MonitoringView: View {
             HStack(spacing: 18) {
                 Image(systemName: "circle.circle").font(.system(size: 46)).foregroundStyle(SleepPalette.deep)
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(scanner.connectedName ?? "睡眠戒指").font(.system(size: 18, weight: .semibold))
+                    Text(scanner.connectedName ?? (ring.isBusy ? ring.deviceName : nil) ?? "睡眠戒指")
+                        .font(.system(size: 18, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
                     Text(scanner.status).font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
                 }
+            }
+            if scanner.connectedName != nil || ring.isBusy || (!scanner.isScanning && scanner.connectingID == nil && ring.deviceName != nil) {
+                DeviceBatteryView(reading: displayedBattery, isCurrent: scanner.connectedName != nil || ring.isBusy,
+                                  isReading: scanner.isInspecting || ring.isBusy,
+                                  deviceName: scanner.connectedName ?? ring.deviceName)
             }
             if scanner.veepooChannelDetected || !ring.events.isEmpty { ringPanel }
             Button { showsVitals = true } label: {
@@ -210,7 +216,6 @@ struct MonitoringView: View {
                     Image(systemName: "chevron.right")
                 }.font(.system(size: 14)).padding(.vertical, 10)
             }.accessibilityIdentifier("wearableVitals")
-            if let value = scanner.battery { Label("设备电量 \(value)%", systemImage: "battery.100percent").font(.system(size: 12)) }
             if let value = scanner.liveHeartRate { Label("实时心率 \(value) 次/分", systemImage: "heart.fill").font(.system(size: 17, weight: .semibold)).foregroundStyle(.pink) }
             if ring.isBusy {
                 Button("取消戒指同步", role: .cancel) { ringTask?.cancel(); ring.cancel() }
@@ -239,7 +244,7 @@ struct MonitoringView: View {
                             HStack(spacing: 12) {
                                 Image(systemName: "link").foregroundStyle(SleepPalette.teal)
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text("\(DevicePresentation.name(device.name)) · \(device.id.uuidString.prefix(4))").font(.system(size: 14, weight: .medium))
+                                    Text("\(device.name) · \(device.id.uuidString.prefix(4))").font(.system(size: 14, weight: .medium))
                                     Text("上次连接 \(device.lastConnected.formatted(.dateTime.month().day().hour().minute()))").font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
                                 }
                                 Spacer()
@@ -276,7 +281,17 @@ struct MonitoringView: View {
             }
             Text("连接后同步设备已有的睡眠与体征，没有睡眠也可保存体征。仅展示设备实际提供且可验证的值；未开放的指标不会补算。")
                 .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
+            Text("搜索列表显示附近设备的蓝牙名称；能被搜索到，不代表支持睡眠与体征同步。")
+                .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
         }
+    }
+
+    private var displayedBattery: DeviceBatteryReading? {
+        if scanner.connectedName != nil {
+            return scanner.battery.flatMap { DeviceBatteryReading(level: $0, isPercentage: true) }
+        }
+        guard scanner.connectingID == nil, !scanner.isScanning else { return nil }
+        return ring.battery
     }
     private var ringPanel: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -313,7 +328,7 @@ struct MonitoringView: View {
     private func syncRing() {
         guard !ring.isBusy else { return }
         syncSummary = nil
-        ring.preparing()
+        ring.preparing(name: scanner.connectedName ?? "戒指", battery: scanner.battery)
         ringTask = Task {
             do {
                 let peripheral = try await scanner.releaseForVendorSync()

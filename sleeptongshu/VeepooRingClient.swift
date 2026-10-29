@@ -15,13 +15,31 @@ final class VeepooRingClient: ObservableObject {
     @Published private(set) var progress: Double?
     @Published private(set) var rejectedCount = 0
     @Published private(set) var events: [String] = []
+    @Published private(set) var battery: DeviceBatteryReading?
+    @Published private(set) var deviceName: String?
     private var watchdog: Task<Void, Never>?
     private var continuation: CheckedContinuation<VeepooDecodedSleep, Error>?
     private var attempt = UUID()
     private var reading = false
     private var lastDiagnosticWrite = Date.distantPast
 
-    func preparing() { isBusy = true; record("正在切换到厂商数据通道…") }
+    init() {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-ui-testing"), arguments.contains("-ui-testing-battery") {
+            deviceName = "L03 Ultra · 界面测试"
+            battery = DeviceBatteryReading(level: arguments.contains("-battery-grid") ? 3 : 68,
+                                           isPercentage: !arguments.contains("-battery-grid"))
+        }
+        #endif
+    }
+
+    func preparing(name: String, battery: Int?) {
+        deviceName = name
+        self.battery = battery.flatMap { DeviceBatteryReading(level: $0, isPercentage: true) }
+        isBusy = true
+        record("正在切换到厂商数据通道…")
+    }
 
     func sync(peripheral: CBPeripheral) async throws -> VeepooDecodedSleep {
         guard Self.enabled, continuation == nil else { isBusy = false; throw VeepooImportError.unavailable }
@@ -35,6 +53,12 @@ final class VeepooRingClient: ObservableObject {
                 #if SLEEP_VEEPOO
                 let current = STVeepooBridge()
                 bridge = current
+                current.batteryChanged = { [weak self] isPercent, isLow, level in
+                    guard let self, self.attempt == token, self.continuation != nil,
+                          let reading = DeviceBatteryReading(level: Int(level), isPercentage: isPercent, isLow: isLow) else { return }
+                    self.battery = reading
+                    self.record("设备电量：\(reading.text)")
+                }
                 current.event = { [weak self] message in
                     guard let self, self.attempt == token, self.continuation != nil else { return }
                     self.record(message)
