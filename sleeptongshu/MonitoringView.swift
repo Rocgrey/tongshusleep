@@ -19,6 +19,8 @@ struct MonitoringView: View {
     @State private var showsLocalData = false
     @State private var showsVitals = false
     @State private var syncSummary: String?
+    @AppStorage("deviceSignalValidationEnabled") private var validationEnabled = false
+    @State private var showsValidation = false
 
     var body: some View {
         NavigationStack {
@@ -52,6 +54,7 @@ struct MonitoringView: View {
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(isPresented: $showsLocalData) { LocalDataView() }
             .navigationDestination(isPresented: $showsVitals) { WearableVitalsView() }
+            .sheet(isPresented: $showsValidation) { DeviceValidationView(store: ring.validation) }
             .sheet(isPresented: $showPreview) {
                 NavigationStack {
                     ScrollView {
@@ -216,6 +219,18 @@ struct MonitoringView: View {
                     Image(systemName: "chevron.right")
                 }.font(.system(size: 14)).padding(.vertical, 10)
             }.accessibilityIdentifier("wearableVitals")
+            VStack(alignment: .leading, spacing: 10) {
+                Toggle(isOn: $validationEnabled) {
+                    Label("设备数据验证", systemImage: "waveform.path.ecg")
+                        .font(.system(size: 14, weight: .medium))
+                }.disabled(ring.isBusy || scanner.connectingID != nil || scanner.connectedName != nil)
+                    .accessibilityIdentifier("enableDeviceValidation")
+                Text("开启后，下次连接会额外检查逐次心跳数据，最多增加约 45 秒。请保持佩戴并让 App 留在前台。")
+                    .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
+                Button { showsValidation = true } label: {
+                    Label("查看验证报告", systemImage: "doc.text.magnifyingglass")
+                }.font(.system(size: 13)).accessibilityIdentifier("deviceValidationReport")
+            }
             if let value = scanner.liveHeartRate { Label("实时心率 \(value) 次/分", systemImage: "heart.fill").font(.system(size: 17, weight: .semibold)).foregroundStyle(.pink) }
             if ring.isBusy {
                 Button("取消戒指同步", role: .cancel) { ringTask?.cancel(); ring.cancel() }
@@ -328,11 +343,13 @@ struct MonitoringView: View {
     private func syncRing() {
         guard !ring.isBusy else { return }
         syncSummary = nil
+        let services = scanner.discoveredCharacteristics
+        let shouldValidate = validationEnabled
         ring.preparing(name: scanner.connectedName ?? "戒指", battery: scanner.battery)
         ringTask = Task {
             do {
                 let peripheral = try await scanner.releaseForVendorSync()
-                let download = try await ring.sync(peripheral: peripheral)
+                let download = try await ring.sync(peripheral: peripheral, validateSignals: shouldValidate, services: services)
                 let payloads = download.records
                 let added = try vitals.merge(download.vitals)
                 for payload in payloads {

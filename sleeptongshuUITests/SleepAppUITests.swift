@@ -130,6 +130,39 @@ final class SleepAppUITests: XCTestCase {
         capture("13-vitals-empty")
     }
 
+    func testValidationReportShowsUncertaintyAndInventsNoWaveform() {
+        app.terminate()
+        app.launchArguments += ["-ui-testing-validation"]
+        app.launch()
+        selectTab("监测与设备")
+        press(app.segmentedControls["monitorMode"].buttons["设备检测"])
+        press(app.buttons["deviceValidationReport"])
+        XCTAssertTrue(app.staticTexts["界面测试示例"].waitForExistence(timeout: 5))
+        capture("24-validation-interface-results")
+        press(app.segmentedControls["validationSections"].buttons["信号图"])
+        XCTAssertTrue(app.staticTexts["暂无信号可画"].waitForExistence(timeout: 3))
+        capture("25-validation-no-signals")
+        press(app.segmentedControls["validationSections"].buttons["全部字段"])
+        XCTAssertTrue(app.staticTexts["history.ppgs"].waitForExistence(timeout: 3))
+        capture("26-validation-fields")
+        press(app.buttons["完成"])
+    }
+
+    func testValidationCandidateGraphRetainsUnconfirmedUnits() {
+        app.terminate()
+        app.launchArguments += ["-ui-testing-validation", "-validation-signals"]
+        app.launch()
+        selectTab("监测与设备")
+        press(app.segmentedControls["monitorMode"].buttons["设备检测"])
+        press(app.buttons["deviceValidationReport"])
+        XCTAssertTrue(app.staticTexts["界面测试示例"].waitForExistence(timeout: 5))
+        press(app.segmentedControls["validationSections"].buttons["信号图"])
+        XCTAssertTrue(app.staticTexts["逐次心跳的候选数据"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "不代表毫秒")).firstMatch.exists)
+        capture("27-validation-candidate-graph")
+        press(app.buttons["完成"])
+    }
+
     func testDeviceBatteryPercentageAndDisconnectedReadingAreVisible() {
         app.terminate()
         app.launchArguments += ["-ui-testing-battery"]

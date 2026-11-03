@@ -22,10 +22,17 @@ final class VeepooRingClient: ObservableObject {
     private var attempt = UUID()
     private var reading = false
     private var lastDiagnosticWrite = Date.distantPast
+    let validation: DeviceValidationStore
+    private var validating = false
 
     init() {
+        let testing = ProcessInfo.processInfo.arguments.contains("-ui-testing")
+        validation = testing ? DeviceValidationStore(directory: nil) : DeviceValidationStore()
         #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
+        if testing, arguments.contains("-ui-testing-validation") {
+            validation.loadPreview(withSignals: arguments.contains("-validation-signals"))
+        }
         if arguments.contains("-ui-testing"), arguments.contains("-ui-testing-battery") {
             deviceName = "L03 Ultra · 界面测试"
             battery = DeviceBatteryReading(level: arguments.contains("-battery-grid") ? 3 : 68,
@@ -41,11 +48,13 @@ final class VeepooRingClient: ObservableObject {
         record("正在切换到厂商数据通道…")
     }
 
-    func sync(peripheral: CBPeripheral) async throws -> VeepooDecodedSleep {
+    func sync(peripheral: CBPeripheral, validateSignals: Bool = false, services: [String: [String]] = [:]) async throws -> VeepooDecodedSleep {
         guard Self.enabled, continuation == nil else { isBusy = false; throw VeepooImportError.unavailable }
         attempt = UUID()
         let token = attempt
         events = []; progress = nil; rejectedCount = 0; reading = false; isBusy = true
+        validating = validateSignals
+        if validating { validation.begin(device: peripheral.identifier, services: services) }
         record("正在连接并验证设备…")
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { callback in
@@ -53,6 +62,13 @@ final class VeepooRingClient: ObservableObject {
                 #if SLEEP_VEEPOO
                 let current = STVeepooBridge()
                 bridge = current
+                current.validationEnabled = validateSignals
+                current.validationData = { [weak self] snapshot in
+                    guard let self, self.attempt == token, self.continuation != nil, self.validating else { return }
+                    self.validation.receive(snapshot as? [String: Any] ?? [:])
+                    self.validation.checkpoint()
+                    if snapshot["phase"] as? String == "signals" { self.armTimeout(seconds: 60, token: token) }
+                }
                 current.batteryChanged = { [weak self] isPercent, isLow, level in
                     guard let self, self.attempt == token, self.continuation != nil,
                           let reading = DeviceBatteryReading(level: Int(level), isPercentage: isPercent, isLow: isLow) else { return }
@@ -123,6 +139,7 @@ final class VeepooRingClient: ObservableObject {
     private func record(_ value: String) {
         status = value
         events.append("\(Date.now.formatted(date: .omitted, time: .standard)) \(value)")
+        if validating { validation.note(value) }
         if events.count > 30 { events.removeFirst() }
         persistDiagnostic()
     }
@@ -159,8 +176,11 @@ final class VeepooRingClient: ObservableObject {
         case .success(let download):
             progress = 1
             record("同步结束 · 有效睡眠 \(download.records.count) 段 · 有效体征 \(download.vitals.count) 条\(download.rejected > 0 ? " · 部分睡眠未通过验证" : "")")
+            if validating { validation.finish(download: download, status: "验证结束 · 已保留收到的数据") }
         case .failure(let error): progress = nil; record(error is CancellationError ? "已取消戒指同步" : error.localizedDescription)
+            if validating { validation.finish(download: nil, status: error is CancellationError ? "已取消，保留部分报告" : "本次中断，保留部分报告：\(error.localizedDescription)") }
         }
+        validating = false
         callback.resume(with: result)
     }
 
