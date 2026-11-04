@@ -48,7 +48,7 @@ extension SleepStage {
     }
 }
 
-enum SleepTab: Hashable { case sleep, monitoring, trends }
+enum SleepTab: Hashable { case sleep, monitoring, trends, health }
 
 struct RootTabView: View {
     @Environment(\.modelContext) private var context
@@ -59,16 +59,19 @@ struct RootTabView: View {
     @StateObject private var phone = PhoneSleepMonitor()
     @StateObject private var scanner = RingScanner()
     @StateObject private var vitals = WearableVitalsStore.appStore()
+    @StateObject private var healthOverview = HealthOverviewStore()
 
     var body: some View {
         TabView(selection: $tab) {
             SleepDashboardView().tabItem { Label("睡眠", systemImage: "moon.zzz.fill") }.tag(SleepTab.sleep)
             MonitoringView().tabItem { Label("监测与设备", systemImage: "waveform.path") }.tag(SleepTab.monitoring)
             TrendsView().tabItem { Label("趋势", systemImage: "chart.bar.xaxis") }.tag(SleepTab.trends)
+            NavigationStack { HealthOverviewView() }.tabItem { Label("健康", systemImage: "heart.text.clipboard") }.tag(SleepTab.health)
         }
         .environmentObject(phone)
         .environmentObject(scanner)
         .environmentObject(vitals)
+        .environmentObject(healthOverview)
         .onChange(of: scanner.latestVitals) { _, samples in
             let spaced = samples.filter { sample in
                 let previous = vitals.samples.last { $0.device == sample.device && $0.kind == sample.kind && $0.origin == sample.origin }
@@ -80,6 +83,7 @@ struct RootTabView: View {
         .task {
             #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("-preview-monitor") { tab = .monitoring }
+            if ProcessInfo.processInfo.arguments.contains("-preview-health") { tab = .health }
             #endif
             #if targetEnvironment(macCatalyst)
             try? await Task.sleep(for: .milliseconds(500))

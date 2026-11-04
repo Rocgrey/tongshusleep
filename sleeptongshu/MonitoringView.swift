@@ -23,6 +23,7 @@ struct MonitoringView: View {
     @State private var showsDiagnostics = false
     @State private var showsValidation = false
     @State private var showsWearableReport = false
+    @State private var showsHealthOverview = false
 
     var body: some View {
         NavigationStack {
@@ -56,6 +57,7 @@ struct MonitoringView: View {
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(isPresented: $showsLocalData) { LocalDataView() }
             .navigationDestination(isPresented: $showsVitals) { WearableVitalsView() }
+            .navigationDestination(isPresented: $showsHealthOverview) { HealthOverviewView(embedded: true) }
             .sheet(isPresented: $showsValidation) { DeviceValidationView(store: ring.validation) }
             .sheet(isPresented: $showsWearableReport) { WearableProbeView(client: scanner.wearable) }
             .sheet(isPresented: $showPreview) {
@@ -162,12 +164,16 @@ struct MonitoringView: View {
                 }
                 Spacer()
             }
-            Text("读取系统“健康”中已有的睡眠与可用体征。请先允许记录来源向系统健康写入数据。")
+            Text("分别选择记录来源与设备，再导入睡眠。更多心率、HRV、步数和心肺状态可在健康概览中读取。")
                 .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
             if !health.providers.isEmpty {
-                Picker("选择数据来源", selection: $health.selectedProvider) {
-                    ForEach(health.providers, id: \.self) { Text(DevicePresentation.name($0)).tag($0) }
-                }.font(.system(size: 12))
+                Picker("睡眠来源与设备", selection: $health.selectedProvider) {
+                    ForEach(health.providers, id: \.self) { Text(health.providerLabel($0)).tag($0) }
+                }.font(.system(size: 12)).disabled(health.isLoading).accessibilityIdentifier("sleepHealthSource")
+                Text("已选：\(health.providerLabel(health.selectedProvider)) · \(health.selectedCount) 个区间")
+                    .font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
+                Text("来源未标明设备时，无法再区分同一来源内的硬件；不会擅自把其他设备的体征配给这段睡眠。")
+                    .font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
                 Button { Task { await importHealth() } } label: { Label("导入所选来源", systemImage: "square.and.arrow.down") }
                     .disabled(health.isLoading)
             }
@@ -175,6 +181,9 @@ struct MonitoringView: View {
                 if health.isLoading { ProgressView().frame(maxWidth: .infinity) }
                 else { Label("连接系统健康", systemImage: "heart.fill").frame(maxWidth: .infinity).padding(.vertical, 4) }
             }.buttonStyle(.bordered).disabled(health.isLoading).accessibilityIdentifier("connectHealth")
+            Button { showsHealthOverview = true } label: {
+                Label("健康概览与身体年龄参考", systemImage: "heart.text.clipboard")
+            }.font(.system(size: 13)).accessibilityIdentifier("openHealthOverview")
             if !HealthSleepImporter.enabled {
                 Text("当前版本未启用系统健康读取，可使用手机监测或设备同步。")
                     .font(.system(size: 11)).foregroundStyle(SleepPalette.muted)

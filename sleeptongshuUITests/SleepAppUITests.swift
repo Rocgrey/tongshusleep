@@ -120,6 +120,69 @@ final class SleepAppUITests: XCTestCase {
         capture("12-local-data")
     }
 
+    func testHealthEmptyStateDoesNotInventBodyAgeOrAgingPace() {
+        selectTab("健康")
+        XCTAssertTrue(app.staticTexts["身体状态"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["readHealthOverview"].exists)
+        XCTAssertEqual(app.staticTexts["fitnessAgeValue"].label, "—")
+        capture("34-health-empty")
+        scrollDown()
+        let agingHelp = app.buttons["agingPaceHelp"]
+        if !agingHelp.isHittable { scrollDown() }
+        press(agingHelp)
+        XCTAssertTrue(app.staticTexts["能看出衰老速度吗？"].waitForExistence(timeout: 3))
+        capture("35-aging-limits")
+        press(app.buttons["关闭说明"])
+    }
+
+    func testHealthOverviewShowsReferenceAgeAndOriginalResearchTitle() {
+        launchHealthFixture()
+        XCTAssertTrue(app.staticTexts["界面测试示例 · 非真实健康数据"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["fitnessAgeValue"].label, "约40")
+        capture("36-health-overview-example")
+        press(app.buttons["fitnessAgeHelp"])
+        XCTAssertTrue(app.staticTexts["身体年龄参考怎么算？"].waitForExistence(timeout: 3))
+        scrollDown()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Reference Standards for Cardiorespiratory Fitness")).firstMatch.exists)
+        XCTAssertEqual(app.links.count, 0)
+        capture("37-fitness-age-method-example")
+        press(app.buttons["关闭说明"])
+        scrollDown()
+        capture("38-health-change-and-recovery-example")
+    }
+
+    func testHealthSourceSwitchKeepsDifferentDevicesSeparate() {
+        launchHealthFixture()
+        scrollDown()
+        scrollDown()
+        let steps = app.buttons["healthMetric-steps"]
+        for _ in 0..<4 where !steps.isHittable { scrollDown() }
+        XCTAssertTrue(steps.exists)
+        capture("39-health-metrics-example")
+        press(steps)
+        XCTAssertTrue(app.staticTexts["healthDetailValue"].waitForExistence(timeout: 3))
+        let before = app.staticTexts["healthDetailValue"].label
+        press(app.buttons["healthDetailSource"])
+        let ring = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "戒指 B")).firstMatch
+        XCTAssertTrue(ring.waitForExistence(timeout: 3))
+        press(ring)
+        XCTAssertNotEqual(app.staticTexts["healthDetailValue"].label, before)
+        capture("40-health-device-comparison-example")
+        press(app.buttons["完成"])
+        press(app.buttons["healthSources"])
+        XCTAssertTrue(app.navigationBars["来源与参考资料"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["healthSource-sleep"].exists)
+        XCTAssertTrue(app.buttons["healthSource-steps"].exists)
+        capture("41-health-source-selection-example")
+        press(app.buttons["完成"])
+    }
+
+    private func launchHealthFixture() {
+        app.terminate()
+        app.launchArguments += ["-ui-testing-health", "-preview-health", "-healthManualProfile", "NO"]
+        app.launch()
+    }
+
     func testNewWearableReportSeparatesReadingsFromUnknownCapabilities() {
         app.terminate()
         app.launchArguments += ["-ui-testing-probe", "-preview-monitor", "-preview-wearable"]

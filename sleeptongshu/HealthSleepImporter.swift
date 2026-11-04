@@ -38,10 +38,12 @@ enum HealthSleepNormalizer {
 final class HealthSleepImporter: ObservableObject {
     @Published private(set) var isLoading = false
     @Published private(set) var providers: [String] = []
+    @Published private(set) var providerDetails: [String: HealthDataSource] = [:]
     @Published var selectedProvider = ""
     @Published var message: String?
     private let store = HKHealthStore()
     private var sleeps: [HKCategorySample] = []
+    private var providerKeys: [String: String] = [:]
     static var enabled: Bool { (Bundle.main.object(forInfoDictionaryKey: "SleepHealthKitEnabled") as? String)?.uppercased() == "YES" }
     private let sleep = HKObjectType.categoryType(forIdentifier: .sleepAnalysis)!
     private var readTypes: Set<HKObjectType> {
@@ -51,6 +53,7 @@ final class HealthSleepImporter: ObservableObject {
     }
 
     func load() async {
+        guard !isLoading else { return }
         guard Self.enabled else {
             message = "此安装版本未启用系统健康读取。可直接使用手机监测或连接设备同步。"
             return
@@ -61,15 +64,30 @@ final class HealthSleepImporter: ObservableObject {
         do {
             try await store.requestAuthorization(toShare: [], read: readTypes)
             let start = Calendar.current.date(byAdding: .day, value: -30, to: .now)!
-            sleeps = try await samples(type: sleep, start: start, end: .now, limit: 10000).compactMap { $0 as? HKCategorySample }
+            let loaded = try await samples(type: sleep, start: start, end: .now, limit: 10001).compactMap { $0 as? HKCategorySample }
+            guard loaded.count <= 10000 else {
+                sleeps = []; providers = []; providerDetails = [:]; providerKeys = [:]; selectedProvider = ""
+                message = "最近 30 天的睡眠区间过多，暂不导入，避免把不完整的读取当成整晚记录。"
+                return
+            }
+            sleeps = loaded
+            let grouped = Dictionary(grouping: sleeps, by: legacyProviderKey)
+            providerKeys = [:]
+            for (legacy, samples) in grouped {
+                let identities = Set(samples.map(HealthSourceIdentity.key))
+                for id in identities { providerKeys[id] = identities.count > 1 ? "\(legacy) · \(id.prefix(12))" : legacy }
+            }
             providers = Set(sleeps.map(providerKey)).sorted()
+            providerDetails = Dictionary(sleeps.map { (providerKey($0), HealthSourceIdentity.describe($0)) }, uniquingKeysWith: { first, _ in first })
             if !providers.contains(selectedProvider) { selectedProvider = providers.first ?? "" }
             if providers.isEmpty { message = "没有读到最近 30 天的睡眠记录。请确认系统健康内已有记录，并允许读取；未授权和没有记录时均可能返回空数据。" }
         } catch { message = "健康读取失败：\(error.localizedDescription)" }
     }
 
     func importSelected() async throws -> [SleepPayload] {
+        guard !isLoading, !selectedProvider.isEmpty, providers.contains(selectedProvider) else { throw SleepDataError.invalidRecord }
         isLoading = true
+        let provider = selectedProvider
         defer { isLoading = false }
         let selected = sleeps.filter { providerKey($0) == selectedProvider }
         // A noon boundary groups an overnight session; each source/device is imported independently.
@@ -98,14 +116,15 @@ final class HealthSleepImporter: ObservableObject {
             let oxygen = try await quantities(.oxygenSaturation, start: start, end: end, entries: entries, segments: segments)
             let breathing = try await quantities(.respiratoryRate, start: start, end: end, entries: entries, segments: segments)
             let hearts = heart.map { HeartSample(id: $0.uuid, date: $0.startDate, bpm: $0.quantity.doubleValue(for: HKUnit.count().unitDivided(by: .minute()))) }
-            let key = "health-v2|\(selectedProvider)|\(Int(day.timeIntervalSince1970))"
+            // Preserve the existing import ID to avoid duplicating already imported nights.
+            let key = "health-v2|\(provider)|\(Int(day.timeIntervalSince1970))"
             let payload = SleepPayload(id: HealthSleepNormalizer.stableID(key), start: start, end: end, source: .healthKit,
                                       segments: segments, heartSamples: hearts,
                                       averageHeartRate: average(hearts.map(\.bpm)),
                                       averageSpO2: average(oxygen.map { $0.quantity.doubleValue(for: .percent()) * 100 }),
                                       averageRespiratoryRate: average(breathing.map { $0.quantity.doubleValue(for: HKUnit.count().unitDivided(by: .minute())) }),
-                                      note: "来源：\(DevicePresentation.name(selectedProvider))。缺口及冲突区间保留为未记录；体征是已读取样本的算术平均。",
-                                      metadata: SleepMetadata(externalSource: selectedProvider, externalID: key))
+                                      note: "来源：\(providerDetails[provider]?.label ?? "所选系统健康来源")。缺口及冲突区间保留为未记录；体征仅匹配同一来源与设备，是已读取样本的算术平均。",
+                                      metadata: SleepMetadata(externalSource: provider, externalID: key))
             try payload.validate()
             payloads.append(payload)
         }
@@ -113,17 +132,20 @@ final class HealthSleepImporter: ObservableObject {
     }
 
     private func providerKey(_ sample: HKSample) -> String {
+        providerKeys[HealthSourceIdentity.key(sample)] ?? legacyProviderKey(sample)
+    }
+    private func legacyProviderKey(_ sample: HKSample) -> String {
         "\(sample.sourceRevision.source.name) · \(sample.sourceRevision.source.bundleIdentifier) · \(sample.device?.localIdentifier ?? sample.device?.model ?? "未标识设备")"
     }
+    func providerLabel(_ key: String) -> String { providerDetails[key]?.selectionLabel ?? "来源未标明设备" }
+    var selectedCount: Int { sleeps.filter { providerKey($0) == selectedProvider }.count }
     private func average(_ values: [Double]) -> Double? { values.isEmpty ? nil : values.reduce(0, +) / Double(values.count) }
     private func quantities(_ identifier: HKQuantityTypeIdentifier, start: Date, end: Date, entries: [HKCategorySample], segments: [SleepSegment]) async throws -> [HKQuantitySample] {
         let objects = try await samples(type: HKObjectType.quantityType(forIdentifier: identifier)!, start: start, end: end, limit: 20000)
-        let sources = Set(entries.map { $0.sourceRevision.source.bundleIdentifier })
-        let devices = Set(entries.compactMap { $0.device?.localIdentifier })
+        let identities = Set(entries.map(HealthSourceIdentity.key))
         return objects.compactMap { $0 as? HKQuantitySample }.filter {
             sample in
-            sources.contains(sample.sourceRevision.source.bundleIdentifier)
-            && (devices.isEmpty || sample.device?.localIdentifier.map { devices.contains($0) } == true)
+            identities.contains(HealthSourceIdentity.key(sample))
             && segments.contains { segment in
                 segment.stage != .awake && segment.stage != .unobserved && sample.startDate >= segment.start && sample.endDate <= segment.end
             }
