@@ -110,7 +110,10 @@ enum WearableVitalDecoder {
 final class WearableVitalsStore: ObservableObject {
     @Published private(set) var samples: [WearableVital] = []
     @Published private(set) var error: String?
-    var visibleSamples: [WearableVital] { samples.filter { $0.kind.isVisible } }
+    var visibleSamples: [WearableVital] {
+        let latest = Date.now.addingTimeInterval(300)
+        return samples.filter { $0.kind.isVisible && $0.kind.accepts($0.value) && $0.date <= latest }
+    }
     private let url: URL?
 
     static func appStore() -> WearableVitalsStore {

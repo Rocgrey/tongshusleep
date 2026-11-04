@@ -3,6 +3,23 @@ import XCTest
 
 @MainActor
 final class DeviceValidationTests: XCTestCase {
+    func testNumericStringsContributeToRangesWithoutInterpretingTimesOrPlaceholders() throws {
+        let fields = ValidationInventory.collect([
+            ["oxygen": ["OxygenValue": "97", "RespirationRate": "255", "Time": "00:00", "Temp1": "175"]],
+            ["oxygen": ["OxygenValue": "0", "RespirationRate": "255", "Time": "00:01"]],
+            ["oxygen": ["OxygenValue": 99, "RespirationRate": "NaN"]]
+        ])
+        let oxygen = try XCTUnwrap(fields.first { $0.path == "oxygen.OxygenValue" })
+        XCTAssertEqual(oxygen.minimum, 0)
+        XCTAssertEqual(oxygen.maximum, 99)
+        XCTAssertEqual(oxygen.occurrences, 3)
+        let respiration = try XCTUnwrap(fields.first { $0.path == "oxygen.RespirationRate" })
+        XCTAssertEqual(respiration.minimum, 255)
+        XCTAssertEqual(respiration.maximum, 255)
+        XCTAssertNil(fields.first { $0.path == "oxygen.Time" }?.minimum)
+        XCTAssertTrue(fields.first { $0.path == "oxygen.Temp1" }?.meaning.contains("不能直接作为体温") == true)
+    }
+
     func testInventoryPreservesUnknownFieldsAndPlaceholdersWithoutExportingRetiredMetricsOrCredentials() throws {
         let fields = ValidationInventory.collect([
             ["history": ["heartValue": 0, "ppgs": [60, 62, 255], "unknownField": 17, "device_password": "private",

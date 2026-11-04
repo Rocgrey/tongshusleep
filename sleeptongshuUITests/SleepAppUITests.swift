@@ -136,6 +136,7 @@ final class SleepAppUITests: XCTestCase {
         app.launch()
         selectTab("监测与设备")
         press(app.segmentedControls["monitorMode"].buttons["设备检测"])
+        openDeviceDiagnostics()
         press(app.buttons["deviceValidationReport"])
         XCTAssertTrue(app.staticTexts["界面测试示例"].waitForExistence(timeout: 5))
         capture("24-validation-interface-results")
@@ -154,6 +155,7 @@ final class SleepAppUITests: XCTestCase {
         app.launch()
         selectTab("监测与设备")
         press(app.segmentedControls["monitorMode"].buttons["设备检测"])
+        openDeviceDiagnostics()
         press(app.buttons["deviceValidationReport"])
         XCTAssertTrue(app.staticTexts["界面测试示例"].waitForExistence(timeout: 5))
         press(app.segmentedControls["validationSections"].buttons["信号图"])
@@ -161,6 +163,30 @@ final class SleepAppUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "不代表毫秒")).firstMatch.exists)
         capture("27-validation-candidate-graph")
         press(app.buttons["完成"])
+    }
+
+    func testEverydaySyncKeepsDiagnosticsCollapsedAndValidationOffAfterRelaunch() {
+        app.terminate()
+        app.launchArguments += ["-deviceSignalValidationEnabled", "YES"]
+        app.launch()
+        selectTab("监测与设备")
+        press(app.segmentedControls["monitorMode"].buttons["设备检测"])
+        XCTAssertTrue(app.buttons["scanBluetooth"].exists)
+        XCTAssertFalse(app.switches["enableDeviceValidation"].exists)
+        XCTAssertFalse(app.buttons["deviceValidationReport"].exists)
+        capture("28-everyday-device-page")
+        openDeviceDiagnostics()
+        let toggle = app.switches["enableDeviceValidation"]
+        XCTAssertEqual(toggle.value as? String, "0")
+        press(toggle)
+        XCTAssertEqual(toggle.value as? String, "1")
+        capture("29-device-diagnostics")
+        app.terminate()
+        app.launch()
+        selectTab("监测与设备")
+        press(app.segmentedControls["monitorMode"].buttons["设备检测"])
+        openDeviceDiagnostics()
+        XCTAssertEqual(app.switches["enableDeviceValidation"].value as? String, "0")
     }
 
     func testDeviceBatteryPercentageAndDisconnectedReadingAreVisible() {
@@ -217,6 +243,17 @@ final class SleepAppUITests: XCTestCase {
         #endif
         press(app.buttons["查看HRV趋势"])
         capture("16-vitals-hrv-chart")
+    }
+
+    private func openDeviceDiagnostics() {
+        let entry = app.buttons["设备诊断"].firstMatch
+        for _ in 0..<4 {
+            if entry.isHittable { break }
+            scrollDown()
+        }
+        press(entry)
+        scrollDown()
+        XCTAssertTrue(app.buttons["deviceValidationReport"].waitForExistence(timeout: 3))
     }
 
     private func capture(_ name: String) {

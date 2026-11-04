@@ -19,7 +19,8 @@ struct MonitoringView: View {
     @State private var showsLocalData = false
     @State private var showsVitals = false
     @State private var syncSummary: String?
-    @AppStorage("deviceSignalValidationEnabled") private var validationEnabled = false
+    @State private var validationEnabled = false
+    @State private var showsDiagnostics = false
     @State private var showsValidation = false
 
     var body: some View {
@@ -219,26 +220,10 @@ struct MonitoringView: View {
                     Image(systemName: "chevron.right")
                 }.font(.system(size: 14)).padding(.vertical, 10)
             }.accessibilityIdentifier("wearableVitals")
-            VStack(alignment: .leading, spacing: 10) {
-                Toggle(isOn: $validationEnabled) {
-                    Label("设备数据验证", systemImage: "waveform.path.ecg")
-                        .font(.system(size: 14, weight: .medium))
-                }.disabled(ring.isBusy || scanner.connectingID != nil || scanner.connectedName != nil)
-                    .accessibilityIdentifier("enableDeviceValidation")
-                Text("开启后，下次连接会额外检查逐次心跳数据，最多增加约 45 秒。请保持佩戴并让 App 留在前台。")
-                    .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
-                Button { showsValidation = true } label: {
-                    Label("查看验证报告", systemImage: "doc.text.magnifyingglass")
-                }.font(.system(size: 13)).accessibilityIdentifier("deviceValidationReport")
-            }
             if let value = scanner.liveHeartRate { Label("实时心率 \(value) 次/分", systemImage: "heart.fill").font(.system(size: 17, weight: .semibold)).foregroundStyle(.pink) }
             if ring.isBusy {
                 Button("取消戒指同步", role: .cancel) { ringTask?.cancel(); ring.cancel() }
             } else if scanner.connectedName != nil {
-                DisclosureGroup("标准数据与设备诊断") { deviceReadout.padding(.top, 10) }
-                    .font(.system(size: 13))
-                Button { scanner.inspectDevice() } label: { Label("重新检查设备", systemImage: "arrow.clockwise") }
-                    .disabled(scanner.isInspecting).accessibilityIdentifier("refreshDeviceData")
                 Button("断开设备", role: .destructive) { scanner.disconnect() }
             } else if scanner.connectingID != nil {
                 ProgressView("连接中…")
@@ -298,7 +283,40 @@ struct MonitoringView: View {
                 .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
             Text("搜索列表显示附近设备的蓝牙名称；能被搜索到，不代表支持睡眠与体征同步。")
                 .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
+            deviceDiagnostics
         }
+    }
+
+    private var deviceDiagnostics: some View {
+        DisclosureGroup(isExpanded: $showsDiagnostics) {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("日常同步无需开启验证。遇到读取问题时，可在这里检查数据与分享报告。")
+                    .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
+                Toggle(isOn: $validationEnabled) {
+                    Label("下次连接时验证原始信号", systemImage: "waveform.path.ecg")
+                        .font(.system(size: 13, weight: .medium))
+                }.disabled(ring.isBusy || scanner.connectingID != nil || scanner.connectedName != nil)
+                    .accessibilityIdentifier("enableDeviceValidation")
+                Text("仅对下一次连接生效，最多额外等待约 45 秒。请保持佩戴并让 App 留在前台；未收到信号不代表设备不支持。")
+                    .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
+                Button { showsValidation = true } label: {
+                    Label("查看验证报告", systemImage: "doc.text.magnifyingglass")
+                }.accessibilityIdentifier("deviceValidationReport")
+                if !ring.events.isEmpty {
+                    DisclosureGroup("同步详情") {
+                        Text(ring.diagnosticReport).font(.system(size: 11, design: .monospaced)).textSelection(.enabled)
+                        ShareLink(item: ring.diagnosticReport) { Label("分享同步诊断", systemImage: "square.and.arrow.up") }
+                    }
+                }
+                if scanner.connectedName != nil {
+                    deviceReadout
+                    Button { scanner.inspectDevice() } label: { Label("重新检查设备", systemImage: "arrow.clockwise") }
+                        .disabled(scanner.isInspecting || ring.isBusy).accessibilityIdentifier("refreshDeviceData")
+                }
+            }.padding(.top, 12)
+        } label: {
+            Label("设备诊断", systemImage: "stethoscope").font(.system(size: 13, weight: .medium))
+        }.font(.system(size: 13))
     }
 
     private var displayedBattery: DeviceBatteryReading? {
@@ -325,12 +343,6 @@ struct MonitoringView: View {
             if let syncSummary {
                 Text(syncSummary).font(.system(size: 12)).foregroundStyle(SleepPalette.teal).lineSpacing(4)
             }
-            if !ring.events.isEmpty {
-                DisclosureGroup("同步详情") {
-                    Text(ring.diagnosticReport).font(.system(size: 11, design: .monospaced)).textSelection(.enabled)
-                    ShareLink(item: ring.diagnosticReport) { Label("分享同步诊断", systemImage: "square.and.arrow.up") }
-                }.font(.system(size: 12))
-            }
         }
     }
 
@@ -345,6 +357,7 @@ struct MonitoringView: View {
         syncSummary = nil
         let services = scanner.discoveredCharacteristics
         let shouldValidate = validationEnabled
+        validationEnabled = false
         ring.preparing(name: scanner.connectedName ?? "戒指", battery: scanner.battery)
         ringTask = Task {
             do {

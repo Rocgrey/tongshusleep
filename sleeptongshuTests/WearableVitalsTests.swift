@@ -3,6 +3,25 @@ import XCTest
 
 final class WearableVitalsTests: XCTestCase {
     @MainActor
+    func testOldInvalidRecordsStayOnDiskButAreExcludedFromChartsAndExport() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let samples = [(VitalKind.heart, 65.0), (.heart, 0), (.oxygen, 255), (.oxygen, 101),
+                       (.respiration, 255), (.hrv, 0), (.stress, -1)].map { kind, value in
+            WearableVital(device: "old-ring", deviceLabel: "戒指", date: Date(timeIntervalSince1970: 1000),
+                          kind: kind, value: value, origin: "旧记录")
+        }
+        let data = try JSONEncoder().encode(samples)
+        try data.write(to: url)
+        let store = WearableVitalsStore(url: url)
+        XCTAssertNil(store.error)
+        XCTAssertEqual(store.samples.count, samples.count)
+        XCTAssertEqual(store.visibleSamples, [samples[0]])
+        XCTAssertEqual(try JSONDecoder().decode([WearableVital].self, from: store.export()), [samples[0]])
+        XCTAssertEqual(try Data(contentsOf: url), data)
+    }
+
+    @MainActor
     func testRetiredMetricsAreHiddenFromOldFilesAndNotSyncedOrExported() throws {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
         defer { try? FileManager.default.removeItem(at: url) }

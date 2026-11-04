@@ -14,15 +14,25 @@ struct ValidationField: Codable, Identifiable {
     var meaning: String {
         let key = path.components(separatedBy: ".").last ?? path
         switch key {
-        case "heartValue", "heart": return "心率结果；不是连续脉搏波。"
+        case "heartValue", "HeartValue", "heart": return "心率结果；不是连续脉搏波。"
         case "OxygenValue", "oxygen": return "血氧结果；不是原始光学信号。"
-        case "hrvValue", "hrv": return "设备的 HRV 结果；单位及计算方式尚未确认。"
+        case "hrvValue", "HRV", "hrv": return "设备的 HRV 结果；单位及计算方式尚未确认。"
         case "systolic", "diastolic": return "设备估计的血压结果。"
         case "stress": return "设备压力值，计算方式尚未确认。"
         case "RespirationRate", "respiration": return "设备返回的呼吸率字段；零值或占位值不代表有效测量。"
         case "ecgs", "ppgs": return "历史数组；字段名不能证明是原始心电或脉搏波，采样率和单位待确认。"
         case "points", "line", "SLE_LINE", "type": return "设备已经计算的睡眠阶段，不是用于重新分期的传感器信号。"
         case "time", "Time", "start", "end", "sleepTime", "wakeTime": return "设备记录的时间。"
+        case "sportValue", "SportValue": return "设备汇总的活动值，含义和单位待确认；不是连续的身体活动信号。"
+        case "stepValue", "StepValue": return "设备记录的步数；不能当作睡眠中的原始身体活动信号。"
+        case "pointSeconds": return "每个睡眠阶段点代表的秒数，不是传感器采样率。"
+        case "returnedStageCount": return "设备返回的睡眠阶段点数。"
+        case "index": return "睡眠阶段点的排列位置。"
+        case "Temp1": return "含义及换算方式待确认，不能直接作为体温。"
+        case "ApneaResult", "Hypopnea", "HypoxiaTime", "IsHypoxia", "CardiacLoad": return "设备分析字段，含义和有效值尚未确认；零值不能用于判断健康状况。"
+        case "protocolType", "testType": return "接口类型编号，不是健康测量值。"
+        case "hearts": return "设备历史数组；不能单凭名称判定为逐次心跳间隔。"
+        case "calValue", "disValue": return "设备活动汇总字段，含义和单位待确认。"
         default: return "已记录字段的类型或数值范围，具体含义待确认。"
         }
     }
@@ -69,6 +79,10 @@ enum ValidationInventory {
                 if field.examples.count < 4 { field.examples.append(number.stringValue) }
             } else if let string = value as? String {
                 field.values += 1
+                if let number = Double(string), number.isFinite {
+                    field.minimum = min(field.minimum ?? number, number)
+                    field.maximum = max(field.maximum ?? number, number)
+                }
                 if field.examples.count < 4 { field.examples.append(String(string.prefix(100))) }
             } else if let data = value as? Data {
                 field.values += data.count
