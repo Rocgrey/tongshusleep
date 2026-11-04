@@ -39,7 +39,7 @@ final class RingScanner: NSObject, ObservableObject {
     @Published private(set) var isScanning = false
     @Published private(set) var connectedName: String?
     @Published private(set) var connectingID: UUID?
-    @Published private(set) var status = "尚未连接戒指"
+    @Published private(set) var status = "尚未连接设备"
     @Published private(set) var battery: Int?
     @Published private(set) var modelNumber: String?
     @Published private(set) var liveHeartRate: Int?
@@ -55,6 +55,12 @@ final class RingScanner: NSObject, ObservableObject {
     @Published private(set) var isHandingOff = false
     @Published private(set) var rememberedDevices: [RememberedDevice] = []
     @Published private(set) var latestVitals: [WearableVital] = []
+    @Published private(set) var wearableChannelDetected = false
+    @Published private(set) var wearableProbeAvailable = false
+    let wearable = WearableProbeClient()
+    private var wearableWriter: CBCharacteristic?
+    private var wearableNotify: CBCharacteristic?
+    private var wearableStarted = false
     private let rememberedStorage = RememberedDeviceStorage(defaults: .standard)
     private var pendingReconnect: RememberedDevice?
     private var inspectionTimeout: Task<Void, Never>?
@@ -69,7 +75,16 @@ final class RingScanner: NSObject, ObservableObject {
 
     override init() {
         super.init()
-        rememberedDevices = rememberedStorage.load().filter { $0.verifiedRing == true || RingDevicePolicy.recognizes(name: $0.name) }
+        rememberedDevices = rememberedStorage.load().filter { $0.verifiedRing == true || $0.verifiedWearable == true || $0.verifiedConnection == true || RingDevicePolicy.recognizes(name: $0.name) }
+        wearable.onRealtimeVitals = { [weak self] values in
+            guard let self, let peripheral = self.connected else { return }
+            self.latestVitals = values.map { self.makeVital($0.0, value: $0.1, peripheral: peripheral) }
+        }
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing"), ProcessInfo.processInfo.arguments.contains("-ui-testing-probe") {
+            wearableProbeAvailable = true
+        }
+        #endif
     }
 
     func reconnect(_ device: RememberedDevice) {
@@ -101,20 +116,22 @@ final class RingScanner: NSObject, ObservableObject {
                      "检查时间：\(inspectedAt?.formatted(date: .numeric, time: .standard) ?? "尚未检查")",
                      "状态：\(status)", "电量：\(batteryState.label)", "型号：\(modelNumber ?? modelState.label)",
                      "心率：\(heartRateState.label)",
-                     "历史睡眠：\(VeepooRingClient.enabled && veepooChannelDetected ? "通道检查完成后自动同步" : "未识别到受支持的戒指通道")"]
+                     "历史睡眠：\(wearableProbeAvailable ? "新设备接入结果见本地接入报告" : VeepooRingClient.enabled && veepooChannelDetected ? "通道检查完成后自动同步" : "未识别到受支持的数据通道")"]
         if discoveredServices.isEmpty { lines.append("尚未发现服务，或设备未开放服务。") }
         for service in discoveredServices {
             lines.append("服务 \(service)")
             lines += (discoveredCharacteristics[service] ?? []).map { "  \($0)" }
         }
         lines += readErrors.map { "读取提示：\($0)" }
-        lines.append("仅检查服务信息与已支持的标准数据；未发送私有写入命令。诊断不包含录音或睡眠记录。")
+        lines.append("仅读取已支持的标准数据及已识别通道的文档化查询；不修改新设备设置。历史记录另存于本地接入报告。")
         return lines.joined(separator: "\n")
     }
 
     func inspectDevice() {
         guard let connected, connected.state == .connected, !isInspecting else { return }
         inspectionTimeout?.cancel()
+        wearable.cancel()
+        wearableChannelDetected = false; wearableProbeAvailable = false; wearableWriter = nil; wearableNotify = nil; wearableStarted = false
         inspectedAt = .now
         isInspecting = true
         battery = nil; modelNumber = nil; liveHeartRate = nil; supportsHeartRate = false
@@ -134,7 +151,7 @@ final class RingScanner: NSObject, ObservableObject {
             if self.heartRateState == .checking || self.heartRateState == .waiting { self.heartRateState = .timedOut }
             if self.isInspecting { self.recordError("服务检查超时，请重新读取或重连设备。") }
             self.isInspecting = false
-            if timedOut { self.status = "已连接 · 部分数据未收到，见下方状态" }
+            if timedOut && !self.wearableChannelDetected { self.status = "已连接 · 部分数据未收到，见下方状态" }
         }
     }
 
@@ -158,11 +175,32 @@ final class RingScanner: NSObject, ObservableObject {
         if batteryState == .checking { batteryState = .unavailable }
         if modelState == .checking { modelState = .unavailable }
         if heartRateState == .checking { heartRateState = .unavailable }
-        status = veepooChannelDetected ? "已连接 · 即将自动同步" : "已连接 · 尚不支持此设备的睡眠与体征同步"
-        if veepooChannelDetected, let connected {
+        status = wearableChannelDetected ? "已连接 · 自动读取数据，进度见下方" : veepooChannelDetected ? "已连接 · 即将自动同步" : "已连接 · 尚不支持此设备的睡眠与体征同步"
+        if let connected {
             rememberedDevices.removeAll { $0.id == connected.identifier }
-            rememberedDevices.insert(RememberedDevice(id: connected.identifier, name: connectedName ?? "戒指", lastConnected: .now, verifiedRing: true), at: 0)
+            rememberedDevices.insert(RememberedDevice(id: connected.identifier, name: connectedName ?? "设备", lastConnected: .now,
+                                                       verifiedRing: veepooChannelDetected, verifiedWearable: wearableChannelDetected, verifiedConnection: true), at: 0)
             rememberedStorage.save(rememberedDevices)
+        }
+        if !wearableChannelDetected, !wearableStarted, let connected,
+           WearableGatt.reportedFirmware(for: connectedName ?? "") != nil {
+            wearableStarted = true; wearableProbeAvailable = true
+            wearable.prepare(name: connectedName ?? "设备", id: connected.identifier,
+                             services: discoveredServices, characteristics: discoveredCharacteristics)
+            wearable.fail("已连接，但未发现兼容的数据接口；服务信息已存入报告")
+        }
+        if wearableChannelDetected, !wearableStarted, let connected, let wearableNotify {
+            wearableStarted = true; wearableProbeAvailable = true
+            wearable.prepare(name: connectedName ?? "设备", id: connected.identifier,
+                             services: discoveredServices, characteristics: discoveredCharacteristics)
+            connected.setNotifyValue(true, for: wearableNotify)
+            Task { [weak self] in
+                do { try await Task.sleep(for: .seconds(5)) } catch { return }
+                guard let self, self.connected?.identifier == connected.identifier,
+                      self.wearableNotify === wearableNotify, !wearableNotify.isNotifying,
+                      self.wearable.report?.finishedAt == nil else { return }
+                self.wearable.fail("数据接收未能开启，请重新连接")
+            }
         }
     }
 
@@ -213,6 +251,8 @@ final class RingScanner: NSObject, ObservableObject {
     }
 
     func disconnect() {
+        wearable.cancel()
+        wearableChannelDetected = false; wearableProbeAvailable = false; wearableWriter = nil; wearableNotify = nil; wearableStarted = false
         pendingReconnect = nil
         connectionTimeout?.cancel()
         inspectionTimeout?.cancel()
@@ -335,13 +375,19 @@ extension RingScanner: @preconcurrency CBCentralManagerDelegate, @preconcurrency
             if properties.contains(.read) { flags.append("可读") }
             if properties.contains(.notify) { flags.append("通知") }
             if properties.contains(.indicate) { flags.append("指示") }
-            if properties.contains(.write) || properties.contains(.writeWithoutResponse) { flags.append("可写（未使用）") }
+            if properties.contains(.write) || properties.contains(.writeWithoutResponse) { flags.append("可写") }
             return "\(characteristic.uuid.uuidString) · \(flags.joined(separator: "、"))"
         }.sorted()
         if service.uuid.uuidString == VeepooGatt.service {
             let values = service.characteristics ?? []
-            veepooChannelDetected = values.contains { $0.uuid.uuidString == VeepooGatt.notify && $0.properties.contains(.notify) }
+            veepooChannelDetected = !wearableChannelDetected && values.contains { $0.uuid.uuidString == VeepooGatt.notify && $0.properties.contains(.notify) }
                 && values.contains { $0.uuid.uuidString == VeepooGatt.write && ($0.properties.contains(.write) || $0.properties.contains(.writeWithoutResponse)) }
+        }
+        if service.uuid.uuidString == WearableGatt.service {
+            wearableNotify = service.characteristics?.first { $0.uuid.uuidString == WearableGatt.notify && ($0.properties.contains(.notify) || $0.properties.contains(.indicate)) }
+            wearableWriter = service.characteristics?.first { $0.uuid.uuidString == WearableGatt.write && ($0.properties.contains(.write) || $0.properties.contains(.writeWithoutResponse)) }
+            wearableChannelDetected = wearableNotify != nil && wearableWriter != nil
+            if wearableChannelDetected { veepooChannelDetected = false }
         }
         for characteristic in service.characteristics ?? [] {
             let canRead = BLEStandardAccess.canRead(service: service.uuid.uuidString, characteristic: characteristic.uuid.uuidString)
@@ -360,7 +406,13 @@ extension RingScanner: @preconcurrency CBCentralManagerDelegate, @preconcurrency
     }
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
-        guard connected?.identifier == peripheral.identifier,
+        guard connected?.identifier == peripheral.identifier else { return }
+        if characteristic.service?.uuid.uuidString == WearableGatt.service, characteristic.uuid.uuidString == WearableGatt.notify {
+            if let error { wearable.fail("接收失败：\(error.localizedDescription)") }
+            else if let data = characteristic.value { wearable.receive(data) }
+            return
+        }
+        guard
               BLEStandardAccess.canRead(service: characteristic.service?.uuid.uuidString ?? "", characteristic: characteristic.uuid.uuidString) else { return }
         if let error {
             recordError("\(characteristic.uuid.uuidString)：\(error.localizedDescription)")
@@ -396,7 +448,14 @@ extension RingScanner: @preconcurrency CBCentralManagerDelegate, @preconcurrency
     }
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
-        guard connected?.identifier == peripheral.identifier,
+        guard connected?.identifier == peripheral.identifier else { return }
+        if characteristic.service?.uuid.uuidString == WearableGatt.service, characteristic.uuid.uuidString == WearableGatt.notify {
+            if let error { wearable.fail("数据接收失败：\(error.localizedDescription)") }
+            else if characteristic.isNotifying, let wearableWriter { wearable.start(peripheral: peripheral, writer: wearableWriter) }
+            else { wearable.fail("设备未开启数据接收") }
+            return
+        }
+        guard
               BLEStandardAccess.canSubscribe(service: characteristic.service?.uuid.uuidString ?? "", characteristic: characteristic.uuid.uuidString) else { return }
         if let error {
             recordError("\(characteristic.uuid.uuidString) 通知订阅失败：\(error.localizedDescription)")
@@ -404,6 +463,11 @@ extension RingScanner: @preconcurrency CBCentralManagerDelegate, @preconcurrency
         } else if characteristic.uuid.uuidString == "2A37", !characteristic.isNotifying, liveHeartRate == nil {
             heartRateState = .failed("设备没有开启心率通知")
         }
+    }
+
+    func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
+        guard connected?.identifier == peripheral.identifier, characteristic === wearableWriter else { return }
+        wearable.didWrite(error: error)
     }
 
     func peripheral(_ peripheral: CBPeripheral, didModifyServices invalidatedServices: [CBService]) {

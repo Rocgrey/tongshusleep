@@ -22,6 +22,7 @@ struct MonitoringView: View {
     @State private var validationEnabled = false
     @State private var showsDiagnostics = false
     @State private var showsValidation = false
+    @State private var showsWearableReport = false
 
     var body: some View {
         NavigationStack {
@@ -56,6 +57,7 @@ struct MonitoringView: View {
             .navigationDestination(isPresented: $showsLocalData) { LocalDataView() }
             .navigationDestination(isPresented: $showsVitals) { WearableVitalsView() }
             .sheet(isPresented: $showsValidation) { DeviceValidationView(store: ring.validation) }
+            .sheet(isPresented: $showsWearableReport) { WearableProbeView(client: scanner.wearable) }
             .sheet(isPresented: $showPreview) {
                 NavigationStack {
                     ScrollView {
@@ -201,17 +203,18 @@ struct MonitoringView: View {
             HStack(spacing: 18) {
                 Image(systemName: "circle.circle").font(.system(size: 46)).foregroundStyle(SleepPalette.deep)
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(scanner.connectedName ?? (ring.isBusy ? ring.deviceName : nil) ?? "睡眠戒指")
+                    Text(scanner.connectedName ?? (ring.isBusy ? ring.deviceName : nil) ?? "睡眠设备")
                         .font(.system(size: 18, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
                     Text(scanner.status).font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
                 }
             }
-            if scanner.connectedName != nil || ring.isBusy || (!scanner.isScanning && scanner.connectingID == nil && ring.deviceName != nil) {
+            if !scanner.wearableChannelDetected && (scanner.connectedName != nil || ring.isBusy || (!scanner.isScanning && scanner.connectingID == nil && ring.deviceName != nil)) {
                 DeviceBatteryView(reading: displayedBattery, isCurrent: scanner.connectedName != nil || ring.isBusy,
                                   isReading: scanner.isInspecting || ring.isBusy,
                                   deviceName: scanner.connectedName ?? ring.deviceName)
             }
-            if scanner.veepooChannelDetected || !ring.events.isEmpty { ringPanel }
+            if scanner.veepooChannelDetected || ring.isBusy || (scanner.connectedName == nil && !ring.events.isEmpty) { ringPanel }
+            if scanner.wearableProbeAvailable { WearableProbePanel(client: scanner.wearable, connected: scanner.connectedName != nil) }
             Button { showsVitals = true } label: {
                 HStack {
                     Label("体征记录", systemImage: "heart.text.clipboard")
@@ -302,6 +305,9 @@ struct MonitoringView: View {
                 Button { showsValidation = true } label: {
                     Label("查看验证报告", systemImage: "doc.text.magnifyingglass")
                 }.accessibilityIdentifier("deviceValidationReport")
+                Button { showsWearableReport = true } label: {
+                    Label("最近的手表与手环接入报告", systemImage: "applewatch")
+                }.accessibilityIdentifier("latestWearableProbe")
                 if !ring.events.isEmpty {
                     DisclosureGroup("同步详情") {
                         Text(ring.diagnosticReport).font(.system(size: 11, design: .monospaced)).textSelection(.enabled)
@@ -311,7 +317,7 @@ struct MonitoringView: View {
                 if scanner.connectedName != nil {
                     deviceReadout
                     Button { scanner.inspectDevice() } label: { Label("重新检查设备", systemImage: "arrow.clockwise") }
-                        .disabled(scanner.isInspecting || ring.isBusy).accessibilityIdentifier("refreshDeviceData")
+                        .disabled(scanner.isInspecting || ring.isBusy || scanner.wearable.isBusy).accessibilityIdentifier("refreshDeviceData")
                 }
             }.padding(.top, 12)
         } label: {
@@ -321,7 +327,7 @@ struct MonitoringView: View {
 
     private var displayedBattery: DeviceBatteryReading? {
         if scanner.connectedName != nil {
-            return scanner.battery.flatMap { DeviceBatteryReading(level: $0, isPercentage: true) }
+            return scanner.battery.flatMap { DeviceBatteryReading(level: $0, isPercentage: true) } ?? (scanner.wearableChannelDetected ? scanner.wearable.battery : nil)
         }
         guard scanner.connectingID == nil, !scanner.isScanning else { return nil }
         return ring.battery
@@ -388,7 +394,7 @@ struct MonitoringView: View {
             readout("电量", value: scanner.battery.map { "\($0)%" }, state: scanner.batteryState)
             readout("设备型号", value: scanner.modelNumber, state: scanner.modelState)
             readout("实时心率", value: scanner.liveHeartRate.map { "\($0) 次/分" }, state: scanner.heartRateState)
-            readout("历史睡眠", value: nil, state: .failed(VeepooRingClient.enabled && scanner.veepooChannelDetected ? "通道检查完成后自动同步" : "尚不支持此戒指的数据通道"))
+            readout("历史睡眠", value: nil, state: .failed(scanner.wearableChannelDetected ? "已开启接入验证，结果见接入报告" : VeepooRingClient.enabled && scanner.veepooChannelDetected ? "通道检查完成后自动同步" : "尚不支持此设备的数据通道"))
             Text("如果心率一直等待，请确认佩戴贴合，并在设备或配套 App 中开启心率广播（若支持）。不要先解绑或恢复出厂设置，以免丢失设备中的记录。")
                 .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
             DisclosureGroup("读取不到数据怎么办？") {
@@ -414,9 +420,9 @@ struct MonitoringView: View {
     }
     private var differences: some View {
         DisclosureGroup {
-            Text("手机通过床面震动和环境声音间接观察；戒指更贴近身体，通常还能使用心率、血氧等信号，因此数据可能更详细。摆放位置、同床者、宠物、背景声、佩戴松紧、算法、采样频率及统计时段都会影响结果。不同来源请分别看趋势，不宜直接把数值当作同一种测量。")
+            Text("手机通过床面震动和环境声音间接观察；穿戴设备更贴近身体，通常还能使用心率、血氧等信号，因此数据可能更详细。摆放位置、同床者、宠物、背景声、佩戴松紧、算法、采样频率及统计时段都会影响结果。不同来源请分别看趋势，不宜直接把数值当作同一种测量。")
                 .font(.system(size: 13)).foregroundStyle(SleepPalette.muted).lineSpacing(5).padding(.top, 12)
-        } label: { Label("手机与戒指数据为什么不一样？", systemImage: "info.circle").font(.system(size: 13, weight: .medium)) }
+        } label: { Label("手机与设备数据为什么不一样？", systemImage: "info.circle").font(.system(size: 13, weight: .medium)) }
     }
     private func guideRow(_ number: String, title: String, detail: String) -> some View {
         HStack(alignment: .top, spacing: 12) {

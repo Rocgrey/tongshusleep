@@ -103,7 +103,7 @@ final class SleepAppUITests: XCTestCase {
         app.swipeDown()
         #endif
         press(app.segmentedControls["monitorMode"].buttons["设备检测"])
-        XCTAssertTrue(app.staticTexts["睡眠戒指"].exists)
+        XCTAssertTrue(app.staticTexts["睡眠设备"].exists)
         capture("11-wearable-monitoring")
     }
 
@@ -118,6 +118,29 @@ final class SleepAppUITests: XCTestCase {
         XCTAssertTrue(app.buttons["导出 JSON 备份"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["scanBluetooth"].exists)
         capture("12-local-data")
+    }
+
+    func testNewWearableReportSeparatesReadingsFromUnknownCapabilities() {
+        app.terminate()
+        app.launchArguments += ["-ui-testing-probe", "-preview-monitor", "-preview-wearable"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["设备数据接入"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["7/9 格"].exists)
+        XCTAssertTrue(app.staticTexts["4312"].exists)
+        capture("30-wearable-probe-overview-example")
+        let report = app.buttons["wearableProbeReport"]
+        if !report.isHittable { scrollDown() }
+        press(report)
+        XCTAssertTrue(app.navigationBars["设备接入报告"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["实际返回固件"].exists)
+        XCTAssertTrue(app.staticTexts["用户提供的版本"].exists)
+        capture("31-wearable-probe-report-example")
+        scrollDown()
+        XCTAssertTrue(app.staticTexts["查询未响应，尚不能确认支持情况"].exists)
+        capture("32-wearable-probe-channels-example")
+        scrollDown()
+        capture("33-wearable-probe-history-example")
+        press(app.buttons["完成"])
     }
 
     func testWearableVitalsEmptyStateDoesNotInventMeasurements() {

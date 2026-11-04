@@ -6,6 +6,10 @@
 	objectVersion = 71;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		D10000000000000000000003 /* SwiftProtobuf in Frameworks */ = {isa = PBXBuildFile; productRef = D10000000000000000000002 /* SwiftProtobuf */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		C10000000000000000000007 /* Configuration/VeepooRing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Configuration/VeepooRing.xcconfig; sourceTree = SOURCE_ROOT; };
 		C10000000000000000000008 /* sleeptongshu.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = sleeptongshu.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -20,6 +24,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D10000000000000000000003 /* SwiftProtobuf in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -63,6 +68,9 @@
 				C10000000000000000000006 /* sleeptongshu */,
 			);
 			name = sleeptongshu;
+			packageProductDependencies = (
+				D10000000000000000000002 /* SwiftProtobuf */,
+			);
 			productName = sleeptongshu;
 			productReference = C10000000000000000000008 /* sleeptongshu.app */;
 			productType = "com.apple.product-type.application";
@@ -85,6 +93,9 @@
 				"zh-Hans",
 			);
 			mainGroup = C10000000000000000000003;
+			packageReferences = (
+				D10000000000000000000001 /* XCLocalSwiftPackageReference "swift-protobuf" */,
+			);
 			productRefGroup = C10000000000000000000004 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -186,6 +197,21 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		D10000000000000000000001 /* XCLocalSwiftPackageReference "swift-protobuf" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Vendor/SwiftProtobuf;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		D10000000000000000000002 /* SwiftProtobuf */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D10000000000000000000001 /* XCLocalSwiftPackageReference "swift-protobuf" */;
+			productName = SwiftProtobuf;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = C10000000000000000000001 /* Project object */;
 }

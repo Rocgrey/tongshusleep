@@ -1,0 +1,10 @@
+syntax = "proto2";
+option go_package = "./iwown";
+option swift_prefix = "IW_";
+
+import "realtime_data.proto";
+
+message HisDataRRI {
+    required    DateTime              time_stamp = 1;
+    repeated    fixed32               raw_data = 2 [packed = true];
+}

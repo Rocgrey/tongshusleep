@@ -30,6 +30,8 @@ struct RememberedDevice: Identifiable, Codable, Equatable {
     var name: String
     var lastConnected: Date
     var verifiedRing: Bool? = nil
+    var verifiedWearable: Bool? = nil
+    var verifiedConnection: Bool? = nil
 }
 
 struct RememberedDeviceStorage {
