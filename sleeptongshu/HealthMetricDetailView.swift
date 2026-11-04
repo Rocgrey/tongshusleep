@@ -19,13 +19,8 @@ struct HealthMetricDetailView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    Picker("来源与设备", selection: Binding(get: { health.selections[metric.rawValue] ?? "" }, set: { health.select($0, for: metric); selection = nil })) {
-                        Text("未选择").tag("")
-                        ForEach(health.sources(for: metric)) { source in Text(source.selectionLabel).tag(source.id) }
-                        if let selected = health.selections[metric.rawValue], !selected.isEmpty,
-                           !health.sources(for: metric).contains(where: { $0.id == selected }) { Text("上次来源（本次无记录）").tag(selected) }
-                    }.disabled(health.isLoading).accessibilityIdentifier("healthDetailSource")
-                    Text(health.source(for: metric)?.label ?? "请先选择来源与设备").font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
+                    Label(health.sourceSummary(for: metric), systemImage: "heart.text.clipboard")
+                        .font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
                     Picker("记录范围", selection: $period) { Text("7 天").tag(7); Text("30 天").tag(30); Text("90 天").tag(90) }
                         .pickerStyle(.segmented).onChange(of: period) { _, _ in selection = nil }
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -38,7 +33,7 @@ struct HealthMetricDetailView: View {
                     }
                     if days.isEmpty {
                         ContentUnavailableView("没有可展示的记录", systemImage: metric.symbol,
-                                               description: Text(health.snapshot?.truncatedMetrics.contains(metric) == true ? "该项目达到本次读取上限，暂不合计。" : "试试其他来源、设备或更长的时间范围，再检查系统读取权限。"))
+                                               description: Text(health.snapshot?.truncatedMetrics.contains(metric) == true ? "该项目达到本次读取上限，暂不合计。" : "试试更长的时间范围，再检查系统健康是否已有记录及读取权限。"))
                     } else {
                         Chart(days) { day in
                             if metric.isCumulative || metric == .sleep {
@@ -53,7 +48,7 @@ struct HealthMetricDetailView: View {
                             .chartXAxis { AxisMarks(values: .automatic(desiredCount: 4)) { _ in AxisValueLabel(format: .dateTime.month().day()) } }
                             .chartYAxis { AxisMarks(position: .leading) }.frame(height: 210)
                             .accessibilityLabel("\(metric.title)每日记录图")
-                        Text("\(days.count) 天有记录 · \(metric.isCumulative ? "日值为所选来源合计" : metric == .sleep ? "日值为睡着时长" : "日值为样本中位数")。空白不算 0，缺口不连线。")
+                        Text("\(days.count) 天有记录 · \(metric.isCumulative ? "日值由系统健康统计" : metric == .sleep ? "日值为睡着时长" : "日值为样本中位数")。空白不算 0，缺口不连线。")
                             .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
                     }
                     Divider()
@@ -64,7 +59,7 @@ struct HealthMetricDetailView: View {
                             .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
                     }
                     if metric.isCumulative {
-                        Text("系统可能只写入部分时段。即使当天有记录，合计也不保证覆盖全天；重叠区间或跨日区间无法准确拆分时，该日不计入合计。")
+                        Text("直接采用系统健康的每日统计，不手动累加多台设备的原始数据。今天尚未结束，数值可能继续更新；来源未同步或未获准读取时，统计也可能不完整。")
                             .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
                     }
                     Divider()

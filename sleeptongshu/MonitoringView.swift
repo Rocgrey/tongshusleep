@@ -8,7 +8,6 @@ struct MonitoringView: View {
     @EnvironmentObject private var vitals: WearableVitalsStore
     @Environment(\.modelContext) private var context
     @Query private var records: [SleepRecord]
-    @StateObject private var health = HealthSleepImporter()
     @StateObject private var ring = VeepooRingClient()
     @State private var ringTask: Task<Void, Never>?
     @AppStorage("phoneTrackingEnabled") private var trackingEnabled = false
@@ -23,7 +22,6 @@ struct MonitoringView: View {
     @State private var showsDiagnostics = false
     @State private var showsValidation = false
     @State private var showsWearableReport = false
-    @State private var showsHealthOverview = false
 
     var body: some View {
         NavigationStack {
@@ -49,15 +47,14 @@ struct MonitoringView: View {
                         Label("手机监测", systemImage: "iphone").tag(0)
                         Label("设备检测", systemImage: "sensor.fill").tag(1)
                     }.pickerStyle(.segmented).accessibilityIdentifier("monitorMode")
-                    if mode == 0 { phonePanel; healthPanel; phoneGuide; differences }
-                    else { wearablePanel; healthPanel; differences }
+                    if mode == 0 { phonePanel; phoneGuide; differences }
+                    else { wearablePanel; differences }
                 }.padding(22).frame(maxWidth: 680).frame(maxWidth: .infinity)
             }
             .background(SleepPalette.background).foregroundStyle(SleepPalette.ink)
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(isPresented: $showsLocalData) { LocalDataView() }
             .navigationDestination(isPresented: $showsVitals) { WearableVitalsView() }
-            .navigationDestination(isPresented: $showsHealthOverview) { HealthOverviewView(embedded: true) }
             .sheet(isPresented: $showsValidation) { DeviceValidationView(store: ring.validation) }
             .sheet(isPresented: $showsWearableReport) { WearableProbeView(client: scanner.wearable) }
             .sheet(isPresented: $showPreview) {
@@ -69,9 +66,9 @@ struct MonitoringView: View {
                         .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { showPreview = false } } }
                 }
             }
-            .alert("睡眠监测", isPresented: Binding(get: { message != nil || phone.error != nil || health.message != nil }, set: { if !$0 { clearMessage() } })) {
+            .alert("睡眠监测", isPresented: Binding(get: { message != nil || phone.error != nil }, set: { if !$0 { clearMessage() } })) {
                 Button("知道了", role: .cancel) { clearMessage() }
-            } message: { Text(message ?? phone.error ?? health.message ?? "") }
+            } message: { Text(message ?? phone.error ?? "") }
             .confirmationDialog("舍弃本次采集？", isPresented: $showDiscard, titleVisibility: .visible) {
                 Button("舍弃采集", role: .destructive) { phone.discard() }
             }
@@ -152,43 +149,6 @@ struct MonitoringView: View {
                 .font(.system(size: 11)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
         }.padding(20).background(SleepPalette.teal.opacity(0.065), in: RoundedRectangle(cornerRadius: 8))
         .overlay(alignment: .bottom) { if phone.isStarting { ProgressView().padding(4) } }
-    }
-
-    private var healthPanel: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Image(systemName: "heart.text.clipboard.fill").font(.system(size: 23)).foregroundStyle(.pink)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("从系统健康读取").font(.system(size: 16, weight: .semibold))
-                    Text("已有记录，也可以直接带过来").font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
-                }
-                Spacer()
-            }
-            Text("分别选择记录来源与设备，再导入睡眠。更多心率、HRV、步数和心肺状态可在健康概览中读取。")
-                .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
-            if !health.providers.isEmpty {
-                Picker("睡眠来源与设备", selection: $health.selectedProvider) {
-                    ForEach(health.providers, id: \.self) { Text(health.providerLabel($0)).tag($0) }
-                }.font(.system(size: 12)).disabled(health.isLoading).accessibilityIdentifier("sleepHealthSource")
-                Text("已选：\(health.providerLabel(health.selectedProvider)) · \(health.selectedCount) 个区间")
-                    .font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
-                Text("来源未标明设备时，无法再区分同一来源内的硬件；不会擅自把其他设备的体征配给这段睡眠。")
-                    .font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
-                Button { Task { await importHealth() } } label: { Label("导入所选来源", systemImage: "square.and.arrow.down") }
-                    .disabled(health.isLoading)
-            }
-            Button { Task { await health.load() } } label: {
-                if health.isLoading { ProgressView().frame(maxWidth: .infinity) }
-                else { Label("连接系统健康", systemImage: "heart.fill").frame(maxWidth: .infinity).padding(.vertical, 4) }
-            }.buttonStyle(.bordered).disabled(health.isLoading).accessibilityIdentifier("connectHealth")
-            Button { showsHealthOverview = true } label: {
-                Label("健康概览与身体年龄参考", systemImage: "heart.text.clipboard")
-            }.font(.system(size: 13)).accessibilityIdentifier("openHealthOverview")
-            if !HealthSleepImporter.enabled {
-                Text("当前版本未启用系统健康读取，可使用手机监测或设备同步。")
-                    .font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
-            }
-        }
     }
 
     private var phoneGuide: some View {
@@ -463,18 +423,7 @@ struct MonitoringView: View {
             message = "报告已保存在本机，可到“睡眠”查看本次记录。"
         } catch { context.rollback(); message = error.localizedDescription }
     }
-    private func importHealth() async {
-        do {
-            let payloads = try await health.importSelected()
-            for payload in payloads {
-                if let previous = records.first(where: { $0.id == payload.id }) { previous.replace(with: payload) }
-                else { context.insert(SleepRecord(payload)) }
-            }
-            try context.save()
-            message = payloads.isEmpty ? "所选来源没有可导入的睡眠区间，仅有卧床时间不会生成睡眠。" : "已导入或更新 \(payloads.count) 晚记录。同一来源同一晚不会重复累加。"
-        } catch { context.rollback(); message = "导入失败：\(error.localizedDescription)" }
-    }
-    private func clearMessage() { message = nil; phone.error = nil; health.message = nil }
+    private func clearMessage() { message = nil; phone.error = nil }
 }
 
 struct PhoneReportView: View {

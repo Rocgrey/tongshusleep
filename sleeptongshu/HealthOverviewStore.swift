@@ -1,6 +1,7 @@
 import Foundation
 import HealthKit
 import Combine
+import SwiftData
 
 extension HealthMetric {
     var quantityIdentifier: HKQuantityTypeIdentifier? {
@@ -35,7 +36,6 @@ extension HealthMetric {
 @MainActor
 final class HealthOverviewStore: ObservableObject {
     @Published private(set) var snapshot: HealthOverviewSnapshot?
-    @Published private(set) var selections: [String: String] = [:]
     @Published private(set) var isLoading = false
     @Published private(set) var progress = ""
     @Published var message: String?
@@ -56,32 +56,27 @@ final class HealthOverviewStore: ObservableObject {
         guard let url, FileManager.default.fileExists(atPath: url.path) else { return }
         do {
             let archive = try JSONDecoder().decode(HealthOverviewArchive.self, from: Data(contentsOf: url))
-            snapshot = archive.snapshot; selections = archive.selections
-        } catch { failedToReadCache = true; storageError = "本机健康快照未能打开，原文件已保留。可在数据来源中清空快照后重新读取。" }
+            snapshot = archive.snapshot
+        } catch { failedToReadCache = true; storageError = "本机健康快照未能打开，原文件已保留。可在健康设置中清空快照后重新读取。" }
     }
 
-    func sources(for metric: HealthMetric) -> [HealthDataSource] {
-        let ids = Set(snapshot?.observations.filter { $0.metric == metric }.map(\.sourceID) ?? [])
-        return snapshot?.sources.filter { ids.contains($0.id) }.sorted { $0.selectionLabel < $1.selectionLabel } ?? []
-    }
-    func source(for metric: HealthMetric) -> HealthDataSource? { snapshot?.sources.first { $0.id == selections[metric.rawValue] } }
-    func select(_ id: String, for metric: HealthMetric) {
-        guard !isLoading else { return }
-        guard id.isEmpty || sources(for: metric).contains(where: { $0.id == id }) else { return }
-        selections[metric.rawValue] = id
-        cache[metric] = nil
-        persist()
+    func sourceSummary(for metric: HealthMetric) -> String {
+        guard let snapshot, snapshot.observations.contains(where: { $0.metric == metric }) else { return "系统健康" }
+        if metric.isCumulative { return "系统健康 · 每日统计" }
+        if metric == .sleep { return "系统健康 · 每晚自动整理" }
+        let count = Set(snapshot.observations.filter { $0.metric == metric }.map(\.sourceID)).count
+        return count > 1 ? "系统健康 · \(count) 个记录来源" : "系统健康"
     }
     func days(for metric: HealthMetric) -> [HealthDay] {
         if let cached = cache[metric] { return cached }
-        guard let snapshot, !snapshot.truncatedMetrics.contains(metric), let id = selections[metric.rawValue], !id.isEmpty else { return [] }
-        let result = HealthOverviewAnalysis.daily(snapshot.observations.filter { $0.sourceID == id }, metric: metric)
+        guard let snapshot, !snapshot.truncatedMetrics.contains(metric) else { return [] }
+        let result = HealthOverviewAnalysis.daily(snapshot.observations, metric: metric)
         cache[metric] = result
         return result
     }
     var latestDate: Date? { snapshot?.observations.map(\.end).max() }
 
-    func refresh() async {
+    func refresh(in context: ModelContext? = nil) async {
         guard !isLoading else { return }
         guard !failedToReadCache else { message = storageError; return }
         guard HealthSleepImporter.enabled, HKHealthStore.isHealthDataAvailable() else {
@@ -103,11 +98,27 @@ final class HealthOverviewStore: ObservableObject {
             var sources: [String: HealthDataSource] = [:]
             var observations: [HealthObservation] = []
             var truncated: [HealthMetric] = []
+            var candidates: [HealthSleepCandidate] = []
+            var notices: [String] = []
+            var completed = 0
             for metric in HealthMetric.allCases {
                 progress = "正在读取\(metric.title)"
+                do {
+                if metric.isCumulative {
+                    let totals = try await readDailyTotals(metric: metric, start: start, end: readAt)
+                    observations += totals.observations
+                    for source in totals.sources { sources[source.id] = source }
+                    completed += 1
+                    continue
+                }
                 let type: HKSampleType = metric == .sleep ? sleep : HKObjectType.quantityType(forIdentifier: metric.quantityIdentifier!)!
                 let samples = try await read(type: type, start: start, end: readAt)
-                if samples.count >= 50_000 { truncated.append(metric) }
+                completed += 1
+                if samples.count >= 50_000 {
+                    truncated.append(metric)
+                    notices.append("\(metric.title)记录达到本次读取上限，暂不汇总。")
+                    continue
+                }
                 for sample in samples { sources[HealthSourceIdentity.key(sample)] = HealthSourceIdentity.describe(sample) }
                 if metric == .sleep {
                     let groups = Dictionary(grouping: samples.compactMap { $0 as? HKCategorySample }, by: HealthSourceIdentity.key)
@@ -117,7 +128,7 @@ final class HealthOverviewStore: ObservableObject {
                                   sample.endDate.timeIntervalSince(sample.startDate) <= 24 * 3600 else { return nil }
                             return HealthSleepInterval(id: sample.uuid, start: sample.startDate, end: sample.endDate, stage: stage)
                         }
-                        observations += HealthOverviewAnalysis.sleepObservations(intervals, sourceID: id)
+                        candidates.append(HealthSleepCandidate(sourceID: id, intervals: intervals))
                     }
                 } else {
                     observations += samples.compactMap { sample in
@@ -128,6 +139,14 @@ final class HealthOverviewStore: ObservableObject {
                                                  start: sample.startDate, end: sample.endDate, value: value)
                     }
                 }
+                } catch { notices.append("\(metric.title)本次未能读取，其他项目仍可查看。") }
+            }
+            guard completed > 0 else { throw NSError(domain: "SystemHealth", code: 1, userInfo: [NSLocalizedDescriptionKey: "系统健康暂时无法读取，请稍后重试。旧快照已保留。"] ) }
+            let sleepRecords = try HealthSleepImporter.automaticRecords(candidates, observations: observations, sources: Array(sources.values))
+            for payload in sleepRecords {
+                let date = Calendar.current.date(byAdding: .day, value: 1, to: HealthSleepImporter.night(payload.end))!
+                let hours = payload.segments.filter { ![.awake, .unobserved].contains($0.stage) }.reduce(0) { $0 + $1.end.timeIntervalSince($1.start) } / 3600
+                observations.append(HealthObservation(id: payload.id.uuidString, metric: .sleep, sourceID: "system-health-sleep", start: date, end: date, value: hours))
             }
             let birth = try? health.dateOfBirthComponents()
             let age = birth.flatMap { Calendar(identifier: .gregorian).date(from: $0) }
@@ -135,18 +154,15 @@ final class HealthOverviewStore: ObservableObject {
             let sex = try? health.biologicalSex().biologicalSex
             let reference: HealthReferenceSex = sex == .female ? .female : sex == .male ? .male : .unspecified
             let next = HealthOverviewSnapshot(readAt: readAt, sources: Array(sources.values).sorted { $0.id < $1.id },
-                                              observations: observations, age: age, referenceSex: reference, truncatedMetrics: truncated)
-            var choices = selections
-            for metric in HealthMetric.allCases where choices[metric.rawValue] == nil {
-                let counts = Dictionary(grouping: observations.filter { $0.metric == metric }, by: \.sourceID)
-                choices[metric.rawValue] = counts.keys.sorted { first, second in
-                    if counts[first]!.count == counts[second]!.count { return first < second }
-                    return counts[first]!.count > counts[second]!.count
-                }.first ?? ""
-            }
+                                              observations: observations, age: age, referenceSex: reference, truncatedMetrics: truncated,
+                                              sleepRecords: sleepRecords, notices: notices)
             // Save before publishing; an unsuccessful refresh leaves the previous snapshot intact.
-            try write(HealthOverviewArchive(snapshot: next, selections: choices))
-            snapshot = next; selections = choices; cache = [:]; storageError = nil
+            try write(HealthOverviewArchive(snapshot: next))
+            snapshot = next; cache = [:]; storageError = nil
+            if let context {
+                do { try HealthSleepImporter.save(sleepRecords, in: context) }
+                catch { context.rollback(); message = "健康概览已更新，睡眠报告保存未完成，请重新刷新：\(error.localizedDescription)" }
+            }
             if observations.isEmpty {
                 message = "没有读到可用记录。请检查系统健康内是否已有数据，以及是否允许本 App 读取。系统不会告诉 App 某一项读取权限是否被拒绝。"
             }
@@ -170,17 +186,41 @@ final class HealthOverviewStore: ObservableObject {
         }
     }
 
+    private func readDailyTotals(metric: HealthMetric, start: Date, end: Date) async throws -> (observations: [HealthObservation], sources: [HealthDataSource]) {
+        let queryStore = health
+        return try await withCheckedThrowingContinuation { continuation in
+            let type = HKObjectType.quantityType(forIdentifier: metric.quantityIdentifier!)!
+            let query = HKStatisticsCollectionQuery(quantityType: type,
+                quantitySamplePredicate: HKQuery.predicateForSamples(withStart: start, end: end),
+                options: .cumulativeSum, anchorDate: Calendar.current.startOfDay(for: start), intervalComponents: DateComponents(day: 1))
+            query.initialResultsHandler = { query, collection, error in
+                queryStore.stop(query)
+                if let error { continuation.resume(throwing: error); return }
+                var observations: [HealthObservation] = []
+                var sources: [String: HealthDataSource] = [:]
+                collection?.enumerateStatistics(from: start, to: end) { statistics, _ in
+                    guard statistics.startDate <= end, let quantity = statistics.sumQuantity() else { return }
+                    let value = quantity.doubleValue(for: metric.healthUnit)
+                    guard metric.accepts(value) else { return }
+                    observations.append(HealthObservation(id: "system|\(metric.rawValue)|\(statistics.startDate.timeIntervalSince1970)", metric: metric,
+                        sourceID: "system-health-statistics", start: statistics.startDate, end: min(statistics.endDate, end), value: value))
+                    for source in statistics.sources ?? [] {
+                        let id = WearableVital.deviceKey(source.bundleIdentifier)
+                        sources[id] = HealthDataSource(id: id, appName: DevicePresentation.name(source.name), deviceName: "系统统计来源", hardwareIdentified: false)
+                    }
+                }
+                continuation.resume(returning: (observations, Array(sources.values)))
+            }
+            health.execute(query)
+        }
+    }
+
     func clearSnapshot() throws {
         guard !isLoading else { return }
         if let url, FileManager.default.fileExists(atPath: url.path) { try FileManager.default.removeItem(at: url) }
-        snapshot = nil; selections = [:]; cache = [:]; storageError = nil; failedToReadCache = false
+        snapshot = nil; cache = [:]; storageError = nil; failedToReadCache = false
     }
-    func export() throws -> Data { try JSONEncoder().encode(HealthOverviewArchive(snapshot: snapshot, selections: selections)) }
-    private func persist() {
-        guard !failedToReadCache else { return }
-        do { try write(HealthOverviewArchive(snapshot: snapshot, selections: selections)); storageError = nil }
-        catch { storageError = "选择已在当前页面生效，但未能保存：\(error.localizedDescription)" }
-    }
+    func export() throws -> Data { try JSONEncoder().encode(HealthOverviewArchive(snapshot: snapshot)) }
     private func write(_ archive: HealthOverviewArchive) throws {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-ui-testing") { return }
@@ -199,6 +239,7 @@ final class HealthOverviewStore: ObservableObject {
         for metric in HealthMetric.allCases {
             for day in 1...80 {
                 for source in [a, b] {
+                    if metric.isCumulative && source.id == b.id { continue }
                     let date = Calendar.current.date(byAdding: .day, value: -day, to: today)!
                     let baseline: Double
                     switch metric {
@@ -215,11 +256,13 @@ final class HealthOverviewStore: ObservableObject {
                     case .diastolic: baseline = 75
                     }
                     let jitter = metric == .vo2 ? 0 : Double(day % 3) * (metric == .steps ? 120 : metric == .sleep ? 0.1 : 0.2)
-                    values.append(HealthObservation(id: "\(metric.rawValue)-\(source.id)-\(day)", metric: metric, sourceID: source.id,
+                    values.append(HealthObservation(id: "\(metric.rawValue)-\(source.id)-\(day)", metric: metric, sourceID: metric.isCumulative ? "system-health-statistics" : source.id,
                                                     start: date, end: date, value: baseline + jitter))
                 }
             }
-            selections[metric.rawValue] = a.id
+        }
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-health-sparse") {
+            values.removeAll { [.oxygen, .vo2].contains($0.metric) }
         }
         snapshot = HealthOverviewSnapshot(readAt: .now, sources: [a, b], observations: values, age: 42, referenceSex: .male)
     }

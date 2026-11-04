@@ -110,10 +110,13 @@ final class SleepAppUITests: XCTestCase {
     func testUnifiedDeviceAndDataNavigationHasOneScanner() {
         selectTab("监测与设备")
         XCTAssertFalse(app.tabBars.buttons["设备与数据"].exists)
+        XCTAssertFalse(app.buttons["connectHealth"].exists)
+        XCTAssertFalse(app.staticTexts["从系统健康读取"].exists)
         press(app.segmentedControls["monitorMode"].buttons["设备检测"])
         XCTAssertEqual(app.buttons.matching(identifier: "scanBluetooth").count, 1)
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "搜索蓝牙")).firstMatch.exists)
         XCTAssertFalse(app.buttons["syncVeepooRing"].exists)
+        XCTAssertFalse(app.staticTexts["从系统健康读取"].exists)
         press(app.buttons["localData"])
         XCTAssertTrue(app.buttons["导出 JSON 备份"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["scanBluetooth"].exists)
@@ -151,7 +154,7 @@ final class SleepAppUITests: XCTestCase {
         capture("38-health-change-and-recovery-example")
     }
 
-    func testHealthSourceSwitchKeepsDifferentDevicesSeparate() {
+    func testHealthReadsAllSourcesWithoutDevicePickers() {
         launchHealthFixture()
         scrollDown()
         scrollDown()
@@ -161,20 +164,32 @@ final class SleepAppUITests: XCTestCase {
         capture("39-health-metrics-example")
         press(steps)
         XCTAssertTrue(app.staticTexts["healthDetailValue"].waitForExistence(timeout: 3))
-        let before = app.staticTexts["healthDetailValue"].label
-        press(app.buttons["healthDetailSource"])
-        let ring = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "戒指 B")).firstMatch
-        XCTAssertTrue(ring.waitForExistence(timeout: 3))
-        press(ring)
-        XCTAssertNotEqual(app.staticTexts["healthDetailValue"].label, before)
-        capture("40-health-device-comparison-example")
+        XCTAssertFalse(app.buttons["healthDetailSource"].exists)
+        XCTAssertTrue(app.staticTexts["系统健康 · 每日统计"].exists)
+        capture("40-health-unified-detail-example")
         press(app.buttons["完成"])
         press(app.buttons["healthSources"])
-        XCTAssertTrue(app.navigationBars["来源与参考资料"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.buttons["healthSource-sleep"].exists)
-        XCTAssertTrue(app.buttons["healthSource-steps"].exists)
-        capture("41-health-source-selection-example")
+        XCTAssertTrue(app.navigationBars["健康设置"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["统一读取系统健康"].exists)
+        XCTAssertFalse(app.buttons["healthSource-sleep"].exists)
+        XCTAssertFalse(app.buttons["healthSource-steps"].exists)
+        capture("41-health-unified-settings-example")
         press(app.buttons["完成"])
+    }
+
+    func testHealthOnlyShowsAvailableMetricTiles() {
+        app.terminate()
+        app.launchArguments += ["-ui-testing-health", "-ui-testing-health-sparse", "-preview-health", "-healthManualProfile", "NO"]
+        app.launch()
+        XCTAssertTrue(app.buttons["readHealthOverview"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["fitnessAgeValue"].label, "—")
+        scrollDown()
+        scrollDown()
+        for _ in 0..<3 where !app.buttons["healthMetric-steps"].isHittable { scrollDown() }
+        XCTAssertTrue(app.buttons["healthMetric-steps"].exists)
+        XCTAssertFalse(app.buttons["healthMetric-oxygen"].exists)
+        XCTAssertFalse(app.buttons["healthMetric-vo2"].exists)
+        capture("42-health-available-metrics-example")
     }
 
     private func launchHealthFixture() {

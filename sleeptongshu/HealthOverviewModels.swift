@@ -42,17 +42,17 @@ enum HealthMetric: String, Codable, CaseIterable, Identifiable {
     }
     var explanation: String {
         switch self {
-        case .sleep: "所选设备记录的睡着时长。各睡眠阶段合并，重叠不重复计入；清醒和仅卧床不计入。成人通常建议每晚至少 7 小时，需结合个人情况。"
+        case .sleep: "系统健康中的睡着时长。每晚自动采用一份分期较完整的记录，不把不同设备的同一晚相加；清醒和仅卧床不计入。成人通常建议每晚至少 7 小时，需结合个人情况。"
         case .restingHeart: "身体安静时的心跳速度。成人常见参考约 60～100 次/分，规律运动者可能更低；与自己长期的变化比较更有用。"
         case .hrv: "相邻心跳间隔变化的大小。这里仅使用系统健康中以毫秒记录的 SDNN，不与设备其他 HRV 分数混用。受测量时段、姿势和呼吸影响，没有适合所有人的单一及格值。"
         case .heart: "读取到的心率样本，每日值为样本中位数，不是全天连续平均，也不等于静息心率。运动会使数值升高，应结合当时活动判断。"
         case .oxygen: "血液携氧情况的设备估计值。健康成人海平面常见约 95%～100%；高海拔、佩戴和设备误差会影响结果。身体不舒服时不能只看设备数值。"
         case .respiration: "每分钟呼吸次数。成人安静时常见约 12～20 次/分，睡眠和活动时可能不同；这里没有把所有记录认定为睡眠测量。"
-        case .steps: "所选来源当日记录的步数；不同设备不相加。空白表示没读到记录，不按 0 步算。步数没有人人适用的目标，可从个人习惯逐步增加。"
-        case .exercise: "所选来源记录的运动分钟数。成年人一般可参考每周 150～300 分钟中等强度活动；设备的运动分钟和这个标准不完全等同。"
+        case .steps: "直接读取系统健康提供的每日步数统计，不把设备原始记录逐条相加。空白表示没读到记录，不按 0 步算。步数没有人人适用的目标，可从个人习惯逐步增加。"
+        case .exercise: "系统健康提供的每日运动分钟统计。成年人一般可参考每周 150～300 分钟中等强度活动；设备的运动分钟和这个标准不完全等同。"
         case .vo2: "最大摄氧量反映运动时利用氧气的能力，单位 mL/kg/min。穿戴设备通常给出估计值，受测量条件影响；不能仅凭这一项评价整体健康。"
         case .systolic: "心脏收缩时的血压。这里只显示系统健康已有的高压样本；不能替代规范的袖带测量，也不能只凭一天的读数诊断。"
-        case .diastolic: "心脏放松时的血压。这里只显示系统健康已有的低压样本；和高压分别选来源，不能把不同时间的两项拼成一次测量。"
+        case .diastolic: "心脏放松时的血压。这里只显示系统健康已有的低压样本；高压和低压分别统计，不能把不同时间的两项拼成一次测量。"
         }
     }
 }
@@ -97,14 +97,22 @@ struct HealthOverviewSnapshot: Codable {
     var age: Int?
     var referenceSex: HealthReferenceSex = .unspecified
     var truncatedMetrics: [HealthMetric] = []
+    var sleepRecords: [SleepPayload]? = nil
+    var notices: [String]? = nil
 }
 
 struct HealthOverviewArchive: Codable {
     var snapshot: HealthOverviewSnapshot?
+    // Kept decodable for 0.2.8 backups; old per-metric selections are no longer applied.
     var selections: [String: String] = [:]
 }
 
 enum HealthOverviewAnalysis {
+    private struct Reading: Hashable {
+        let start: Date
+        let end: Date
+        let value: Double
+    }
     static func median(_ values: [Double]) -> Double? {
         let sorted = values.filter(\.isFinite).sorted()
         guard !sorted.isEmpty else { return nil }
@@ -115,7 +123,7 @@ enum HealthOverviewAnalysis {
     static func daily(_ observations: [HealthObservation], metric: HealthMetric, calendar: Calendar = .current) -> [HealthDay] {
         let valid = Dictionary(observations.filter { $0.metric == metric && $0.end >= $0.start && metric.accepts($0.value) }
             .map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first }).values
-        guard Set(valid.map(\.sourceID)).count <= 1 else { return [] }
+        if metric.isCumulative, Set(valid.map(\.sourceID)).count > 1 { return [] }
         var excludedDays = Set<Date>()
         if metric.isCumulative {
             for entry in valid {
@@ -143,9 +151,13 @@ enum HealthOverviewAnalysis {
                     end = max(end ?? value.end, value.end)
                 }
             }
-            let value = metric.isCumulative ? values.reduce(0) { $0 + $1.value } : median(values.map(\.value))!
+            let readings = Set(values.map { Reading(start: $0.start, end: $0.end, value: $0.value) })
+            let value: Double
+            if metric.isCumulative { value = values.reduce(0) { $0 + $1.value } }
+            else if metric == .sleep { value = values.map(\.value).max()! }
+            else { value = median(readings.map(\.value))! }
             guard metric.accepts(value) else { return nil }
-            return HealthDay(date: date, value: value, count: values.count)
+            return HealthDay(date: date, value: value, count: metric.isCumulative ? values.count : readings.count)
         }.sorted { $0.date < $1.date }
     }
 
@@ -155,7 +167,7 @@ enum HealthOverviewAnalysis {
         return days.filter { $0.date >= start && $0.date < boundary }
     }
 
-    // Compare disjoint windows from one selected source. This is personal change, not biological aging.
+    // Compare disjoint windows; a device change can also change the observed values.
     static func change(_ days: [HealthDay], now: Date, calendar: Calendar = .current) -> (recent: Double, previous: Double)? {
         let recent = window(days, ending: now, count: 14, calendar: calendar)
         let previousEnd = calendar.date(byAdding: .day, value: -14, to: calendar.startOfDay(for: now))!
@@ -167,7 +179,7 @@ enum HealthOverviewAnalysis {
 
     static func sleepObservations(_ intervals: [HealthSleepInterval], sourceID: String, calendar: Calendar = .current) -> [HealthObservation] {
         // Group at local noon, union stages before counting so duplicate exports do not inflate sleep.
-        let groups = Dictionary(grouping: intervals) { calendar.startOfDay(for: $0.end.addingTimeInterval(-12 * 3600)) }
+        let groups = Dictionary(grouping: intervals) { HealthSleepImporter.night($0.end, calendar: calendar) }
         return groups.compactMap { day, entries in
             let segments = HealthSleepNormalizer.segments(entries)
             let asleep = segments.filter { ![.awake, .unobserved].contains($0.stage) }

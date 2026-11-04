@@ -14,7 +14,7 @@ struct FitnessAgeEstimate: Equatable {
 }
 
 enum FitnessAge {
-    static let algorithmVersion = "FRIEND-median-v1"
+    static let algorithmVersion = "FRIEND-median-v2"
     static let ageKnots = [24.5, 34.5, 44.5, 54.5, 64.5, 74.5]
     // FRIEND 2015, Table 3: measured treadmill VO2max, 50th percentile. Not Cooper Clinic estimates.
     static func reference(_ sex: HealthReferenceSex) -> [Double]? {
@@ -52,7 +52,7 @@ enum FitnessAge {
         return (current - prior) / prior * 100
     }
 
-    static let explanation = "这里的身体年龄参考，仅指心肺能力在研究参考人群中接近哪个年龄段，不是全身的生物年龄。\n\n使用所选来源最近 30 个完整自然日的最大摄氧量；先取每日中位数，再取这些日值的中位数，至少需要 3 个不同日期。按参考分组，把数值与 FRIEND 研究的各年龄段中位数比较，在相邻年龄段中点之间按直线换算。显示到约 5 岁，超出表格两端只显示 ≤25 或 ≥75，不向外推算。\n\n需要 20～79 岁的实际年龄和参考分组。研究使用的是美国无心血管疾病成人的跑台运动测试，不代表所有人群；穿戴设备估计的最大摄氧量也不等同于实验室实测。换算成参考年龄是本 App 的展示方法，并非该研究验证过的年龄预测模型。\n\n睡眠、HRV、血氧等在页面单独呈现，没有随意加减成几岁。身体年龄参考低，不代表没有疾病。\n\n长期变化显示最近 30 天相对前 30 天最大摄氧量中位数的变化百分比，两段各至少 3 天；不是每年老几岁，也不作为衰老速度。"
+    static let explanation = "这里的身体年龄参考，仅指心肺能力在研究参考人群中接近哪个年龄段，不是全身的生物年龄。\n\n使用系统健康中最近 30 个完整自然日的最大摄氧量；先取每日中位数，再取这些日值的中位数，至少需要 3 个不同日期。按参考分组，把数值与 FRIEND 研究的各年龄段中位数比较，在相邻年龄段中点之间按直线换算。显示到约 5 岁，超出表格两端只显示 ≤25 或 ≥75，不向外推算。\n\n需要 20～79 岁的实际年龄和参考分组。研究使用的是美国无心血管疾病成人的跑台运动测试，不代表所有人群；穿戴设备估计的最大摄氧量也不等同于实验室实测。换算成参考年龄是本 App 的展示方法，并非该研究验证过的年龄预测模型。\n\n睡眠、HRV、血氧等在页面单独呈现，没有随意加减成几岁。身体年龄参考低，不代表没有疾病。\n\n长期变化显示最近 30 天相对前 30 天最大摄氧量中位数的变化百分比，两段各至少 3 天；设备或测量方式改变也会影响比较。不是每年老几岁，也不作为衰老速度。"
     static let referenceTitle = "Reference Standards for Cardiorespiratory Fitness Measured With Cardiopulmonary Exercise Testing: Data From the Fitness Registry and the Importance of Exercise National Database"
     static let referenceAuthors = "Leonard A. Kaminsky、Ross Arena、Jonathan Myers，2015，表 3"
 }

@@ -1,7 +1,9 @@
 import SwiftUI
+import SwiftData
 
 struct HealthSourceSelectionView: View {
     @EnvironmentObject private var health: HealthOverviewStore
+    @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @AppStorage("healthManualProfile") private var manualProfile = false
     @AppStorage("healthReferenceAge") private var ageText = ""
@@ -15,29 +17,10 @@ struct HealthSourceSelectionView: View {
         NavigationStack {
             Form {
                 Section {
-                    ForEach(HealthMetric.allCases) { metric in
-                        VStack(alignment: .leading, spacing: 5) {
-                            Picker(selection: Binding(get: { health.selections[metric.rawValue] ?? "" }, set: { health.select($0, for: metric) })) {
-                                Text("未选择").tag("")
-                                ForEach(health.sources(for: metric)) { source in Text(source.selectionLabel).tag(source.id) }
-                                if let selected = health.selections[metric.rawValue], !selected.isEmpty,
-                                   !health.sources(for: metric).contains(where: { $0.id == selected }) {
-                                    Text("上次选择的来源（本次无记录）").tag(selected)
-                                }
-                            } label: { Label(metric.title, systemImage: metric.symbol) }
-                                .accessibilityIdentifier("healthSource-\(metric.rawValue)")
-                            if let source = health.source(for: metric) {
-                                Text(source.label).font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
-                                if !source.hardwareIdentified {
-                                    Text("来源未提供独立设备标识，同名同型号设备可能无法再区分。")
-                                        .font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
-                                }
-                            }
-                        }
-                    }
-                } header: { Text("每一项，选自己的设备") }
-                footer: { Text("首次读取会按该项目的记录数量选择一个来源；以后保留你的选择，不自动换设备。不同来源不相加。这里的选择用于健康概览，睡眠报告导入在监测与设备中另行选择。") }
-                    .disabled(health.isLoading)
+                    Label("统一读取系统健康", systemImage: "heart.text.clipboard")
+                    Text("使用系统健康中已有且获准读取的记录，不需要逐项选择设备。设备换了，只要记录已写入系统健康，刷新后就可以查看。")
+                        .font(.system(size: 13)).foregroundStyle(SleepPalette.muted)
+                }
                 Section {
                     Toggle("手动填写参考资料", isOn: $manualProfile).accessibilityIdentifier("manualHealthProfile")
                     if manualProfile {
@@ -53,7 +36,7 @@ struct HealthSourceSelectionView: View {
                 } header: { Text("心肺参考年龄所需资料") }
                 footer: { Text("研究按男女分组提供参考表；不选择时不估算。年龄资料只用于核对适用范围，不用睡眠或 HRV 随意换算几岁。修改参考分组会改变估算结果。") }
                 Section("读取与本机快照") {
-                    Button { Task { await health.refresh() } } label: { Label(health.isLoading ? health.progress : "重新读取系统健康", systemImage: "arrow.clockwise") }
+                    Button { Task { await health.refresh(in: context) } } label: { Label(health.isLoading ? health.progress : "重新读取系统健康", systemImage: "arrow.clockwise") }
                         .disabled(health.isLoading)
                     if let date = health.snapshot?.readAt { LabeledContent("上次读取", value: date.formatted(date: .abbreviated, time: .shortened)) }
                     Button {
@@ -64,8 +47,18 @@ struct HealthSourceSelectionView: View {
                     Text("只清理本 App 保存的健康概览快照，不影响系统健康、睡眠报告或蓝牙体征。下次读取可重新生成。导出包含健康记录，请自行选择接收人。")
                         .font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
                 }
+                if let sources = health.snapshot?.sources, !sources.isEmpty {
+                    Section("已读取的记录来源") {
+                        ForEach(sources) { source in
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(source.appName)
+                                Text(source.deviceName).font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
+                            }
+                        }
+                    }
+                }
             }.scrollContentBackground(.hidden).background(SleepPalette.background)
-                .navigationTitle("来源与参考资料").navigationBarTitleDisplayMode(.inline)
+                .navigationTitle("健康设置").navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } } }
                 .confirmationDialog("清空本 App 的健康快照？", isPresented: $clear, titleVisibility: .visible) {
                     Button("清空健康快照", role: .destructive) {

@@ -1,5 +1,6 @@
 import XCTest
 import HealthKit
+import SwiftData
 @testable import sleeptongshu
 
 final class HealthOverviewTests: XCTestCase {
@@ -15,13 +16,15 @@ final class HealthOverviewTests: XCTestCase {
         return HealthObservation(id: id, metric: metric, sourceID: source, start: date, end: date.addingTimeInterval(60), value: value)
     }
 
-    func testDailyMediansDeduplicateAndDoNotMixDevicesOrTreatMissingDaysAsZero() {
+    func testDailyMediansIncludeAllSourcesAndDoNotTreatMissingDaysAsZero() {
         let a = observation("1", value: 20)
         let points = [a, a, observation("2", value: 40), observation("3", value: 90, offset: -3), observation("bad", value: .nan)]
         let days = HealthOverviewAnalysis.daily(points, metric: .hrv, calendar: calendar)
         XCTAssertEqual(days.map(\.value), [90, 30])
         XCTAssertEqual(days.last?.count, 2)
-        XCTAssertEqual(HealthOverviewAnalysis.daily(points + [observation("other", value: 75, source: "B")], metric: .hrv, calendar: calendar), [])
+        let combined = HealthOverviewAnalysis.daily(points + [observation("other", value: 75, source: "B"), observation("copy", value: 20, source: "B")], metric: .hrv, calendar: calendar)
+        XCTAssertEqual(combined.map(\.value), [90, 40])
+        XCTAssertEqual(combined.last?.count, 3)
     }
 
     func testCumulativeTotalsRejectOverlappingAndCrossDayIntervals() {
@@ -100,7 +103,7 @@ final class HealthOverviewTests: XCTestCase {
     }
 
     @MainActor
-    func testSelectedSourcePersistsAndUnavailableSourceDoesNotSilentlySwitch() throws {
+    func testOldSourceSelectionsDoNotHideAvailableHealthDataAfterUpgrade() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -111,15 +114,56 @@ final class HealthOverviewTests: XCTestCase {
                                               observations: [observation("a", value: 40), observation("b", value: 65, source: "B")])
         try JSONEncoder().encode(HealthOverviewArchive(snapshot: snapshot, selections: ["hrv": "A"])).write(to: url)
         let store = HealthOverviewStore(url: url)
-        XCTAssertEqual(store.days(for: .hrv).first?.value, 40)
-        store.select("B", for: .hrv)
-        XCTAssertEqual(store.days(for: .hrv).first?.value, 65)
-        XCTAssertEqual(HealthOverviewStore(url: url).selections["hrv"], "B")
-        store.select("nonexistent", for: .hrv)
-        XCTAssertEqual(store.selections["hrv"], "B")
+        XCTAssertEqual(store.days(for: .hrv).first?.value, 52.5)
+        XCTAssertTrue(try JSONDecoder().decode(HealthOverviewArchive.self, from: store.export()).selections.isEmpty)
         try JSONEncoder().encode(HealthOverviewArchive(snapshot: snapshot, selections: ["hrv": "old-device"])).write(to: url)
-        XCTAssertTrue(HealthOverviewStore(url: url).days(for: .hrv).isEmpty)
+        XCTAssertEqual(HealthOverviewStore(url: url).days(for: .hrv).first?.value, 52.5)
         try store.clearSnapshot()
         XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+    }
+
+    func testAutomaticSleepKeepsOneSourcePerNightAndMatchesItsVitals() throws {
+        let start = day(-1).addingTimeInterval(22 * 3600)
+        let a = HealthSleepCandidate(sourceID: "A", intervals: [
+            HealthSleepInterval(id: UUID(), start: start, end: start.addingTimeInterval(3600), stage: .deep),
+            HealthSleepInterval(id: UUID(), start: start.addingTimeInterval(3600), end: start.addingTimeInterval(5400), stage: .awake),
+            HealthSleepInterval(id: UUID(), start: start.addingTimeInterval(5400), end: start.addingTimeInterval(9000), stage: .rem)
+        ])
+        let b = HealthSleepCandidate(sourceID: "B", intervals: [
+            HealthSleepInterval(id: UUID(), start: start, end: start.addingTimeInterval(10800), stage: .unspecified)
+        ])
+        let vitals = [HealthObservation(id: "a-heart", metric: .heart, sourceID: "A", start: start, end: start, value: 60),
+                      HealthObservation(id: "b-heart", metric: .heart, sourceID: "B", start: start, end: start, value: 120)]
+        let records = try HealthSleepImporter.automaticRecords([b, a], observations: vitals, sources: [], calendar: calendar)
+        let payload = try XCTUnwrap(records.first)
+        XCTAssertEqual(records.count, 1)
+        XCTAssertEqual(SleepRecord(payload).asleepMinutes, 120)
+        XCTAssertEqual(payload.averageHeartRate, 60)
+        XCTAssertNil(payload.averageSpO2)
+        XCTAssertEqual(payload.id, try HealthSleepImporter.automaticRecords([a, b], observations: [], sources: [], calendar: calendar).first?.id)
+        let awake = HealthSleepCandidate(sourceID: "C", intervals: [HealthSleepInterval(id: UUID(), start: start, end: start.addingTimeInterval(600), stage: .awake)])
+        XCTAssertTrue(try HealthSleepImporter.automaticRecords([awake], observations: [], sources: [], calendar: calendar).isEmpty)
+    }
+
+    @MainActor
+    func testAutomaticSleepRefreshUpdatesOldRecordAndPreservesOtherRecords() throws {
+        let container = try ModelContainer(for: SleepRecord.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let context = container.mainContext
+        let start = day(-1).addingTimeInterval(22 * 3600)
+        let oldID = UUID()
+        let old = SleepPayload(id: oldID, start: start, end: start.addingTimeInterval(7200), source: .healthKit,
+                               segments: [], heartSamples: [], note: "旧版导入", metadata: SleepMetadata(externalSource: "旧设备", externalID: "health-v2|old"))
+        var manual = old
+        manual.id = UUID(); manual.source = .manual; manual.metadata = nil
+        context.insert(SleepRecord(old)); context.insert(SleepRecord(manual)); try context.save()
+        let candidate = HealthSleepCandidate(sourceID: "new-device", intervals: [HealthSleepInterval(id: UUID(), start: start, end: start.addingTimeInterval(10800), stage: .light)])
+        let payloads = try HealthSleepImporter.automaticRecords([candidate], observations: [], sources: [], calendar: calendar)
+        try HealthSleepImporter.save(payloads, in: context, calendar: calendar)
+        try HealthSleepImporter.save(payloads, in: context, calendar: calendar)
+        let records = try context.fetch(FetchDescriptor<SleepRecord>())
+        XCTAssertEqual(records.count, 2)
+        XCTAssertEqual(records.first { $0.source == .healthKit }?.id, oldID)
+        XCTAssertEqual(records.first { $0.source == .healthKit }?.asleepMinutes, 180)
+        XCTAssertEqual(records.first { $0.source == .manual }?.asleepMinutes, 120)
     }
 }

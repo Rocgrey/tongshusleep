@@ -1,6 +1,6 @@
 import HealthKit
 import CryptoKit
-import Combine
+import SwiftData
 
 struct HealthSleepInterval {
     let id: UUID
@@ -10,7 +10,7 @@ struct HealthSleepInterval {
 }
 
 enum HealthSleepNormalizer {
-    // Overlapping HealthKit intervals are split at boundaries. Gaps remain unknown, never awake.
+    // Conflicting stages and missing intervals remain unknown.
     static func segments(_ intervals: [HealthSleepInterval]) -> [SleepSegment] {
         let boundaries = Set(intervals.flatMap { [$0.start, $0.end] }).sorted()
         guard boundaries.count >= 2 else { return [] }
@@ -34,132 +34,83 @@ enum HealthSleepNormalizer {
     }
 }
 
-@MainActor
-final class HealthSleepImporter: ObservableObject {
-    @Published private(set) var isLoading = false
-    @Published private(set) var providers: [String] = []
-    @Published private(set) var providerDetails: [String: HealthDataSource] = [:]
-    @Published var selectedProvider = ""
-    @Published var message: String?
-    private let store = HKHealthStore()
-    private var sleeps: [HKCategorySample] = []
-    private var providerKeys: [String: String] = [:]
+struct HealthSleepCandidate {
+    let sourceID: String
+    let intervals: [HealthSleepInterval]
+}
+
+enum HealthSleepImporter {
     static var enabled: Bool { (Bundle.main.object(forInfoDictionaryKey: "SleepHealthKitEnabled") as? String)?.uppercased() == "YES" }
-    private let sleep = HKObjectType.categoryType(forIdentifier: .sleepAnalysis)!
-    private var readTypes: Set<HKObjectType> {
-        Set([sleep, HKObjectType.quantityType(forIdentifier: .heartRate)!,
-             HKObjectType.quantityType(forIdentifier: .oxygenSaturation)!,
-             HKObjectType.quantityType(forIdentifier: .respiratoryRate)!])
+
+    static func night(_ end: Date, calendar: Calendar = .current) -> Date {
+        let day = calendar.startOfDay(for: end)
+        let noon = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: day)!
+        return end < noon ? calendar.date(byAdding: .day, value: -1, to: day)! : day
     }
 
-    func load() async {
-        guard !isLoading else { return }
-        guard Self.enabled else {
-            message = "此安装版本未启用系统健康读取。可直接使用手机监测或连接设备同步。"
-            return
+    static func automaticRecords(_ candidates: [HealthSleepCandidate], observations: [HealthObservation],
+                                 sources: [HealthDataSource], calendar: Calendar = .current) throws -> [SleepPayload] {
+        struct Night {
+            let sourceID: String
+            let segments: [SleepSegment]
+            var detailed: Double { segments.filter { [.deep, .light, .rem].contains($0.stage) }.reduce(0) { $0 + $1.end.timeIntervalSince($1.start) } }
+            var asleep: Double { segments.filter { ![.awake, .unobserved].contains($0.stage) }.reduce(0) { $0 + $1.end.timeIntervalSince($1.start) } }
         }
-        guard HKHealthStore.isHealthDataAvailable() else { message = "当前设备不支持系统健康读取，请在手机上使用。"; return }
-        isLoading = true
-        defer { isLoading = false }
-        do {
-            try await store.requestAuthorization(toShare: [], read: readTypes)
-            let start = Calendar.current.date(byAdding: .day, value: -30, to: .now)!
-            let loaded = try await samples(type: sleep, start: start, end: .now, limit: 10001).compactMap { $0 as? HKCategorySample }
-            guard loaded.count <= 10000 else {
-                sleeps = []; providers = []; providerDetails = [:]; providerKeys = [:]; selectedProvider = ""
-                message = "最近 30 天的睡眠区间过多，暂不导入，避免把不完整的读取当成整晚记录。"
-                return
+        var nights: [Date: [Night]] = [:]
+        for candidate in candidates {
+            let valid = candidate.intervals.filter { $0.end > $0.start && $0.end.timeIntervalSince($0.start) <= 24 * 3600 }
+            for (day, intervals) in Dictionary(grouping: valid, by: { night($0.end, calendar: calendar) }) {
+                let segments = HealthSleepNormalizer.segments(intervals)
+                guard let start = segments.first?.start, let end = segments.last?.end,
+                      end.timeIntervalSince(start) <= 24 * 3600 else { continue }
+                let value = Night(sourceID: candidate.sourceID, segments: segments)
+                if value.asleep > 0 { nights[day, default: []].append(value) }
             }
-            sleeps = loaded
-            let grouped = Dictionary(grouping: sleeps, by: legacyProviderKey)
-            providerKeys = [:]
-            for (legacy, samples) in grouped {
-                let identities = Set(samples.map(HealthSourceIdentity.key))
-                for id in identities { providerKeys[id] = identities.count > 1 ? "\(legacy) · \(id.prefix(12))" : legacy }
-            }
-            providers = Set(sleeps.map(providerKey)).sorted()
-            providerDetails = Dictionary(sleeps.map { (providerKey($0), HealthSourceIdentity.describe($0)) }, uniquingKeysWith: { first, _ in first })
-            if !providers.contains(selectedProvider) { selectedProvider = providers.first ?? "" }
-            if providers.isEmpty { message = "没有读到最近 30 天的睡眠记录。请确认系统健康内已有记录，并允许读取；未授权和没有记录时均可能返回空数据。" }
-        } catch { message = "健康读取失败：\(error.localizedDescription)" }
-    }
-
-    func importSelected() async throws -> [SleepPayload] {
-        guard !isLoading, !selectedProvider.isEmpty, providers.contains(selectedProvider) else { throw SleepDataError.invalidRecord }
-        isLoading = true
-        let provider = selectedProvider
-        defer { isLoading = false }
-        let selected = sleeps.filter { providerKey($0) == selectedProvider }
-        // A noon boundary groups an overnight session; each source/device is imported independently.
-        let groups = Dictionary(grouping: selected) { sample in
-            Calendar.current.startOfDay(for: sample.endDate.addingTimeInterval(-12 * 3600))
         }
-        var payloads: [SleepPayload] = []
-        for (day, entries) in groups.sorted(by: { $0.key < $1.key }) {
-            let intervals = entries.compactMap { sample -> HealthSleepInterval? in
-                let stage: SleepStage
-                switch HKCategoryValueSleepAnalysis(rawValue: sample.value) {
-                case .asleepCore: stage = .light
-                case .asleepDeep: stage = .deep
-                case .asleepREM: stage = .rem
-                case .awake: stage = .awake
-                case .asleepUnspecified: stage = .unspecified
-                default: return nil // In-bed intervals are not proof of sleep.
+        return try nights.keys.sorted().compactMap { day in
+            // Keep one source per night; competing device stages must not be stitched together.
+            guard let chosen = nights[day]?.sorted(by: { a, b in
+                if a.detailed != b.detailed { return a.detailed > b.detailed }
+                if a.asleep != b.asleep { return a.asleep > b.asleep }
+                return a.sourceID < b.sourceID
+            }).first, let start = chosen.segments.first?.start, let end = chosen.segments.last?.end else { return nil }
+            func values(_ metric: HealthMetric) -> [HealthObservation] {
+                let valid = observations.filter { sample in
+                    sample.metric == metric && sample.sourceID == chosen.sourceID && metric.accepts(sample.value) &&
+                    chosen.segments.contains { segment in
+                        ![.awake, .unobserved].contains(segment.stage) && sample.start >= segment.start && sample.end <= segment.end
+                    }
                 }
-                return HealthSleepInterval(id: sample.uuid, start: sample.startDate, end: sample.endDate, stage: stage)
+                return Array(Dictionary(valid.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a }).values).sorted { $0.start < $1.start }
             }
-            let segments = HealthSleepNormalizer.segments(intervals)
-            guard let start = segments.first?.start, let end = segments.last?.end,
-                  end > start, end.timeIntervalSince(start) <= 24 * 3600,
-                  segments.contains(where: { $0.stage != .awake && $0.stage != .unobserved }) else { continue }
-            let heart = try await quantities(.heartRate, start: start, end: end, entries: entries, segments: segments)
-            let oxygen = try await quantities(.oxygenSaturation, start: start, end: end, entries: entries, segments: segments)
-            let breathing = try await quantities(.respiratoryRate, start: start, end: end, entries: entries, segments: segments)
-            let hearts = heart.map { HeartSample(id: $0.uuid, date: $0.startDate, bpm: $0.quantity.doubleValue(for: HKUnit.count().unitDivided(by: .minute()))) }
-            // Preserve the existing import ID to avoid duplicating already imported nights.
-            let key = "health-v2|\(provider)|\(Int(day.timeIntervalSince1970))"
+            func average(_ metric: HealthMetric) -> Double? {
+                let samples = values(metric)
+                return samples.isEmpty ? nil : samples.reduce(0) { $0 + $1.value } / Double(samples.count)
+            }
+            let key = "health-system-v1|\(Int(day.timeIntervalSince1970))"
+            let label = sources.first { $0.id == chosen.sourceID }?.label ?? "系统健康"
             let payload = SleepPayload(id: HealthSleepNormalizer.stableID(key), start: start, end: end, source: .healthKit,
-                                      segments: segments, heartSamples: hearts,
-                                      averageHeartRate: average(hearts.map(\.bpm)),
-                                      averageSpO2: average(oxygen.map { $0.quantity.doubleValue(for: .percent()) * 100 }),
-                                      averageRespiratoryRate: average(breathing.map { $0.quantity.doubleValue(for: HKUnit.count().unitDivided(by: .minute())) }),
-                                      note: "来源：\(providerDetails[provider]?.label ?? "所选系统健康来源")。缺口及冲突区间保留为未记录；体征仅匹配同一来源与设备，是已读取样本的算术平均。",
-                                      metadata: SleepMetadata(externalSource: provider, externalID: key))
+                                       segments: chosen.segments,
+                                       heartSamples: values(.heart).map { HeartSample(id: HealthSleepNormalizer.stableID($0.id), date: $0.start, bpm: $0.value) },
+                                       averageHeartRate: average(.heart), averageSpO2: average(.oxygen), averageRespiratoryRate: average(.respiration),
+                                       note: "系统健康自动汇总。该晚采用：\(label)。体征只匹配这份睡眠的来源与设备；缺口不补成睡眠。",
+                                       metadata: SleepMetadata(externalSource: "系统健康", externalID: key))
             try payload.validate()
-            payloads.append(payload)
+            return payload
         }
-        return payloads
     }
 
-    private func providerKey(_ sample: HKSample) -> String {
-        providerKeys[HealthSourceIdentity.key(sample)] ?? legacyProviderKey(sample)
-    }
-    private func legacyProviderKey(_ sample: HKSample) -> String {
-        "\(sample.sourceRevision.source.name) · \(sample.sourceRevision.source.bundleIdentifier) · \(sample.device?.localIdentifier ?? sample.device?.model ?? "未标识设备")"
-    }
-    func providerLabel(_ key: String) -> String { providerDetails[key]?.selectionLabel ?? "来源未标明设备" }
-    var selectedCount: Int { sleeps.filter { providerKey($0) == selectedProvider }.count }
-    private func average(_ values: [Double]) -> Double? { values.isEmpty ? nil : values.reduce(0, +) / Double(values.count) }
-    private func quantities(_ identifier: HKQuantityTypeIdentifier, start: Date, end: Date, entries: [HKCategorySample], segments: [SleepSegment]) async throws -> [HKQuantitySample] {
-        let objects = try await samples(type: HKObjectType.quantityType(forIdentifier: identifier)!, start: start, end: end, limit: 20000)
-        let identities = Set(entries.map(HealthSourceIdentity.key))
-        return objects.compactMap { $0 as? HKQuantitySample }.filter {
-            sample in
-            identities.contains(HealthSourceIdentity.key(sample))
-            && segments.contains { segment in
-                segment.stage != .awake && segment.stage != .unobserved && sample.startDate >= segment.start && sample.endDate <= segment.end
-            }
+    @MainActor
+    static func save(_ payloads: [SleepPayload], in context: ModelContext, calendar: Calendar = .current) throws {
+        let records = try context.fetch(FetchDescriptor<SleepRecord>())
+        for payload in payloads {
+            try payload.validate()
+            let previous = records.first { $0.id == payload.id || ($0.source == .healthKit && $0.metadata?.externalID == payload.metadata?.externalID) }
+                ?? records.filter { $0.source == .healthKit && night($0.end, calendar: calendar) == night(payload.end, calendar: calendar) }
+                    .sorted { $0.end > $1.end }.first
+            if let previous { previous.replace(with: payload) }
+            else { context.insert(SleepRecord(payload)) }
         }
-    }
-    private func samples(type: HKSampleType, start: Date, end: Date, limit: Int) async throws -> [HKSample] {
-        try await withCheckedThrowingContinuation { continuation in
-            let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [.strictStartDate, .strictEndDate])
-            let query = HKSampleQuery(sampleType: type, predicate: predicate, limit: limit,
-                                      sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)]) { _, samples, error in
-                if let error { continuation.resume(throwing: error) }
-                else { continuation.resume(returning: samples ?? []) }
-            }
-            store.execute(query)
-        }
+        try context.save()
     }
 }
