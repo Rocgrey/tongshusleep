@@ -25,7 +25,7 @@ struct HealthSourceSelectionView: View {
                 Section {
                     Toggle("手动填写参考资料", isOn: $manualProfile).accessibilityIdentifier("manualHealthProfile")
                     if manualProfile {
-                        TextField("实际年龄（20～79 岁）", text: $ageText).keyboardType(.numberPad).accessibilityIdentifier("healthReferenceAge")
+                        TextField("实际年龄（18～100 岁）", text: $ageText).keyboardType(.numberPad).accessibilityIdentifier("healthReferenceAge")
                             .onChange(of: ageText) { _, value in ageText = String(value.filter(\.isNumber).prefix(3)) }
                         Picker("研究参考分组", selection: $sexRaw) {
                             ForEach(HealthReferenceSex.allCases, id: \.rawValue) { Text($0.title).tag($0.rawValue) }
@@ -34,8 +34,8 @@ struct HealthSourceSelectionView: View {
                         LabeledContent("系统健康中的实际年龄", value: health.snapshot?.age.map { "\($0) 岁" } ?? "未读取到")
                         LabeledContent("系统健康中的参考分组", value: (health.snapshot?.referenceSex ?? .unspecified).title)
                     }
-                } header: { Text("心肺参考年龄所需资料") }
-                footer: { Text("研究按男女分组提供参考表；不选择时不估算。年龄资料只用于核对适用范围，不用睡眠或 HRV 随意换算几岁。修改参考分组会改变估算结果。") }
+                } header: { Text("年龄参考资料") }
+                footer: { Text("探索性估算使用实际年龄和近期数据；心肺研究参考另要求 20～79 岁、参考分组及最大摄氧量。参考分组变化会影响研究参考值。") }
                 Section("读取与本机快照") {
                     Button { Task { await health.refresh(in: context) } } label: { Label(health.isLoading ? health.progress : "重新读取系统健康", systemImage: "arrow.clockwise") }
                         .disabled(health.isLoading)
@@ -99,7 +99,7 @@ struct HealthAccessGuide: View {
                 guideStep("3", title: "确认系统里确实有记录", text: "在健康 App 中打开步数、心率或睡眠，查看“显示所有数据”和“数据来源与访问权限”。确认有近期记录后，回到 sleeptongshu 更新健康数据，无需逐项选择设备。")
                 Divider()
                 Label("为什么身体年龄仍是数据不足？", systemImage: "figure.mind.and.body").font(.system(size: 16, weight: .semibold))
-                Text("目前估算的是心肺参考年龄，需要实际年龄、参考分组，以及近 30 个完整自然日至少 3 天的最大摄氧量记录。设备不提供这项数据时，授权也不会凭空产生记录；其他健康数据仍可正常查看。")
+                Text("探索性参考值需要实际年龄，以及最近 7 天至少两类同一天的完整睡眠、步数、静息心率或 HRV 数据。该算法由 App 自定义，未经医学验证，只反映数据波动。普通心率不等于静息心率。研究心肺参考则另需 20～79 岁、参考分组和最大摄氧量；没有这项数据时仍会显示数据不足。")
                     .font(.system(size: 14)).foregroundStyle(SleepPalette.muted).lineSpacing(5)
                 Text("系统不会告诉 App 你是否拒绝了某项读取权限。因此“未读到”可能是未授权、尚未同步、没有近期记录，或设备没有提供这项数据。")
                     .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)

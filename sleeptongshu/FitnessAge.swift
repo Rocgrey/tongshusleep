@@ -20,9 +20,70 @@ struct FitnessAgeEstimate: Equatable {
     }
 }
 
+struct ExploratoryAgeSignal: Identifiable, Equatable {
+    var id: String
+    var title: String
+    var value: Double
+    var unit: String
+    var score: Double
+}
+
+struct ExploratoryAgeEstimate: Equatable {
+    var age: Int
+    var actualAge: Int
+    var score: Double
+    var date: Date
+    var signals: [ExploratoryAgeSignal]
+}
+
 enum FitnessAge {
     static let algorithmVersion = "FRIEND-median-v2"
     static let ageKnots = [24.5, 34.5, 44.5, 54.5, 64.5, 74.5]
+    static let exploratoryExplanation = "探索性健康年龄是本 App 的自定义演示算法，不是医学模型，也没有经过人群或临床验证。它只用于观察新数据带来的短期变化，不表示身体真的变老或变年轻。\n\n取最近 7 个完整自然日内，至少有两类数据的最新同一天。睡眠以 7.5 小时为中心，越偏离分数越低；步数按 8,000 步映射；静息心率按 50 次/分起、每高 1 次扣 1.2 分；HRV 与该日期前 30 天个人日中位数比较，每高/低 1% 加/减 1 分。各项分数限制在 20～80，再取平均。平均分每偏离 50 分 10 分，估算年龄相对实际年龄调整 1 岁，最多上下 3 岁。至少需要两项有效指标。\n\n这些阈值和换算比例只是为了让图表随可用数据变化，未经验证，不适合比较不同人，也不用于诊断或治疗。设备、佩戴、运动、采样频率和缺失都会改变结果。普通心率不当作静息心率；HRV 没有个人前 30 天基线时不计入。"
+
+    static func exploratory(_ days: [HealthMetric: [HealthDay]], actualAge: Int?, now: Date,
+                            calendar: Calendar = .current) -> ExploratoryAgeEstimate? {
+        guard let actualAge, (18...100).contains(actualAge) else { return nil }
+        let today = calendar.startOfDay(for: now)
+        let firstDay = calendar.date(byAdding: .day, value: -7, to: today)!
+        let metrics: [HealthMetric] = [.sleep, .steps, .restingHeart, .hrv]
+        let values = Dictionary(uniqueKeysWithValues: metrics.map { metric in
+            (metric, Dictionary((days[metric] ?? []).map { (calendar.startOfDay(for: $0.date), $0.value) }, uniquingKeysWith: { _, last in last }))
+        })
+        let candidateDates = Set(values.values.flatMap(\.keys)).filter { $0 >= firstDay && $0 < today }.sorted(by: >)
+        guard let date = candidateDates.first(where: { day in metrics.filter { values[$0]?[day] != nil }.count >= 2 }) else { return nil }
+        var signals: [ExploratoryAgeSignal] = []
+        if let value = values[.sleep]?[date] {
+            signals.append(.init(id: "sleep", title: "睡眠", value: value, unit: "小时",
+                                 score: clamp(100 - abs(value - 7.5) * 18, 20...80)))
+        }
+        if let value = values[.steps]?[date] {
+            signals.append(.init(id: "steps", title: "步数", value: value, unit: "步",
+                                 score: clamp(value / 8_000 * 80, 20...80)))
+        }
+        if let value = values[.restingHeart]?[date] {
+            signals.append(.init(id: "restingHeart", title: "静息心率", value: value, unit: "次/分",
+                                 score: clamp(100 - max(0, value - 50) * 1.2, 20...80)))
+        }
+        if let value = values[.hrv]?[date] {
+            let baselineStart = calendar.date(byAdding: .day, value: -30, to: date)!
+            let baseline = (days[.hrv] ?? []).filter { $0.date >= baselineStart && $0.date < date }.map(\.value)
+            if let median = HealthOverviewAnalysis.median(baseline), median > 0 {
+                signals.append(.init(id: "hrv", title: "HRV", value: value, unit: "毫秒",
+                                     score: clamp(50 + (value / median - 1) * 100, 20...80)))
+            }
+        }
+        guard signals.count >= 2 else { return nil }
+        let score = signals.map(\.score).reduce(0, +) / Double(signals.count)
+        let adjustment = min(3, max(-3, Int(((50 - score) / 10).rounded())))
+        return ExploratoryAgeEstimate(age: max(18, actualAge + adjustment), actualAge: actualAge,
+                                      score: score, date: date, signals: signals)
+    }
+
+    private static func clamp(_ value: Double, _ range: ClosedRange<Double>) -> Double {
+        min(range.upperBound, max(range.lowerBound, value))
+    }
+
     static func requirements(_ days: [HealthDay], now: Date, age: Int?, sex: HealthReferenceSex,
                              calendar: Calendar = .current) -> [FitnessAgeRequirement] {
         let recent = HealthOverviewAnalysis.window(days, ending: now, count: 30, calendar: calendar)

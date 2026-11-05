@@ -38,6 +38,7 @@ final class HealthOverviewStore: ObservableObject {
     @Published private(set) var snapshot: HealthOverviewSnapshot?
     @Published private(set) var isLoading = false
     @Published private(set) var progress = ""
+    @Published private(set) var progressValue: Double?
     @Published var message: String?
     @Published private(set) var storageError: String?
     private let health = HKHealthStore()
@@ -94,7 +95,9 @@ final class HealthOverviewStore: ObservableObject {
             message = "请在启用系统健康的 iPhone 版本中读取。"; return
         }
         isLoading = true
-        defer { isLoading = false; progress = "" }
+        message = nil
+        progressValue = nil
+        defer { isLoading = false; progress = ""; progressValue = nil }
         do {
             let sleep = HKObjectType.categoryType(forIdentifier: .sleepAnalysis)!
             let quantities = HealthMetric.allCases.compactMap { $0.quantityIdentifier.flatMap(HKObjectType.quantityType(forIdentifier:)) }
@@ -103,7 +106,10 @@ final class HealthOverviewStore: ObservableObject {
             types.insert(HKObjectType.characteristicType(forIdentifier: .dateOfBirth)!)
             types.insert(HKObjectType.characteristicType(forIdentifier: .biologicalSex)!)
             progress = "等待系统健康授权"
-            try await health.requestAuthorization(toShare: [], read: types)
+            let authorization = try await health.statusForAuthorizationRequest(toShare: [], read: types)
+            if authorization != .unnecessary {
+                try await health.requestAuthorization(toShare: [], read: types)
+            }
             let readAt = Date.now
             let start = Calendar.current.date(byAdding: .day, value: -90, to: Calendar.current.startOfDay(for: readAt))!
             var sources: [String: HealthDataSource] = [:]
@@ -112,14 +118,16 @@ final class HealthOverviewStore: ObservableObject {
             var candidates: [HealthSleepCandidate] = []
             var notices: [String] = []
             var completed = 0
+            progressValue = 0
             for metric in HealthMetric.allCases {
-                progress = "正在读取\(metric.title)"
+                progress = "正在读取\(metric.title)（\(completed + 1)/\(HealthMetric.allCases.count)）"
                 do {
                 if metric.isCumulative {
                     let totals = try await readDailyTotals(metric: metric, start: start, end: readAt)
                     observations += totals.observations
                     for source in totals.sources { sources[source.id] = source }
                     completed += 1
+                    progressValue = Double(completed) / Double(HealthMetric.allCases.count)
                     continue
                 }
                 let type: HKSampleType = metric == .sleep ? sleep : HKObjectType.quantityType(forIdentifier: metric.quantityIdentifier!)!
@@ -151,6 +159,10 @@ final class HealthOverviewStore: ObservableObject {
                     }
                 }
                 } catch { notices.append("\(metric.title)本次未能读取，其他项目仍可查看。") }
+                if completed < HealthMetric.allCases.firstIndex(of: metric)! + 1 {
+                    completed = HealthMetric.allCases.firstIndex(of: metric)! + 1
+                }
+                progressValue = Double(completed) / Double(HealthMetric.allCases.count)
             }
             guard completed > 0 else { throw NSError(domain: "SystemHealth", code: 1, userInfo: [NSLocalizedDescriptionKey: "系统健康暂时无法读取，请稍后重试。旧快照已保留。"] ) }
             var sleepRecords: [SleepPayload] = []
@@ -172,12 +184,13 @@ final class HealthOverviewStore: ObservableObject {
             // Save before publishing; an unsuccessful refresh leaves the previous snapshot intact.
             try write(HealthOverviewArchive(snapshot: next))
             snapshot = next; cache = [:]; storageError = nil
+            message = nil
             if let context {
                 do { try HealthSleepImporter.save(sleepRecords, in: context) }
                 catch { context.rollback(); message = "健康概览已更新，睡眠报告保存未完成，请重新刷新：\(error.localizedDescription)" }
             }
             // Empty results remain visible on the page with permission and source guidance.
-        } catch { message = "读取未完成，保留上次快照：\(error.localizedDescription)" }
+        } catch { message = "读取未完成，原有数据仍保留：\(error.localizedDescription)" }
     }
 
     nonisolated static func stage(_ raw: Int) -> SleepStage? {
@@ -276,6 +289,11 @@ final class HealthOverviewStore: ObservableObject {
             values.removeAll { [.oxygen, .vo2].contains($0.metric) }
         }
         snapshot = HealthOverviewSnapshot(readAt: .now, sources: [a, b], observations: values, age: 42, referenceSex: .male)
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-health-loading") {
+            isLoading = true
+            progress = "正在读取心率（3/11）"
+            progressValue = 2.0 / 11.0
+        }
     }
     #endif
 }

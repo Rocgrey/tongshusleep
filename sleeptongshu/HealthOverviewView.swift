@@ -20,10 +20,12 @@ struct HealthOverviewView: View {
     private var estimate: (estimate: FitnessAgeEstimate, vo2: Double, count: Int)? {
         FitnessAge.current(health.days(for: .vo2), now: .now, age: age, sex: sex)
     }
-    private var available: Int { HealthMetric.allCases.filter { !health.days(for: $0).isEmpty }.count }
-    private var requirements: [FitnessAgeRequirement] {
-        FitnessAge.requirements(health.days(for: .vo2), now: .now, age: age, sex: sex)
+    private var exploratoryAge: ExploratoryAgeEstimate? {
+        let metrics: [HealthMetric] = [.sleep, .steps, .restingHeart, .hrv]
+        return FitnessAge.exploratory(Dictionary(uniqueKeysWithValues: metrics.map { ($0, health.days(for: $0)) }),
+                                      actualAge: age, now: .now)
     }
+    private var available: Int { HealthMetric.allCases.filter { !health.days(for: $0).isEmpty }.count }
 
     var body: some View {
         ScrollView {
@@ -36,9 +38,11 @@ struct HealthOverviewView: View {
                 }
                 #endif
                 if let error = health.storageError { Text(error).font(.system(size: 12)).foregroundStyle(.red) }
-                if health.isLoading {
-                    HStack(spacing: 10) { ProgressView(); Text(health.progress).font(.system(size: 13)) }
-                        .padding(.vertical, 8).accessibilityIdentifier("healthReadProgress")
+                if health.isLoading { refreshProgress }
+                if let message = health.message {
+                    Label(message, systemImage: "exclamationmark.circle.fill")
+                        .font(.system(size: 12)).foregroundStyle(SleepPalette.awake).lineSpacing(4)
+                        .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("healthRefreshMessage")
                 }
                 healthConnection
                 if available > 0 { latestReadings }
@@ -51,7 +55,7 @@ struct HealthOverviewView: View {
                 Divider()
                 recovery
                 dataFooter
-            }.padding(.horizontal, 22).padding(.top, 18).padding(.bottom, 40)
+            }.padding(.horizontal, 22).padding(.top, 18).padding(.bottom, 112)
                 .frame(maxWidth: 680).frame(maxWidth: .infinity)
         }.background(SleepPalette.background).foregroundStyle(SleepPalette.ink)
             .navigationTitle(embedded ? "健康概览" : "").navigationBarTitleDisplayMode(.inline)
@@ -60,9 +64,6 @@ struct HealthOverviewView: View {
             .sheet(isPresented: $showsAccess) { HealthAccessHelpView() }
             .sheet(item: $help) { MetricHelpSheet(help: $0) }
             .sheet(item: $detail) { metric in HealthMetricDetailView(metric: metric) }
-            .alert("系统健康", isPresented: Binding(get: { health.message != nil && !showsSources }, set: { if !$0 { health.message = nil } })) {
-                Button("知道了", role: .cancel) { health.message = nil }
-            } message: { Text(health.message ?? "") }
             .refreshable { await health.refresh(in: context) }
             .task { await health.refreshIfNeeded(in: context) }
             .onChange(of: scenePhase) { _, phase in
@@ -119,6 +120,23 @@ struct HealthOverviewView: View {
         }.padding(.vertical, 4)
     }
 
+    private var refreshProgress: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(spacing: 9) {
+                ProgressView().controlSize(.small)
+                Text("正在更新，已有数据仍可查看")
+                    .font(.system(size: 12, weight: .medium))
+                Spacer(minLength: 4)
+                Text("\(Int((health.progressValue ?? 0) * 100))%")
+                    .font(.system(size: 11, weight: .medium, design: .rounded)).monospacedDigit()
+            }
+            ProgressView(value: health.progressValue)
+                .tint(SleepPalette.teal)
+            Text(health.progress).font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
+        }.padding(14).background(SleepPalette.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+            .accessibilityIdentifier("healthReadProgress")
+    }
+
     private func readStat(_ title: String, value: String, tint: Color) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(value).font(.system(size: 24, weight: .semibold, design: .rounded)).foregroundStyle(tint).monospacedDigit()
@@ -153,35 +171,46 @@ struct HealthOverviewView: View {
                     .accessibilityLabel("身体年龄参考怎么算").accessibilityIdentifier("fitnessAgeHelp")
             }
             HStack(spacing: 22) {
-                HealthAgeDial(estimate: estimate?.estimate, completed: requirements.filter(\.satisfied).count)
+                HealthAgeDial(completed: exploratoryAge?.signals.count ?? 0, total: 4)
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(estimate?.estimate.display ?? "数据不足")
-                        .font(.system(size: estimate == nil ? 26 : 40, weight: .semibold, design: .rounded)).monospacedDigit()
+                    Text(exploratoryAge.map { "约\($0.age)" } ?? "数据不足")
+                        .font(.system(size: exploratoryAge == nil ? 26 : 40, weight: .semibold, design: .rounded)).monospacedDigit()
                         .foregroundStyle(SleepPalette.teal).accessibilityIdentifier("fitnessAgeValue")
-                    Text(estimate == nil ? "暂不能估算身体年龄" : "岁 · 心肺参考年龄").font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
+                    Text(exploratoryAge == nil ? "探索性估算暂不可用" : "岁 · 探索性参考值").font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
                     Text(age.map { "实际年龄 \($0) 岁" } ?? "实际年龄未读取到").font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
                 }
                 Spacer(minLength: 0)
             }
-            Text("心肺参考年龄 · 不等于全身生物年龄").font(.system(size: 12, weight: .medium))
-            FitnessAgeScale(estimate: estimate?.estimate, actualAge: age)
-            if let estimate {
-                Text("近 30 天有 \(estimate.count) 天记录，最大摄氧量中位数 \(estimate.vo2.formatted(.number.precision(.fractionLength(1)))) mL/kg/min。")
+            Text("探索性健康年龄 · 不是医学或全身生物年龄").font(.system(size: 12, weight: .medium))
+            if let exploratoryAge {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(SleepPalette.awake)
+                    Text("自定义实验算法，未经医学验证；数据变化会让结果上下波动，不代表身体真的变老或变年轻。")
+                        .foregroundStyle(SleepPalette.muted)
+                }.font(.system(size: 12)).lineSpacing(4)
+                Text("按 \(exploratoryAge.date.formatted(.dateTime.month().day())) 的 \(exploratoryAge.signals.count) 项数据计算：\(exploratoryAge.signals.map { "\($0.title) \($0.value.formatted(.number.precision(.fractionLength(0...1)))) \($0.unit)" }.joined(separator: " · "))。每次系统健康更新后重算。")
                     .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
-                Text("\(health.sourceSummary(for: .vo2)) · \(sex.title)")
-                    .font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
+                Text("实际年龄 \(exploratoryAge.actualAge) 岁 · 趋势调整 \(exploratoryAge.age - exploratoryAge.actualAge > 0 ? "+" : "")\(exploratoryAge.age - exploratoryAge.actualAge) 岁")
+                    .font(.system(size: 12, weight: .medium)).foregroundStyle(SleepPalette.muted)
             } else {
-                ForEach(requirements) { requirement in
-                    HStack(alignment: .top, spacing: 10) {
-                        Image(systemName: requirement.satisfied ? "checkmark.circle.fill" : "circle.dashed")
-                            .foregroundStyle(requirement.satisfied ? SleepPalette.teal : SleepPalette.muted).frame(width: 20)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(requirement.title).font(.system(size: 13, weight: .medium))
-                            Text(requirement.detail).font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
-                        }
-                    }.accessibilityIdentifier("ageRequirement-\(requirement.id)")
+                Text(age == nil ? "先在健康设置中填写实际年龄，并确保最近 7 天至少有两类完整数据（睡眠、步数、静息心率或 HRV）。" : "最近 7 天至少需要两类同一天的完整数据。普通心率不等同于静息心率。")
+                    .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: age == nil ? "circle.dashed" : "checkmark.circle.fill")
+                        .foregroundStyle(age == nil ? SleepPalette.muted : SleepPalette.teal)
+                    Text(age == nil ? "实际年龄未填写" : "实际年龄 \(age!) 岁")
+                        .font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
                 }
-                Text("请前往健康 App，允许 sleeptongshu 读取相关信息。有些设备不会提供最大摄氧量；只有心率、步数或睡眠时，暂不能估算。")
+            }
+            if let estimate {
+                Label("研究参考心肺年龄：\(estimate.estimate.display) 岁", systemImage: "figure.run")
+                    .font(.system(size: 12, weight: .medium)).foregroundStyle(SleepPalette.teal)
+                FitnessAgeScale(estimate: estimate.estimate, actualAge: age)
+                Text("近 30 天有 \(estimate.count) 天最大摄氧量记录；此研究参考只作对照，不是全身生物年龄。")
+                    .font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
+            }
+            if exploratoryAge == nil {
+                Text("近期数据不足时不强行补算。普通心率不能替代静息心率，设备也可能尚未同步睡眠或 HRV。")
                     .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
                 ViewThatFits(in: .horizontal) {
                     HStack { ageActions }
@@ -280,7 +309,7 @@ struct HealthOverviewView: View {
         }.font(.system(size: 11)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
     }
     private func showAgeHelp() {
-        help = MetricHelp(title: "身体年龄参考怎么算？", body: FitnessAge.explanation,
+        help = MetricHelp(title: "身体年龄参考怎么算？", body: FitnessAge.exploratoryExplanation + "\n\n另有一项研究参考：如果系统健康提供最大摄氧量，且年龄、参考分组和最近 30 天至少 3 天记录齐全，可展示独立的心肺参考年龄。它不是本探索算法，也不是全身生物年龄。\n\n" + FitnessAge.explanation,
                           references: [SleepReference(title: "《通过运动测试建立的心肺能力参考标准》（译名）", originalTitle: FitnessAge.referenceTitle, author: FitnessAge.referenceAuthors)])
     }
     private func signed(_ value: Double) -> String { (value > 0 ? "+" : "") + value.formatted(.number.precision(.fractionLength(1))) }
@@ -299,29 +328,22 @@ extension HealthMetric {
 }
 
 struct HealthAgeDial: View {
-    let estimate: FitnessAgeEstimate?
     let completed: Int
+    var total = 4
     var body: some View {
         ZStack {
             Circle().stroke(SleepPalette.line, lineWidth: 9)
-            if let estimate {
-                Circle().trim(from: 0, to: min(1, max(0, (estimate.years - 20) / 60)))
-                    .stroke(SleepPalette.teal, style: StrokeStyle(lineWidth: 9, lineCap: .round))
+            ForEach(0..<total, id: \.self) { index in
+                Circle().trim(from: Double(index) / Double(total) + 0.025, to: Double(index + 1) / Double(total) - 0.025)
+                    .stroke(index < completed ? SleepPalette.teal : SleepPalette.line, style: StrokeStyle(lineWidth: 9, lineCap: .round))
                     .rotationEffect(.degrees(-90))
-                Image(systemName: "figure.mind.and.body").font(.system(size: 36)).foregroundStyle(SleepPalette.teal)
-            } else {
-                ForEach(0..<3) { index in
-                    Circle().trim(from: Double(index) / 3 + 0.025, to: Double(index + 1) / 3 - 0.025)
-                        .stroke(index < completed ? SleepPalette.teal : SleepPalette.line, style: StrokeStyle(lineWidth: 9, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                }
-                VStack(spacing: 3) {
-                    Text("\(completed)/3").font(.system(size: 25, weight: .semibold, design: .rounded)).foregroundStyle(SleepPalette.teal)
-                    Text("资料就绪").font(.system(size: 10)).foregroundStyle(SleepPalette.muted)
-                }
+            }
+            VStack(spacing: 3) {
+                Text("\(completed)/\(total)").font(.system(size: 25, weight: .semibold, design: .rounded)).foregroundStyle(SleepPalette.teal)
+                Text("可用指标").font(.system(size: 10)).foregroundStyle(SleepPalette.muted)
             }
         }.frame(width: 108, height: 108).padding(5)
-            .accessibilityLabel(estimate == nil ? "身体年龄所需的三项资料，已有 \(completed) 项就绪" : "心肺参考年龄标尺，20 到 80 岁")
+            .accessibilityLabel("探索性参考可使用 \(completed) 项指标，共 \(total) 项")
     }
 }
 

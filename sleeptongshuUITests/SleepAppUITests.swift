@@ -131,7 +131,7 @@ final class SleepAppUITests: XCTestCase {
         XCTAssertTrue(app.buttons["readHealthOverview"].exists)
         reveal(app.staticTexts["fitnessAgeValue"])
         XCTAssertEqual(app.staticTexts["fitnessAgeValue"].label, "数据不足")
-        XCTAssertTrue(app.otherElements["ageRequirement-vo2"].exists || app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "还需 3 天")).firstMatch.exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "实际年龄未填写")).firstMatch.exists)
         capture("34-health-empty")
         scrollDown()
         let agingHelp = app.buttons["agingPaceHelp"]
@@ -142,11 +142,24 @@ final class SleepAppUITests: XCTestCase {
         press(app.buttons["关闭说明"])
     }
 
+    func testHealthRefreshKeepsExistingDataVisibleWhileProgressUpdates() {
+        app.terminate()
+        app.launchArguments += ["-ui-testing-health", "-ui-testing-health-loading", "-preview-health"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["正在更新，已有数据仍可查看"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["healthLatest-steps"].exists)
+        XCTAssertTrue(app.buttons["healthLatest-hrv"].exists)
+        XCTAssertTrue(app.buttons["fitnessAgeHelp"].exists)
+        capture("46-health-refresh-preserves-page")
+    }
+
     func testHealthOverviewShowsReferenceAgeAndOriginalResearchTitle() {
         launchHealthFixture()
         XCTAssertTrue(app.staticTexts["界面测试示例 · 非真实健康数据"].waitForExistence(timeout: 5))
         reveal(app.staticTexts["fitnessAgeValue"])
         XCTAssertEqual(app.staticTexts["fitnessAgeValue"].label, "约40")
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "自定义实验算法，未经医学验证")).firstMatch.exists)
+        scrollDown()
         capture("36-health-overview-example")
         press(app.buttons["fitnessAgeHelp"])
         XCTAssertTrue(app.staticTexts["身体年龄参考怎么算？"].waitForExistence(timeout: 3))
@@ -193,7 +206,7 @@ final class SleepAppUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["healthReadStatus"].label.contains("已读到 9 项"))
         XCTAssertTrue(app.buttons["healthLatest-steps"].exists)
         reveal(app.staticTexts["fitnessAgeValue"])
-        XCTAssertEqual(app.staticTexts["fitnessAgeValue"].label, "数据不足")
+        XCTAssertEqual(app.staticTexts["fitnessAgeValue"].label, "约40")
         scrollDown()
         scrollDown()
         reveal(app.buttons["healthMetric-steps"])

@@ -88,6 +88,22 @@ final class HealthOverviewTests: XCTestCase {
         XCTAssertFalse(FitnessAge.requirements(enough, now: now, age: 80, sex: .female, calendar: calendar)[0].satisfied)
     }
 
+    func testExploratoryAgeUsesOnlySameDayCompleteDataAndIsBounded() throws {
+        let sleep = HealthDay(date: day(-1), value: 7.5, count: 1)
+        let steps = HealthDay(date: day(-1), value: 8_000, count: 1)
+        let today = HealthDay(date: day(0), value: 100_000, count: 1)
+        let estimate = try XCTUnwrap(FitnessAge.exploratory([.sleep: [sleep], .steps: [steps, today]], actualAge: 40, now: now, calendar: calendar))
+        XCTAssertEqual(estimate.age, 37)
+        XCTAssertEqual(estimate.actualAge, 40)
+        XCTAssertEqual(estimate.signals.count, 2)
+        XCTAssertEqual(estimate.date, day(-1))
+        XCTAssertNil(FitnessAge.exploratory([.sleep: [sleep], .steps: [HealthDay(date: day(-2), value: 8_000, count: 1)]], actualAge: 40, now: now, calendar: calendar))
+        XCTAssertNil(FitnessAge.exploratory([.sleep: [sleep], .steps: [steps]], actualAge: nil, now: now, calendar: calendar))
+        let poor = FitnessAge.exploratory([.sleep: [HealthDay(date: day(-1), value: 1, count: 1)],
+                                           .steps: [HealthDay(date: day(-1), value: 0, count: 1)]], actualAge: 40, now: now, calendar: calendar)
+        XCTAssertEqual(poor?.age, 43)
+    }
+
     func testAgeAndChangeRequireRecentDistinctDatesAndDoNotAnnualize() throws {
         let days = [1, 10, 20, 31, 45, 59].map { HealthDay(date: day(-$0), value: $0 < 30 ? 40 : 32, count: 1) }
         XCTAssertEqual(FitnessAge.current(days, now: now, age: 45, sex: .male, calendar: calendar)?.vo2, 40)
