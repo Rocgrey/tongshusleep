@@ -29,11 +29,12 @@ struct MonitoringView: View {
                 VStack(alignment: .leading, spacing: 26) {
                     HStack(alignment: .top) {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("好眠，从今晚开始").font(.system(size: 26, weight: .bold))
+                            Text("监测与设备").font(.system(size: 27, weight: .bold))
                             Text("选择适合你的记录方式").font(.system(size: 13)).foregroundStyle(SleepPalette.muted)
                         }
                         Spacer(minLength: 6)
-                        Image(systemName: "moon.stars.fill").font(.system(size: 28)).foregroundStyle(SleepPalette.deep).padding(.top, 4)
+                        Image(systemName: "sensor.fill").font(.system(size: 24)).foregroundStyle(SleepPalette.deep)
+                            .frame(width: 48, height: 48).background(SleepPalette.deep.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
                     }
                     Button { showsLocalData = true } label: {
                         HStack {
@@ -99,8 +100,12 @@ struct MonitoringView: View {
             HStack(spacing: 24) {
                 ZStack {
                     Circle().stroke(SleepPalette.teal.opacity(0.12), lineWidth: 8)
-                    Circle().trim(from: 0, to: phone.isRecording ? 0.78 : 0.28)
-                        .stroke(SleepPalette.teal, style: StrokeStyle(lineWidth: 8, lineCap: .round)).rotationEffect(.degrees(-90))
+                    if phone.isRecording {
+                        Circle().trim(from: 0, to: min(1, Double(phone.elapsedSeconds) / (23 * 3600)))
+                            .stroke(SleepPalette.teal, style: StrokeStyle(lineWidth: 8, lineCap: .round)).rotationEffect(.degrees(-90))
+                    } else {
+                        Circle().stroke(SleepPalette.teal.opacity(0.5), style: StrokeStyle(lineWidth: 2, dash: [2, 7]))
+                    }
                     Image(systemName: phone.isRecording ? "waveform" : "moon.zzz.fill")
                         .font(.system(size: 35)).foregroundStyle(SleepPalette.teal)
                 }.frame(width: 102, height: 102).accessibilityHidden(true)
@@ -147,7 +152,7 @@ struct MonitoringView: View {
             }
             Text("不录制或保存原始音频。手机不能测量深睡、REM、血氧和心率；入睡与睡眠时长为粗略估算。")
                 .font(.system(size: 11)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
-        }.padding(20).background(SleepPalette.teal.opacity(0.065), in: RoundedRectangle(cornerRadius: 8))
+        }.padding(.vertical, 20)
         .overlay(alignment: .bottom) { if phone.isStarting { ProgressView().padding(4) } }
     }
 

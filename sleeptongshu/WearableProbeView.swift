@@ -18,6 +18,8 @@ struct WearableProbePanel: View {
             if let report = client.report {
                 DeviceBatteryView(reading: client.battery, isCurrent: connected, isReading: client.isBusy, deviceName: report.deviceName)
                 Text(report.deviceName).font(.system(size: 12, weight: .medium)).foregroundStyle(SleepPalette.muted)
+                Label("本次读取 \(report.startedAt.formatted(date: .abbreviated, time: .shortened))", systemImage: "clock")
+                    .font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
                 HStack(alignment: .top, spacing: 24) {
                     number("设备当天步数", value: report.currentSteps.map(String.init) ?? "—")
                     number("已收历史记录", value: "\(report.records.count)")
@@ -27,7 +29,7 @@ struct WearableProbePanel: View {
                 Button { showsReport = true } label: { Label("查看本次接入报告", systemImage: "doc.text.magnifyingglass") }
                     .font(.system(size: 13)).accessibilityIdentifier("wearableProbeReport")
             }
-            Text("先读取一小段记录检查兼容性，约需 1～3 分钟。报告中的睡眠输入还不是深睡、浅睡或快速眼动。")
+            Text("连接后自动读取，约需 1～3 分钟。心跳间隔会读取较长历史，其他通道先检查一段记录。睡眠输入还不是深睡、浅睡或快速眼动。")
                 .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
         }.sheet(isPresented: $showsReport) { WearableProbeView(client: client) }
     }
@@ -61,6 +63,13 @@ struct WearableProbeView: View {
                         }
                         VStack(alignment: .leading, spacing: 14) {
                             SectionHeading(title: "各类数据读取情况", subtitle: "空目录表示这次没有记录；未响应还不能判断是否支持")
+                            if report.channels.contains(where: { $0.received > 0 }) {
+                                Chart(report.channels.filter { $0.received > 0 }) { channel in
+                                    BarMark(x: .value("收到包数", channel.received), y: .value("通道", channel.name))
+                                        .foregroundStyle(channel.type == 4 ? SleepPalette.deep : SleepPalette.teal).cornerRadius(3)
+                                }.frame(height: CGFloat(max(70, report.channels.filter { $0.received > 0 }.count * 34)))
+                                    .accessibilityLabel("各通道实际收到的包数")
+                            }
                             ForEach(report.channels) { channel in
                                 VStack(alignment: .leading, spacing: 6) {
                                     HStack {
@@ -71,6 +80,10 @@ struct WearableProbeView: View {
                                     }
                                     Text(channel.state).font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
                                     if channel.available > 0 { Text("目录中共 \(channel.available) 条，本次仅取其中一段").font(.system(size: 11)).foregroundStyle(SleepPalette.muted) }
+                                    if let start = channel.requestedStart, let end = channel.requestedEnd {
+                                        Text("本次请求序号 \(start)～\(end) · 实收 \(channel.received) 包")
+                                            .font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
+                                    }
                                 }
                                 Divider()
                             }

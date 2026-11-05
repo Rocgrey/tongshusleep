@@ -31,10 +31,11 @@ struct SleepTongshuApp: App {
 }
 
 enum SleepPalette {
-    static let background = Color(red: 0.96, green: 0.97, blue: 0.975)
-    static let ink = Color(red: 0.13, green: 0.19, blue: 0.25)
-    static let muted = Color(red: 0.43, green: 0.48, blue: 0.54)
-    static let teal = Color(red: 0.08, green: 0.49, blue: 0.42)
+    static let background = Color(red: 0.97, green: 0.98, blue: 0.98)
+    static let ink = Color(red: 0.12, green: 0.16, blue: 0.18)
+    static let muted = Color(red: 0.39, green: 0.44, blue: 0.47)
+    static let teal = Color(red: 0.03, green: 0.46, blue: 0.42)
+    static let rose = Color(red: 0.80, green: 0.28, blue: 0.40)
     static let mint = Color(red: 0.37, green: 0.73, blue: 0.67)
     static let deep = Color(red: 0.30, green: 0.37, blue: 0.77)
     static let rem = Color(red: 0.66, green: 0.57, blue: 0.88)
@@ -68,6 +69,7 @@ struct RootTabView: View {
             TrendsView().tabItem { Label("趋势", systemImage: "chart.bar.xaxis") }.tag(SleepTab.trends)
             NavigationStack { HealthOverviewView() }.tabItem { Label("健康", systemImage: "heart.text.clipboard") }.tag(SleepTab.health)
         }
+        .toolbarBackground(.visible, for: .tabBar)
         .environmentObject(phone)
         .environmentObject(scanner)
         .environmentObject(vitals)

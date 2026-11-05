@@ -5,8 +5,10 @@ import SwiftData
 struct HealthOverviewView: View {
     @EnvironmentObject private var health: HealthOverviewStore
     @Environment(\.modelContext) private var context
+    @Environment(\.scenePhase) private var scenePhase
     var embedded = false
     @State private var showsSources = false
+    @State private var showsAccess = false
     @State private var detail: HealthMetric?
     @State private var help: MetricHelp?
     @AppStorage("healthManualProfile") private var manualProfile = false
@@ -19,6 +21,9 @@ struct HealthOverviewView: View {
         FitnessAge.current(health.days(for: .vo2), now: .now, age: age, sex: sex)
     }
     private var available: Int { HealthMetric.allCases.filter { !health.days(for: $0).isEmpty }.count }
+    private var requirements: [FitnessAgeRequirement] {
+        FitnessAge.requirements(health.days(for: .vo2), now: .now, age: age, sex: sex)
+    }
 
     var body: some View {
         ScrollView {
@@ -36,13 +41,15 @@ struct HealthOverviewView: View {
                         .padding(.vertical, 8).accessibilityIdentifier("healthReadProgress")
                 }
                 healthConnection
+                if available > 0 { latestReadings }
+                Divider()
                 ageOverview
+                Divider()
+                metricGrid
                 Divider()
                 longTermChange
                 Divider()
                 recovery
-                Divider()
-                metricGrid
                 dataFooter
             }.padding(.horizontal, 22).padding(.top, 18).padding(.bottom, 40)
                 .frame(maxWidth: 680).frame(maxWidth: .infinity)
@@ -50,18 +57,24 @@ struct HealthOverviewView: View {
             .navigationTitle(embedded ? "健康概览" : "").navigationBarTitleDisplayMode(.inline)
             .toolbar(embedded ? .visible : .hidden, for: .navigationBar)
             .sheet(isPresented: $showsSources) { HealthSourceSelectionView() }
+            .sheet(isPresented: $showsAccess) { HealthAccessHelpView() }
             .sheet(item: $help) { MetricHelpSheet(help: $0) }
             .sheet(item: $detail) { metric in HealthMetricDetailView(metric: metric) }
             .alert("系统健康", isPresented: Binding(get: { health.message != nil && !showsSources }, set: { if !$0 { health.message = nil } })) {
                 Button("知道了", role: .cancel) { health.message = nil }
             } message: { Text(health.message ?? "") }
+            .refreshable { await health.refresh(in: context) }
+            .task { await health.refreshIfNeeded(in: context) }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { Task { await health.refreshIfNeeded(in: context) } }
+            }
     }
 
     private var heading: some View {
         HStack(alignment: .top, spacing: 14) {
             VStack(alignment: .leading, spacing: 5) {
                 Text("身体状态").font(.system(size: 28, weight: .bold))
-                Text("看见变化，照顾好自己").font(.system(size: 13)).foregroundStyle(SleepPalette.muted)
+                Text(Date.now.formatted(.dateTime.month().day().weekday(.wide))).font(.system(size: 13)).foregroundStyle(SleepPalette.muted)
             }
             Spacer(minLength: 0)
             Button { showsSources = true } label: {
@@ -75,21 +88,60 @@ struct HealthOverviewView: View {
 
     private var healthConnection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("从系统健康读取", systemImage: "heart.text.clipboard").font(.system(size: 15, weight: .semibold))
-            Text("一次读取最近 90 天已有的睡眠、体征与活动记录，自动整理，无需选择设备。数据保存在本机。")
+            HStack(spacing: 12) {
+                Image(systemName: "heart.text.clipboard.fill").font(.system(size: 23)).foregroundStyle(SleepPalette.rose)
+                    .frame(width: 48, height: 48).background(SleepPalette.rose.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("从系统健康读取").font(.system(size: 15, weight: .semibold))
+                    Text(health.snapshot == nil ? "等待首次读取" : available == 0 ? "读取已结束 · 暂无可用记录" : "已读到 \(available) 项健康数据")
+                        .font(.system(size: 12)).foregroundStyle(available > 0 ? SleepPalette.teal : SleepPalette.muted)
+                        .accessibilityIdentifier("healthReadStatus")
+                }
+                Spacer(minLength: 0)
+            }
+            Text("统一读取最近 90 天的记录，无需选择设备。手环、手表或戒指的记录须先由配套 App 写入系统健康。")
                 .font(.system(size: 13)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
             Button { Task { await health.refresh(in: context) } } label: {
                 Label(health.snapshot == nil ? "读取系统健康" : "更新健康数据", systemImage: "heart.fill")
                     .foregroundStyle(.white).frame(maxWidth: .infinity).padding(.vertical, 6)
             }.buttonStyle(.borderedProminent).disabled(health.isLoading).accessibilityIdentifier("readHealthOverview")
-            if let records = health.snapshot?.sleepRecords {
-                Text(records.isEmpty ? "暂未读到可导入的睡眠记录。" : "已整理 \(records.count) 晚睡眠，刷新时会同时更新睡眠与趋势页面。")
-                    .font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
-            } else if health.snapshot != nil {
-                Text("更新一次健康数据，即可使用自动汇总并更新睡眠报告。")
-                    .font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
+            if let snapshot = health.snapshot {
+                HStack(spacing: 0) {
+                    readStat("数据项目", value: "\(available)", tint: SleepPalette.teal)
+                    readStat("记录来源", value: "\(snapshot.sources.count)", tint: SleepPalette.deep)
+                    readStat("睡眠晚数", value: "\(snapshot.sleepRecords?.count ?? health.days(for: .sleep).count)", tint: SleepPalette.rose)
+                }.padding(.vertical, 6)
+                Text("上次读取 \(snapshot.readAt.formatted(date: .abbreviated, time: .shortened))")
+                    .font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
             }
+            Button { showsAccess = true } label: { Label("没有数据？查看授权与同步步骤", systemImage: "questionmark.circle") }
+                .font(.system(size: 12)).accessibilityIdentifier("healthAccessHelp")
         }.padding(.vertical, 4)
+    }
+
+    private func readStat(_ title: String, value: String, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(value).font(.system(size: 24, weight: .semibold, design: .rounded)).foregroundStyle(tint).monospacedDigit()
+            Text(title).font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
+        }.frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var latestReadings: some View {
+        let metrics = Array([HealthMetric.hrv, .heart, .steps, .sleep, .oxygen].filter { !health.days(for: $0).isEmpty }.prefix(3))
+        return HStack(alignment: .top, spacing: 12) {
+            ForEach(metrics) { metric in
+                Button { detail = metric } label: {
+                    VStack(alignment: .leading, spacing: 7) {
+                        Label(metric.title, systemImage: metric.symbol).font(.system(size: 11, weight: .medium)).foregroundStyle(metric.healthTint)
+                        Text(health.days(for: metric).last.map { format($0.value, metric: metric) } ?? "—")
+                            .font(.system(size: 23, weight: .semibold, design: .rounded)).monospacedDigit().foregroundStyle(SleepPalette.ink)
+                        Text(metric.unit).font(.system(size: 10)).foregroundStyle(SleepPalette.muted)
+                        Text(health.days(for: metric).last?.date.formatted(.dateTime.month().day()) ?? "")
+                            .font(.system(size: 10)).foregroundStyle(SleepPalette.muted)
+                    }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                }.buttonStyle(.plain).accessibilityIdentifier("healthLatest-\(metric.rawValue)")
+            }
+        }
     }
 
     private var ageOverview: some View {
@@ -100,15 +152,16 @@ struct HealthOverviewView: View {
                 Button { showAgeHelp() } label: { Image(systemName: "info.circle").frame(width: 36, height: 36) }
                     .accessibilityLabel("身体年龄参考怎么算").accessibilityIdentifier("fitnessAgeHelp")
             }
-            HStack(alignment: .firstTextBaseline, spacing: 7) {
-                Text(estimate?.estimate.display ?? "—").font(.system(size: 56, weight: .medium, design: .rounded)).monospacedDigit()
-                    .foregroundStyle(SleepPalette.teal).accessibilityIdentifier("fitnessAgeValue")
-                Text("岁").font(.system(size: 15)).foregroundStyle(SleepPalette.muted)
-                Spacer(minLength: 12)
-                VStack(alignment: .trailing, spacing: 6) {
-                    Text("实际年龄").font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
-                    Text(age.map { "\($0) 岁" } ?? "未填写").font(.system(size: 20, weight: .medium, design: .rounded))
+            HStack(spacing: 22) {
+                HealthAgeDial(estimate: estimate?.estimate, completed: requirements.filter(\.satisfied).count)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(estimate?.estimate.display ?? "数据不足")
+                        .font(.system(size: estimate == nil ? 26 : 40, weight: .semibold, design: .rounded)).monospacedDigit()
+                        .foregroundStyle(SleepPalette.teal).accessibilityIdentifier("fitnessAgeValue")
+                    Text(estimate == nil ? "暂不能估算身体年龄" : "岁 · 心肺参考年龄").font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
+                    Text(age.map { "实际年龄 \($0) 岁" } ?? "实际年龄未读取到").font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
                 }
+                Spacer(minLength: 0)
             }
             Text("心肺参考年龄 · 不等于全身生物年龄").font(.system(size: 12, weight: .medium))
             FitnessAgeScale(estimate: estimate?.estimate, actualAge: age)
@@ -118,16 +171,30 @@ struct HealthOverviewView: View {
                 Text("\(health.sourceSummary(for: .vo2)) · \(sex.title)")
                     .font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
             } else {
-                Text(ageMissingReason).font(.system(size: 13)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
-                Button { showsSources = true } label: { Label("补充年龄参考资料", systemImage: "person.crop.circle") }
-                    .font(.system(size: 13)).accessibilityIdentifier("configureFitnessAge")
+                ForEach(requirements) { requirement in
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: requirement.satisfied ? "checkmark.circle.fill" : "circle.dashed")
+                            .foregroundStyle(requirement.satisfied ? SleepPalette.teal : SleepPalette.muted).frame(width: 20)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(requirement.title).font(.system(size: 13, weight: .medium))
+                            Text(requirement.detail).font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
+                        }
+                    }.accessibilityIdentifier("ageRequirement-\(requirement.id)")
+                }
+                Text("请前往健康 App，允许 sleeptongshu 读取相关信息。有些设备不会提供最大摄氧量；只有心率、步数或睡眠时，暂不能估算。")
+                    .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
+                ViewThatFits(in: .horizontal) {
+                    HStack { ageActions }
+                    VStack(alignment: .leading, spacing: 12) { ageActions }
+                }
             }
         }
     }
-    private var ageMissingReason: String {
-        if age == nil || sex == .unspecified { return "先读取系统健康，或补充实际年龄与参考分组。还需有最大摄氧量记录；资料不够时不显示估算年龄。" }
-        if !(20...79).contains(age!) { return "目前参考表只覆盖 20～79 岁，超出范围暂不估算。" }
-        return "最近 30 个完整自然日需要至少 3 天最大摄氧量记录。没有读到时，不能用心率或睡眠时长代替计算年龄。"
+    @ViewBuilder private var ageActions: some View {
+        Button { showsAccess = true } label: { Label("健康权限指引", systemImage: "heart.text.clipboard") }
+            .font(.system(size: 12)).accessibilityIdentifier("ageAccessHelp")
+        Button { showsSources = true } label: { Label("补充参考资料", systemImage: "person.crop.circle") }
+            .font(.system(size: 12)).accessibilityIdentifier("configureFitnessAge")
     }
 
     private var longTermChange: some View {
@@ -137,7 +204,7 @@ struct HealthOverviewView: View {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("心肺能力变化").font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
-                    Text(change.map { signed($0) + "%" } ?? "—").font(.system(size: 30, weight: .semibold, design: .rounded))
+                    Text(change.map { signed($0) + "%" } ?? "数据不足").font(.system(size: 26, weight: .semibold, design: .rounded))
                         .foregroundStyle(SleepPalette.teal).accessibilityIdentifier("fitnessChangeValue")
                 }
                 Spacer()
@@ -158,7 +225,7 @@ struct HealthOverviewView: View {
                     .chartYAxis { AxisMarks(position: .leading) }.chartYScale(domain: .automatic(includesZero: false))
                     .frame(height: 120).accessibilityLabel("最大摄氧量长期变化图")
             }
-            Text(change == nil ? "每段至少需要 3 天最大摄氧量记录。缺少资料时保留空白，不补算衰老速度。" : "正数表示最大摄氧量日值中位数上升。这是心肺指标变化，不是变年轻的速度。")
+            Text(change == nil ? "最近 30 天和前 30 天，各需至少 3 天最大摄氧量记录。" : "正数表示最大摄氧量日值中位数上升。这是心肺指标变化，不是变年轻的速度。")
                 .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
         }
     }
@@ -192,7 +259,7 @@ struct HealthOverviewView: View {
             SectionHeading(title: "健康记录", subtitle: "\(available) 项有可展示数据 · 点开看详情")
             if available == 0 {
                 ContentUnavailableView("等待健康记录", systemImage: "heart.text.clipboard",
-                                       description: Text("读取系统健康后，已有数据的项目会显示在这里。"))
+                                       description: Text("请先读取系统健康。若仍为空，请在健康 App 中允许 sleeptongshu 读取信息，并确认设备记录已同步。"))
             }
             LazyVGrid(columns: [GridItem(.flexible(), alignment: .top), GridItem(.flexible(), alignment: .top)], alignment: .leading, spacing: 12) {
                 ForEach(HealthMetric.allCases.filter { !health.days(for: $0).isEmpty }) { metric in
@@ -207,7 +274,7 @@ struct HealthOverviewView: View {
             if let readAt = health.snapshot?.readAt {
                 Label("上次读取 \(readAt.formatted(date: .abbreviated, time: .shortened))", systemImage: "clock")
             }
-            Text("只读取你允许的项目，本机保存，不写回系统健康。快照需手动刷新，可能与系统最新记录不同；未读取到不等于身体没有该项数据。")
+            Text("只读取你允许的项目，本机保存，不写回系统健康。回到本页时会检查更新，也可下拉刷新；未读取到不等于身体没有该项数据。")
             Text("步数和运动时间采用系统每日统计；睡眠每晚自动保留一份较完整的记录。其他体征汇总可用样本，设备或测量方式的变化也会影响趋势。")
             ForEach(health.snapshot?.notices ?? [], id: \.self) { notice in Text(notice) }
         }.font(.system(size: 11)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
@@ -228,6 +295,33 @@ extension HealthMetric {
         case .steps, .exercise: Color(red: 0.59, green: 0.43, blue: 0.14)
         default: SleepPalette.teal
         }
+    }
+}
+
+struct HealthAgeDial: View {
+    let estimate: FitnessAgeEstimate?
+    let completed: Int
+    var body: some View {
+        ZStack {
+            Circle().stroke(SleepPalette.line, lineWidth: 9)
+            if let estimate {
+                Circle().trim(from: 0, to: min(1, max(0, (estimate.years - 20) / 60)))
+                    .stroke(SleepPalette.teal, style: StrokeStyle(lineWidth: 9, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                Image(systemName: "figure.mind.and.body").font(.system(size: 36)).foregroundStyle(SleepPalette.teal)
+            } else {
+                ForEach(0..<3) { index in
+                    Circle().trim(from: Double(index) / 3 + 0.025, to: Double(index + 1) / 3 - 0.025)
+                        .stroke(index < completed ? SleepPalette.teal : SleepPalette.line, style: StrokeStyle(lineWidth: 9, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                }
+                VStack(spacing: 3) {
+                    Text("\(completed)/3").font(.system(size: 25, weight: .semibold, design: .rounded)).foregroundStyle(SleepPalette.teal)
+                    Text("资料就绪").font(.system(size: 10)).foregroundStyle(SleepPalette.muted)
+                }
+            }
+        }.frame(width: 108, height: 108).padding(5)
+            .accessibilityLabel(estimate == nil ? "身体年龄所需的三项资料，已有 \(completed) 项就绪" : "心肺参考年龄标尺，20 到 80 岁")
     }
 }
 
@@ -280,14 +374,18 @@ struct HealthMetricTile: View {
                         .font(.system(size: 10)).foregroundStyle(SleepPalette.muted)
                     Chart(Array(days.suffix(14))) { day in
                         BarMark(x: .value("日期", day.date), y: .value(metric.title, day.value)).foregroundStyle(metric.healthTint.opacity(0.7))
-                    }.chartXAxis(.hidden).chartYAxis(.hidden).frame(height: 28).accessibilityHidden(true)
+                            .cornerRadius(2)
+                    }.chartYScale(domain: .automatic(includesZero: metric.isCumulative || metric == .sleep))
+                        .chartXAxis(.hidden).chartYAxis(.hidden).frame(height: 38).accessibilityHidden(true)
                 } else {
                     Text(truncated ? "记录过多，暂不合计" : "暂无可展示记录").font(.system(size: 10)).foregroundStyle(SleepPalette.muted)
                     Color.clear.frame(height: 28)
                 }
                 Text(sourceLabel).font(.system(size: 10)).foregroundStyle(SleepPalette.muted).lineLimit(2)
-            }.frame(maxWidth: .infinity, minHeight: 185, alignment: .topLeading).padding(14)
-                .background(.white, in: RoundedRectangle(cornerRadius: 8)).contentShape(Rectangle())
+            }.frame(maxWidth: .infinity, minHeight: 180, alignment: .topLeading).padding(14)
+                .background(.white, in: RoundedRectangle(cornerRadius: 8))
+                .overlay(alignment: .topTrailing) { Image(systemName: "arrow.up.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(metric.healthTint.opacity(0.6)).padding(14) }
+                .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(metric.healthTint.opacity(0.08)) }.contentShape(Rectangle())
         }.buttonStyle(.plain).accessibilityIdentifier("healthMetric-\(metric.rawValue)")
     }
 }

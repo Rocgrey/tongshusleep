@@ -45,11 +45,19 @@ struct HealthMetricDetailView: View {
                                 RuleMark(x: .value("选中日期", day.date)).foregroundStyle(SleepPalette.muted.opacity(0.4)).lineStyle(StrokeStyle(dash: [4, 4]))
                             }
                         }.chartXSelection(value: $selection)
+                            .chartYScale(domain: .automatic(includesZero: metric.isCumulative || metric == .sleep))
                             .chartXAxis { AxisMarks(values: .automatic(desiredCount: 4)) { _ in AxisValueLabel(format: .dateTime.month().day()) } }
                             .chartYAxis { AxisMarks(position: .leading) }.frame(height: 210)
                             .accessibilityLabel("\(metric.title)每日记录图")
                         Text("\(days.count) 天有记录 · \(metric.isCumulative ? "日值由系统健康统计" : metric == .sleep ? "日值为睡着时长" : "日值为样本中位数")。空白不算 0，缺口不连线。")
                             .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
+                        HStack(spacing: 12) {
+                            summary("最低日值", value: days.map(\.value).min())
+                            summary("日值中位数", value: HealthOverviewAnalysis.median(days.map(\.value)))
+                            summary("最高日值", value: days.map(\.value).max())
+                        }.padding(.vertical, 10)
+                        Divider()
+                        HealthCoverageCalendar(days: days, period: period, tint: metric.healthTint)
                     }
                     Divider()
                     SectionHeading(title: "这个数字代表什么")
@@ -75,6 +83,48 @@ struct HealthMetricDetailView: View {
             }.background(SleepPalette.background).foregroundStyle(SleepPalette.ink)
                 .navigationTitle(metric.title).navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } } }
+        }
+    }
+
+    private func summary(_ title: String, value: Double?) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title).font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
+            Text(value.map { $0.formatted(.number.precision(.fractionLength(metric == .steps ? 0 : 1))) } ?? "—")
+                .font(.system(size: 20, weight: .semibold, design: .rounded)).foregroundStyle(metric.healthTint)
+            Text(metric.unit).font(.system(size: 10)).foregroundStyle(SleepPalette.muted)
+        }.frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct HealthCoverageCalendar: View {
+    let days: [HealthDay]
+    let period: Int
+    let tint: Color
+    private var dates: [Date] {
+        (0..<period).reversed().compactMap { Calendar.current.date(byAdding: .day, value: -$0, to: Calendar.current.startOfDay(for: .now)) }
+    }
+    private var recorded: Set<Date> { Set(days.map { Calendar.current.startOfDay(for: $0.date) }) }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            SectionHeading(title: "哪些天有记录", subtitle: "最近 \(period) 天 · \(recorded.count) 天有可用数据")
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 7), spacing: 6) {
+                ForEach(dates, id: \.self) { date in
+                    let hasData = recorded.contains(date)
+                    Text(date.formatted(.dateTime.day())).font(.system(size: 10, weight: hasData ? .semibold : .regular)).monospacedDigit()
+                        .foregroundStyle(hasData ? tint : SleepPalette.muted)
+                        .frame(maxWidth: .infinity).frame(height: 28)
+                        .background(hasData ? tint.opacity(0.14) : SleepPalette.line.opacity(0.35), in: RoundedRectangle(cornerRadius: 4))
+                        .accessibilityLabel("\(date.formatted(.dateTime.month().day()))，\(hasData ? "有记录" : "未读到记录")")
+                }
+            }
+            HStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: 2).fill(tint.opacity(0.2)).frame(width: 10, height: 10)
+                Text("有记录")
+                RoundedRectangle(cornerRadius: 2).fill(SleepPalette.line).frame(width: 10, height: 10)
+                Text("未读到")
+            }.font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
+            Text("从左到右、从上到下按日期排列。灰色不代表身体异常，也不代表当天数值为 0。")
+                .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
         }
     }
 }

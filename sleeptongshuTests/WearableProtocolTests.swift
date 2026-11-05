@@ -27,6 +27,18 @@ final class WearableProtocolTests: XCTestCase {
         XCTAssertNil(WearableProbeProtocol.sampleRange([small], limit: 0))
     }
 
+    func testLongerIntervalCaptureCanRequestTheWholeObservedDirectoryAndDecodeOldReports() throws {
+        var index = IW_HisIndex(); index.startSeq = 0; index.endSeq = 71
+        XCTAssertEqual(WearableProbeProtocol.sampleRange([index], limit: 288), 0...71)
+        index.endSeq = 999
+        XCTAssertEqual(WearableProbeProtocol.sampleRange([index], limit: 288), 712...999)
+        let old = Data("{\"type\":4,\"name\":\"心跳间隔\",\"state\":\"完成\",\"available\":72,\"received\":7}".utf8)
+        let channel = try JSONDecoder().decode(WearableProbeChannel.self, from: old)
+        XCTAssertEqual(channel.received, 7)
+        XCTAssertNil(channel.requestedStart)
+        XCTAssertNil(channel.requestedEnd)
+    }
+
     func testUnknownFirmwareFieldsSurviveBinaryExportAndMissingMetricsStayEmpty() throws {
         // seq=7, then a field unknown to the supplied schema (field 100, varint 9).
         let wire = Data([0x0d, 7, 0, 0, 0, 0xa0, 6, 9])

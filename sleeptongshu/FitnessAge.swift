@@ -1,5 +1,12 @@
 import Foundation
 
+struct FitnessAgeRequirement: Identifiable {
+    let id: String
+    let title: String
+    let detail: String
+    let satisfied: Bool
+}
+
 struct FitnessAgeEstimate: Equatable {
     enum Boundary { case within, younger, older }
     var years: Double
@@ -16,6 +23,16 @@ struct FitnessAgeEstimate: Equatable {
 enum FitnessAge {
     static let algorithmVersion = "FRIEND-median-v2"
     static let ageKnots = [24.5, 34.5, 44.5, 54.5, 64.5, 74.5]
+    static func requirements(_ days: [HealthDay], now: Date, age: Int?, sex: HealthReferenceSex,
+                             calendar: Calendar = .current) -> [FitnessAgeRequirement] {
+        let recent = HealthOverviewAnalysis.window(days, ending: now, count: 30, calendar: calendar)
+        let count = Set(recent.filter { HealthMetric.vo2.accepts($0.value) }.map { calendar.startOfDay(for: $0.date) }).count
+        return [
+            FitnessAgeRequirement(id: "age", title: "实际年龄", detail: age.map { (20...79).contains($0) ? "已读取 \($0) 岁" : "当前参考范围为 20～79 岁" } ?? "未读到出生日期，可在健康设置中补充年龄", satisfied: age.map { (20...79).contains($0) } ?? false),
+            FitnessAgeRequirement(id: "sex", title: "参考分组", detail: sex == .unspecified ? "未读到参考资料，可在健康设置中补充" : sex.title, satisfied: sex != .unspecified),
+            FitnessAgeRequirement(id: "vo2", title: "最大摄氧量", detail: count >= 3 ? "近 30 天有 \(count) 天记录" : "近 30 天有 \(count) 天，还需 \(3 - count) 天；今天不计入", satisfied: count >= 3)
+        ]
+    }
     // FRIEND 2015, Table 3: measured treadmill VO2max, 50th percentile. Not Cooper Clinic estimates.
     static func reference(_ sex: HealthReferenceSex) -> [Double]? {
         switch sex {

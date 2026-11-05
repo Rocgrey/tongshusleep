@@ -6,6 +6,8 @@ struct WearableProbeChannel: Codable, Identifiable {
     var state = "尚未查询"
     var available: UInt64 = 0
     var received = 0
+    var requestedStart: UInt32? = nil
+    var requestedEnd: UInt32? = nil
     var id: Int { type }
 }
 
@@ -44,7 +46,7 @@ struct WearableProbeReport: Codable {
     var records: [WearableProbeRecord] = []
     var events: [String] = []
     var rejectedFrames = 0
-    var note = "本报告是有数量和时长限制的接入验证，不是完整历史备份。未返回不代表硬件不支持。睡眠输入不是睡眠阶段；波形的单位、采样率及设备时间仍需核对，不生成自研分期或计步结果。设备信息不含蓝牙地址，报告仅保存在本机。"
+    var note = "本报告是有数量和时长限制的接入验证，不是完整历史备份。心跳间隔最多请求最近一个目录块的 288 包，健康记录最多 120 包，其他通道各 8 包；总计最多 512 包、2 MB。目录范围不保证覆盖整夜，未返回不代表硬件不支持。睡眠输入不是睡眠阶段；波形的单位、采样率及设备时间仍需核对，不生成自研分期或计步结果。报告仅保存在本机。"
 }
 
 enum WearableProbeStorage {

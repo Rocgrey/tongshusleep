@@ -75,6 +75,19 @@ final class HealthOverviewTests: XCTestCase {
         XCTAssertNil(FitnessAge.estimate(vo2: 35, age: 40, sex: .unspecified))
     }
 
+    func testAgeRequirementsExplainMissingDataWithoutTreatingDuplicatesOrTodayAsCoverage() {
+        let sameDay = HealthDay(date: day(-1), value: 35, count: 1)
+        let days = [sameDay, sameDay, HealthDay(date: day(0), value: 40, count: 1), HealthDay(date: day(-40), value: 40, count: 1)]
+        let missing = FitnessAge.requirements(days, now: now, age: nil, sex: .unspecified, calendar: calendar)
+        XCTAssertTrue(missing.allSatisfy { !$0.satisfied })
+        XCTAssertTrue(missing[2].detail.contains("1 天"))
+        XCTAssertTrue(missing[2].detail.contains("还需 2 天"))
+        let enough = [1, 2, 3].map { HealthDay(date: day(-$0), value: 35, count: 1) }
+        let ready = FitnessAge.requirements(enough, now: now, age: 40, sex: .female, calendar: calendar)
+        XCTAssertTrue(ready.allSatisfy(\.satisfied))
+        XCTAssertFalse(FitnessAge.requirements(enough, now: now, age: 80, sex: .female, calendar: calendar)[0].satisfied)
+    }
+
     func testAgeAndChangeRequireRecentDistinctDatesAndDoNotAnnualize() throws {
         let days = [1, 10, 20, 31, 45, 59].map { HealthDay(date: day(-$0), value: $0 < 30 ? 40 : 32, count: 1) }
         XCTAssertEqual(FitnessAge.current(days, now: now, age: 45, sex: .male, calendar: calendar)?.vo2, 40)

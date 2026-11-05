@@ -135,13 +135,17 @@ final class WearableProbeClient: ObservableObject {
                     guard !self.failedTypes.contains(type) else { continue }
                     guard replied else { self.channel(type, state: "查询未响应，尚不能确认支持情况"); continue }
                     let table = self.indexes[type] ?? []
-                    guard let range = WearableProbeProtocol.sampleRange(table, limit: type == 0 ? 120 : 8) else {
+                    guard let range = WearableProbeProtocol.sampleRange(table, limit: type == 4 ? 288 : type == 0 ? 120 : 8) else {
                         self.channel(type, state: table.isEmpty ? "设备返回空目录" : "目录范围无法识别"); continue
                     }
                     self.activeRange = range
-                    self.channel(type, state: "正在读取最近的一小段记录")
+                    if let index = self.report?.channels.firstIndex(where: { $0.type == type }) {
+                        self.report?.channels[index].requestedStart = range.lowerBound
+                        self.report?.channels[index].requestedEnd = range.upperBound
+                    }
+                    self.channel(type, state: type == 4 ? "正在读取心跳间隔历史，最多 288 包" : "正在读取最近的一段记录")
                     try await self.send(try WearableProbeProtocol.historyRequest(type: type, range: range))
-                    let deadline = Date.now.addingTimeInterval(12)
+                    let deadline = Date.now.addingTimeInterval(type == 4 ? 30 : 12)
                     while Date.now < deadline {
                         try Task.checkCancellation()
                         if self.failedTypes.contains(type) || self.hasAll(type: type, range: range) || self.storedBytes >= 2_000_000 { break }
@@ -307,7 +311,7 @@ final class WearableProbeClient: ObservableObject {
             guard value.data != nil || !value.unknownFields.data.isEmpty, received[type]?.contains(value.seq) != true else { return }
             let record = try WearableProbeProtocol.record(value, type: type)
             let bytes = record.protobufJSON.utf8.count + (record.protobufBase64?.utf8.count ?? 0)
-            guard storedBytes + bytes <= 2_000_000, (report?.records.count ?? 0) < 200 else {
+            guard storedBytes + bytes <= 2_000_000, (report?.records.count ?? 0) < 512 else {
                 storedBytes = 2_000_000; event("已达到本次记录上限"); return
             }
             received[type, default: []].insert(value.seq)

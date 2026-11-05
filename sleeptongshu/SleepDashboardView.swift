@@ -142,7 +142,7 @@ struct SleepDashboardView: View {
                 }.buttonStyle(.plain).accessibilityLabel("睡眠效率说明")
             }
         }
-        .padding(20).background(Color(red: 0.90, green: 0.95, blue: 0.93), in: RoundedRectangle(cornerRadius: 8))
+        .padding(.vertical, 10)
     }
 
     private func scoreRing(_ record: SleepRecord) -> some View {
@@ -178,6 +178,7 @@ struct SleepDashboardView: View {
             }
             if !record.segments.isEmpty {
                 StageTimeline(record: record)
+                SleepStageBalance(record: record)
                 if record.segments.contains(where: { [.unobserved, .unspecified].contains($0.stage) }) {
                     Text("未分期睡眠 \(record.minutes(.unspecified)) 分 · 未记录 \(record.minutes(.unobserved)) 分。缺口不会计作清醒或深睡；分期比例可能不可用。")
                         .font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
@@ -363,6 +364,7 @@ struct TrendsView: View {
                             Spacer()
                             trendStat("达成目标", value: durations.isEmpty ? "--" : "\(durations.filter { Double($0) >= goal * 60 }.count) 晚")
                         }
+                        SleepRegularityChart(records: periodRecords)
                         SectionHeading(title: "每日记录", subtitle: "点开一晚，查看完整数据")
                         LazyVStack(spacing: 0) {
                             ForEach(periodRecords.reversed()) { record in

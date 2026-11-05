@@ -44,6 +44,17 @@ final class HealthOverviewStore: ObservableObject {
     private let url: URL?
     private var cache: [HealthMetric: [HealthDay]] = [:]
     private var failedToReadCache = false
+    private var lastAutomaticAttempt: Date?
+
+    func refreshIfNeeded(in context: ModelContext? = nil) async {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing") { return }
+        #endif
+        guard let snapshot, Date.now.timeIntervalSince(snapshot.readAt) >= 15 * 60,
+              lastAutomaticAttempt.map({ Date.now.timeIntervalSince($0) >= 60 }) ?? true else { return }
+        lastAutomaticAttempt = .now
+        await refresh(in: context)
+    }
 
     init(url: URL? = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("system-health-overview-v1.json")) {
         self.url = url
@@ -142,7 +153,9 @@ final class HealthOverviewStore: ObservableObject {
                 } catch { notices.append("\(metric.title)本次未能读取，其他项目仍可查看。") }
             }
             guard completed > 0 else { throw NSError(domain: "SystemHealth", code: 1, userInfo: [NSLocalizedDescriptionKey: "系统健康暂时无法读取，请稍后重试。旧快照已保留。"] ) }
-            let sleepRecords = try HealthSleepImporter.automaticRecords(candidates, observations: observations, sources: Array(sources.values))
+            var sleepRecords: [SleepPayload] = []
+            do { sleepRecords = try HealthSleepImporter.automaticRecords(candidates, observations: observations, sources: Array(sources.values)) }
+            catch { notices.append("部分睡眠记录暂未整理，已读到的体征与活动仍可查看。") }
             for payload in sleepRecords {
                 let date = Calendar.current.date(byAdding: .day, value: 1, to: HealthSleepImporter.night(payload.end))!
                 let hours = payload.segments.filter { ![.awake, .unobserved].contains($0.stage) }.reduce(0) { $0 + $1.end.timeIntervalSince($1.start) } / 3600
@@ -163,9 +176,7 @@ final class HealthOverviewStore: ObservableObject {
                 do { try HealthSleepImporter.save(sleepRecords, in: context) }
                 catch { context.rollback(); message = "健康概览已更新，睡眠报告保存未完成，请重新刷新：\(error.localizedDescription)" }
             }
-            if observations.isEmpty {
-                message = "没有读到可用记录。请检查系统健康内是否已有数据，以及是否允许本 App 读取。系统不会告诉 App 某一项读取权限是否被拒绝。"
-            }
+            // Empty results remain visible on the page with permission and source guidance.
         } catch { message = "读取未完成，保留上次快照：\(error.localizedDescription)" }
     }
 
