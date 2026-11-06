@@ -27,6 +27,21 @@ final class HealthOverviewTests: XCTestCase {
         XCTAssertEqual(combined.last?.count, 3)
     }
 
+    func testHealthRefreshDetectsNewOrChangedRecordsButNotAnUnchangedSnapshot() {
+        let oldObservation = observation("stable", value: 48)
+        let old = HealthOverviewSnapshot(readAt: now, sources: [], observations: [oldObservation])
+        let same = HealthOverviewSnapshot(readAt: now.addingTimeInterval(60), sources: [], observations: [oldObservation])
+        let added = HealthOverviewSnapshot(readAt: now, sources: [], observations: [oldObservation, observation("new", value: 52)])
+        let changed = HealthOverviewSnapshot(readAt: now, sources: [], observations: [observation("stable", value: 50)])
+        let empty = HealthOverviewSnapshot(readAt: now, sources: [], observations: [])
+
+        XCTAssertFalse(HealthOverviewAnalysis.hasNewData(previous: old, next: same))
+        XCTAssertTrue(HealthOverviewAnalysis.hasNewData(previous: old, next: added))
+        XCTAssertTrue(HealthOverviewAnalysis.hasNewData(previous: old, next: changed))
+        XCTAssertFalse(HealthOverviewAnalysis.hasNewData(previous: nil, next: empty))
+        XCTAssertTrue(HealthOverviewAnalysis.hasNewData(previous: nil, next: added))
+    }
+
     func testCumulativeTotalsRejectOverlappingAndCrossDayIntervals() {
         let first = observation("1", value: 100, metric: .steps)
         var second = observation("2", value: 80, metric: .steps)

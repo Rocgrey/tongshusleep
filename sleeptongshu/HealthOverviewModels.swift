@@ -120,6 +120,16 @@ enum HealthOverviewAnalysis {
         return sorted.count.isMultiple(of: 2) ? (sorted[index - 1] + sorted[index]) / 2 : sorted[index]
     }
 
+    static func hasNewData(previous: HealthOverviewSnapshot?, next: HealthOverviewSnapshot) -> Bool {
+        guard let previous else { return !next.observations.isEmpty }
+        let old = Dictionary(previous.observations.map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
+        return next.observations.contains { observation in
+            guard let existing = old[observation.id] else { return true }
+            return existing.metric != observation.metric || existing.value != observation.value ||
+                existing.start != observation.start || existing.end != observation.end
+        }
+    }
+
     static func daily(_ observations: [HealthObservation], metric: HealthMetric, calendar: Calendar = .current) -> [HealthDay] {
         let valid = Dictionary(observations.filter { $0.metric == metric && $0.end >= $0.start && metric.accepts($0.value) }
             .map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first }).values

@@ -40,6 +40,7 @@ final class HealthOverviewStore: ObservableObject {
     @Published private(set) var progress = ""
     @Published private(set) var progressValue: Double?
     @Published var message: String?
+    @Published private(set) var messageIsError = false
     @Published private(set) var storageError: String?
     private let health = HKHealthStore()
     private let url: URL?
@@ -90,12 +91,13 @@ final class HealthOverviewStore: ObservableObject {
 
     func refresh(in context: ModelContext? = nil) async {
         guard !isLoading else { return }
-        guard !failedToReadCache else { message = storageError; return }
+        guard !failedToReadCache else { message = storageError; messageIsError = true; return }
         guard HealthSleepImporter.enabled, HKHealthStore.isHealthDataAvailable() else {
-            message = "请在启用系统健康的 iPhone 版本中读取。"; return
+            message = "请在启用系统健康的 iPhone 版本中读取。"; messageIsError = true; return
         }
         isLoading = true
         message = nil
+        messageIsError = false
         progressValue = nil
         defer { isLoading = false; progress = ""; progressValue = nil }
         do {
@@ -181,16 +183,18 @@ final class HealthOverviewStore: ObservableObject {
             let next = HealthOverviewSnapshot(readAt: readAt, sources: Array(sources.values).sorted { $0.id < $1.id },
                                               observations: observations, age: age, referenceSex: reference, truncatedMetrics: truncated,
                                               sleepRecords: sleepRecords, notices: notices)
+            let hasNewData = HealthOverviewAnalysis.hasNewData(previous: snapshot, next: next)
             // Save before publishing; an unsuccessful refresh leaves the previous snapshot intact.
             try write(HealthOverviewArchive(snapshot: next))
             snapshot = next; cache = [:]; storageError = nil
-            message = nil
+            message = hasNewData ? "健康数据已更新，读取到新增记录。" : "暂时没有新的数据可以更新，当前数据已是最新的。"
+            messageIsError = false
             if let context {
                 do { try HealthSleepImporter.save(sleepRecords, in: context) }
-                catch { context.rollback(); message = "健康概览已更新，睡眠报告保存未完成，请重新刷新：\(error.localizedDescription)" }
+                catch { context.rollback(); message = "健康概览已更新，但睡眠报告保存未完成，请重新刷新。"; messageIsError = true }
             }
             // Empty results remain visible on the page with permission and source guidance.
-        } catch { message = "读取未完成，原有数据仍保留：\(error.localizedDescription)" }
+        } catch { message = "读取未完成，原有数据仍保留：\(error.localizedDescription)"; messageIsError = true }
     }
 
     nonisolated static func stage(_ raw: Int) -> SleepStage? {

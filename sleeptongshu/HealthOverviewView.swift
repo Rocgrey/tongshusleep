@@ -40,8 +40,8 @@ struct HealthOverviewView: View {
                 if let error = health.storageError { Text(error).font(.system(size: 12)).foregroundStyle(.red) }
                 if health.isLoading { refreshProgress }
                 if let message = health.message {
-                    Label(message, systemImage: "exclamationmark.circle.fill")
-                        .font(.system(size: 12)).foregroundStyle(SleepPalette.awake).lineSpacing(4)
+                    Label(message, systemImage: health.messageIsError ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
+                        .font(.system(size: 12)).foregroundStyle(health.messageIsError ? SleepPalette.awake : SleepPalette.teal).lineSpacing(4)
                         .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("healthRefreshMessage")
                 }
                 healthConnection
@@ -100,7 +100,7 @@ struct HealthOverviewView: View {
                 }
                 Spacer(minLength: 0)
             }
-            Text("统一读取最近 90 天的记录，无需选择设备。手环、手表或戒指的记录须先由配套 App 写入系统健康。")
+            Text("统一读取最近 90 天的记录，无需选择设备。最大摄氧量也会读取；设备或配套 App 需先将数据写入系统健康，才会显示。")
                 .font(.system(size: 13)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
             Button { Task { await health.refresh(in: context) } } label: {
                 Label(health.snapshot == nil ? "读取系统健康" : "更新健康数据", systemImage: "heart.fill")
