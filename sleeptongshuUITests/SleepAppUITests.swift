@@ -131,7 +131,7 @@ final class SleepAppUITests: XCTestCase {
         XCTAssertTrue(app.buttons["readHealthOverview"].exists)
         reveal(app.staticTexts["fitnessAgeValue"])
         XCTAssertEqual(app.staticTexts["fitnessAgeValue"].label, "等待了解你")
-        XCTAssertTrue(app.buttons["healthRequestAccess"].exists)
+        XCTAssertFalse(app.buttons["healthRequestAccess"].exists)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "实际年龄未填写")).firstMatch.exists)
         capture("34-health-empty")
         scrollDown()
@@ -147,6 +147,23 @@ final class SleepAppUITests: XCTestCase {
         XCTAssertTrue(app.buttons["healthLatest-hrv"].exists)
         XCTAssertTrue(app.buttons["fitnessAgeHelp"].exists)
         capture("46-health-refresh-preserves-page")
+    }
+
+    func testUnifiedHealthButtonShowsUnchangedResultInlineWithoutAlerts() {
+        app.terminate()
+        app.launchArguments += ["-ui-testing-health", "-ui-testing-health-refresh-unchanged", "-preview-health"]
+        app.launch()
+        let read = app.buttons["readHealthOverview"]
+        XCTAssertTrue(read.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["healthRequestAccess"].exists)
+        press(read)
+        let message = app.staticTexts["healthRefreshMessage"]
+        XCTAssertTrue(message.waitForExistence(timeout: 5))
+        XCTAssertTrue(message.label.contains("暂时没有新的数据可以更新"))
+        XCTAssertEqual(app.alerts.count, 0)
+        XCTAssertTrue(app.buttons["healthLatest-steps"].exists)
+        XCTAssertTrue(app.tabBars.buttons["健康"].exists)
+        capture("55-health-unified-no-changes")
     }
 
     func testHealthOverviewShowsReferenceAgeAndOriginalResearchTitle() {
@@ -230,7 +247,8 @@ final class SleepAppUITests: XCTestCase {
 
     func testExpandedHealthMetricsAndWorkoutDetails() {
         launchHealthFixture()
-        XCTAssertTrue(app.buttons["healthRequestAccess"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["readHealthOverview"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["healthRequestAccess"].exists)
         XCTAssertTrue(app.staticTexts["healthReadStatus"].label.contains("已读到 19 项"))
         reveal(app.buttons["healthMetric-distance"])
         capture("47-health-distance-and-energy")

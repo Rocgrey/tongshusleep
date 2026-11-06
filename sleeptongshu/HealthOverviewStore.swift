@@ -63,6 +63,9 @@ final class HealthOverviewStore: ObservableObject {
     private var cache: [HealthMetric: [HealthDay]] = [:]
     private var failedToReadCache = false
     private var lastAutomaticAttempt: Date?
+    private let authorizationDefaults: UserDefaults?
+    private static let authorizationSchema = 1
+    private static let authorizationVersionKey = "systemHealthRequestedSchema"
 
     func refreshIfNeeded(in context: ModelContext? = nil) async {
         #if DEBUG
@@ -74,8 +77,10 @@ final class HealthOverviewStore: ObservableObject {
         await refresh(in: context)
     }
 
-    init(url: URL? = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("system-health-overview-v1.json")) {
+    init(url: URL? = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("system-health-overview-v1.json"),
+         authorizationDefaults: UserDefaults? = .standard) {
         self.url = url
+        self.authorizationDefaults = authorizationDefaults
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-ui-testing") {
             if ProcessInfo.processInfo.arguments.contains("-ui-testing-health") { loadFixture() }
@@ -108,6 +113,18 @@ final class HealthOverviewStore: ObservableObject {
 
     func refresh(in context: ModelContext? = nil, requestAccess: Bool = false) async {
         guard !isLoading else { return }
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing"),
+           ProcessInfo.processInfo.arguments.contains("-ui-testing-health-refresh-unchanged"), var next = snapshot {
+            isLoading = true; message = nil; progress = "正在检查更新"; progressValue = 0
+            defer { isLoading = false; progress = ""; progressValue = nil }
+            try? await Task.sleep(for: .milliseconds(250))
+            next.readAt = .now
+            message = Self.refreshSummary(previous: snapshot, next: next)
+            snapshot = next
+            return
+        }
+        #endif
         guard !failedToReadCache else { message = storageError; messageIsError = true; return }
         guard HealthSleepImporter.enabled, HKHealthStore.isHealthDataAvailable() else {
             message = "请在启用系统健康的 iPhone 版本中读取。"; messageIsError = true; return
@@ -125,12 +142,16 @@ final class HealthOverviewStore: ObservableObject {
             types.insert(HKObjectType.characteristicType(forIdentifier: .dateOfBirth)!)
             types.insert(HKObjectType.characteristicType(forIdentifier: .biologicalSex)!)
             types.insert(HKObjectType.workoutType())
-            // Routine refreshes query existing access; only onboarding or the permission button opens the system sheet.
+            // Only a new permission request may present the system sheet; normal refreshes stay inline.
             if snapshot == nil || requestAccess {
                 progress = "正在检查读取权限"
                 let authorization = try await health.statusForAuthorizationRequest(toShare: [], read: types)
-                if authorization != .unnecessary {
+                let alreadyRequested = (authorizationDefaults?.integer(forKey: Self.authorizationVersionKey) ?? 0) >= Self.authorizationSchema
+                if Self.needsAuthorization(authorization, alreadyRequested: alreadyRequested) {
                     try await health.requestAuthorization(toShare: [], read: types)
+                    authorizationDefaults?.set(Self.authorizationSchema, forKey: Self.authorizationVersionKey)
+                } else if authorization == .unnecessary {
+                    authorizationDefaults?.set(Self.authorizationSchema, forKey: Self.authorizationVersionKey)
                 }
             }
             let readAt = Date.now
@@ -217,17 +238,11 @@ final class HealthOverviewStore: ObservableObject {
             let next = HealthOverviewSnapshot(readAt: readAt, sources: Array(sources.values).sorted { $0.id < $1.id },
                                               observations: observations, age: age, referenceSex: reference, truncatedMetrics: truncated,
                                               sleepRecords: sleepRecords, notices: notices, workouts: workouts)
-            let hasNewData = HealthOverviewAnalysis.hasNewData(previous: snapshot, next: next)
+            let resultMessage = Self.refreshSummary(previous: snapshot, next: next)
             // Save before publishing; an unsuccessful refresh leaves the previous snapshot intact.
             try write(HealthOverviewArchive(snapshot: next))
             snapshot = next; cache = [:]; storageError = nil
-            if !notices.isEmpty {
-                message = "已更新可读取的项目，部分记录稍后再试。"
-            } else if observations.isEmpty {
-                message = "暂时没有新的数据可以更新。可以允许更多读取项目，或先同步设备记录。"
-            } else {
-                message = hasNewData ? "健康数据已更新。新的记录已加入你的健康概览。" : "暂时没有新的数据可以更新，已读取的记录已是最新。"
-            }
+            message = resultMessage
             messageIsError = !notices.isEmpty
             if let context {
                 do { try HealthSleepImporter.save(sleepRecords, in: context) }
@@ -242,6 +257,16 @@ final class HealthOverviewStore: ObservableObject {
         case .asleepCore: .light; case .asleepDeep: .deep; case .asleepREM: .rem
         case .awake: .awake; case .asleepUnspecified: .unspecified; default: nil
         }
+    }
+    nonisolated static func needsAuthorization(_ status: HKAuthorizationRequestStatus, alreadyRequested: Bool = false) -> Bool {
+        status == .shouldRequest && !alreadyRequested
+    }
+    nonisolated static func refreshSummary(previous: HealthOverviewSnapshot?, next: HealthOverviewSnapshot) -> String {
+        if !(next.notices ?? []).isEmpty { return "已更新可读取的项目，部分记录稍后再试。" }
+        if next.observations.isEmpty { return "暂时没有新的数据可以更新。可以在系统健康中检查读取权限，或先同步设备记录。" }
+        return HealthOverviewAnalysis.hasNewData(previous: previous, next: next)
+            ? "健康数据已更新。新的记录已加入你的健康概览。"
+            : "暂时没有新的数据可以更新，已读取的记录已是最新。"
     }
     nonisolated static func workoutRecord(_ workout: HKWorkout) -> HealthWorkoutRecord? {
         let minutes = workout.duration / 60

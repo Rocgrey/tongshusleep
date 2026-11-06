@@ -9,6 +9,7 @@ struct HealthOverviewView: View {
     var embedded = false
     @State private var showsSources = false
     @State private var showsAccess = false
+    @State private var showsAccount = false
     @State private var detail: HealthMetric?
     @State private var help: MetricHelp?
     @AppStorage("healthManualProfile") private var manualProfile = false
@@ -63,6 +64,7 @@ struct HealthOverviewView: View {
             .toolbar(embedded ? .visible : .hidden, for: .navigationBar)
             .sheet(isPresented: $showsSources) { HealthSourceSelectionView() }
             .sheet(isPresented: $showsAccess) { HealthAccessHelpView() }
+            .sheet(isPresented: $showsAccount) { AccountCenterView() }
             .sheet(item: $help) { MetricHelpSheet(help: $0) }
             .sheet(item: $detail) { metric in HealthMetricDetailView(metric: metric) }
             .refreshable { await health.refresh(in: context) }
@@ -82,9 +84,9 @@ struct HealthOverviewView: View {
             Button { showsSources = true } label: {
                 Image(systemName: "slider.horizontal.3").font(.system(size: 19)).frame(width: 44, height: 44).background(.white, in: Circle())
             }.accessibilityLabel("健康设置").accessibilityIdentifier("healthSources").help("健康设置")
-            Button { Task { await health.refresh(in: context) } } label: {
-                Image(systemName: "arrow.clockwise").font(.system(size: 18)).frame(width: 44, height: 44).background(.white, in: Circle())
-            }.disabled(health.isLoading).accessibilityLabel("刷新系统健康").accessibilityIdentifier("refreshHealth").help("刷新系统健康")
+            Button { showsAccount = true } label: {
+                Image(systemName: "person.crop.circle").font(.system(size: 22)).frame(width: 44, height: 44).background(.white, in: Circle())
+            }.accessibilityLabel("我的账号").accessibilityIdentifier("openAccount").help("我的账号")
         }
     }
 
@@ -103,20 +105,24 @@ struct HealthOverviewView: View {
             }
             Text("有记录的项目都会展示：活动、睡眠、体征与身体测量。统一读取最近 90 天，无需选择设备。")
                 .font(.system(size: 13)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
-            Button { Task { await health.refresh(in: context) } } label: {
-                Label(health.snapshot == nil ? "读取系统健康" : "更新健康数据", systemImage: "heart.fill")
-                    .foregroundStyle(.white).frame(maxWidth: .infinity).padding(.vertical, 6)
-            }.buttonStyle(.borderedProminent).disabled(health.isLoading).accessibilityIdentifier("readHealthOverview")
+            Button { Task { await health.refresh(in: context, requestAccess: true) } } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: health.isLoading ? "arrow.triangle.2.circlepath" : "heart.text.clipboard")
+                        .font(.system(size: 19, weight: .medium))
+                    Text(health.isLoading ? "正在读取健康记录" : "从系统健康读取")
+                        .font(.system(size: 15, weight: .semibold))
+                    Spacer(minLength: 6)
+                    Image(systemName: "arrow.down.circle").font(.system(size: 19))
+                }.foregroundStyle(.white).padding(.horizontal, 18).frame(maxWidth: .infinity, minHeight: 54)
+                    .background(health.isLoading ? SleepPalette.teal.opacity(0.6) : SleepPalette.teal, in: RoundedRectangle(cornerRadius: 8))
+            }.buttonStyle(.plain).disabled(health.isLoading).accessibilityIdentifier("readHealthOverview")
             if health.isLoading { refreshProgress }
             if let message = health.message {
                 Label(message, systemImage: health.messageIsError ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
                     .font(.system(size: 12)).foregroundStyle(health.messageIsError ? SleepPalette.awake : SleepPalette.teal).lineSpacing(4)
                     .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("healthRefreshMessage")
             }
-            Button { Task { await health.refresh(in: context, requestAccess: true) } } label: {
-                Label("允许更多读取项目", systemImage: "lock.open")
-            }.font(.system(size: 12)).disabled(health.isLoading).accessibilityIdentifier("healthRequestAccess")
-            Text("首次读取或允许新项目时显示系统授权。之前未允许的项目，可在系统健康的 App 权限中开启；设备记录需先同步到系统健康。")
+            Text("首次使用或新增读取项目时申请授权。之后直接更新，结果显示在这里。已拒绝的项目可在系统健康中开启。")
                 .font(.system(size: 11)).foregroundStyle(SleepPalette.muted).lineSpacing(3)
             if let snapshot = health.snapshot {
                 HStack(spacing: 0) {

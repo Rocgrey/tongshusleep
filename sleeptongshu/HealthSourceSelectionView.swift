@@ -21,9 +21,6 @@ struct HealthSourceSelectionView: View {
                     Text("使用系统健康中已有且获准读取的记录，不需要逐项选择设备。设备换了，只要记录已写入系统健康，刷新后就可以查看。")
                         .font(.system(size: 13)).foregroundStyle(SleepPalette.muted)
                     NavigationLink { HealthAccessGuide() } label: { Label("授权与设备同步指引", systemImage: "questionmark.circle") }
-                    Button { Task { await health.refresh(in: context, requestAccess: true) } } label: {
-                        Label("允许更多读取项目", systemImage: "lock.open")
-                    }.disabled(health.isLoading)
                 }
                 Section {
                     Toggle("手动填写参考资料", isOn: $manualProfile).accessibilityIdentifier("manualHealthProfile")
@@ -40,7 +37,7 @@ struct HealthSourceSelectionView: View {
                 } header: { Text("年龄参考资料") }
                 footer: { Text("探索性估算使用实际年龄和近期数据；心肺研究参考另要求 20～79 岁、参考分组及最大摄氧量。参考分组变化会影响研究参考值。") }
                 Section("读取与本机快照") {
-                    Button { Task { await health.refresh(in: context) } } label: { Label(health.isLoading ? health.progress : "重新读取系统健康", systemImage: "arrow.clockwise") }
+                    Button { Task { await health.refresh(in: context, requestAccess: true) } } label: { Label(health.isLoading ? health.progress : "从系统健康读取", systemImage: "heart.text.clipboard") }
                         .disabled(health.isLoading)
                     if let date = health.snapshot?.readAt { LabeledContent("上次读取", value: date.formatted(date: .abbreviated, time: .shortened)) }
                     if let message = health.message { Text(message).font(.system(size: 12)).foregroundStyle(SleepPalette.muted) }

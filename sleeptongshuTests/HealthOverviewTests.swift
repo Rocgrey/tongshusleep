@@ -4,6 +4,12 @@ import SwiftData
 @testable import sleeptongshu
 
 final class HealthOverviewTests: XCTestCase {
+    func testAuthorizationDoesNotPresentAgainForCompletedRequestsOrUnnecessaryStatus() {
+        XCTAssertTrue(HealthOverviewStore.needsAuthorization(.shouldRequest))
+        XCTAssertFalse(HealthOverviewStore.needsAuthorization(.unnecessary))
+        XCTAssertFalse(HealthOverviewStore.needsAuthorization(.unknown))
+        XCTAssertFalse(HealthOverviewStore.needsAuthorization(.shouldRequest, alreadyRequested: true))
+    }
     private var calendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!

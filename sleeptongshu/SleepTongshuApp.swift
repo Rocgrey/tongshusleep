@@ -3,6 +3,7 @@ import SwiftData
 
 @main
 struct SleepTongshuApp: App {
+    @StateObject private var account = AccountStore.appStore()
     private let container: ModelContainer?
     private let startupError: String?
 
@@ -20,7 +21,7 @@ struct SleepTongshuApp: App {
     var body: some Scene {
         WindowGroup {
             if let container {
-                RootTabView().modelContainer(container).tint(SleepPalette.teal).preferredColorScheme(.light)
+                AppEntryView().environmentObject(account).modelContainer(container).tint(SleepPalette.teal).preferredColorScheme(.light)
                     .environment(\.locale, Locale(identifier: "zh_CN"))
             } else {
                 ContentUnavailableView("无法打开本地记录", systemImage: "externaldrive.badge.exclamationmark",
