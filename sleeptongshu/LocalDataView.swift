@@ -37,7 +37,7 @@ struct LocalDataView: View {
                     Button { showsEditor = true } label: { Label("添加睡眠记录", systemImage: "plus.circle") }
                     Button { prepareExport() } label: { Label("导出 JSON 备份", systemImage: "square.and.arrow.up") }.disabled(records.isEmpty)
                     Button { showsImporter = true } label: { Label("导入 JSON 备份", systemImage: "square.and.arrow.down") }
-                } header: { Text("本地数据") } footer: { Text("无需账号，App 不上传记录。导出后可由你选择保存位置；相同 ID 的记录在导入时会跳过。") }
+                } header: { Text("本地数据") } footer: { Text("本机记录保留在手机上。上传需登录并选择具体记录；导出后可自行选择保存位置，相同 ID 的记录在导入时会跳过。") }
                 Section("本机体征") {
                     LabeledContent("体征记录", value: "\(vitals.visibleSamples.count) 条")
                     NavigationLink { WearableVitalsView() } label: { Label("查看体征与图表", systemImage: "heart.text.clipboard") }

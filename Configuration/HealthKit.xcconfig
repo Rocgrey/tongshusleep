@@ -1,3 +1,4 @@
 // Read-only health import requires a provisioning profile that supports HealthKit.
+#include "Service.xcconfig"
 SLEEP_HEALTHKIT_ENABLED = YES
 CODE_SIGN_ENTITLEMENTS = Configuration/HealthKit.entitlements

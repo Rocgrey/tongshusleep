@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 
 struct SleepDashboardView: View {
+    @EnvironmentObject private var account: AccountStore
     @Query(sort: \SleepRecord.end, order: .reverse) private var records: [SleepRecord]
     @State private var selectedID: UUID?
     @State private var showsHistory = false
@@ -24,6 +25,12 @@ struct SleepDashboardView: View {
                         stages(record)
                         vitals(record)
                         analysis(record)
+                        if record.source != .sample {
+                            Button { account.open(.upload(record.id)) } label: {
+                                Label("上传这晚睡眠", systemImage: "icloud.and.arrow.up")
+                                    .frame(maxWidth: .infinity, minHeight: 50).contentShape(Rectangle())
+                            }.buttonStyle(.bordered).tint(SleepPalette.teal).accessibilityIdentifier("openSleepUpload")
+                        }
                         if record.source == .sample {
                             Label("当前为预览记录，真实睡眠单独保存。可在本地数据中移除预览记录。", systemImage: "info.circle")
                                 .font(.system(size: 12)).foregroundStyle(SleepPalette.muted)

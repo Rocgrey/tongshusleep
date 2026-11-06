@@ -27,7 +27,7 @@ struct KeychainAccountStorage: AccountSessionStorage {
         let status = SecItemCopyMatching(query as CFDictionary, &item)
         if status == errSecItemNotFound { return nil }
         guard status == errSecSuccess, let data = item as? Data,
-              let value = try? JSONDecoder().decode(SavedAccountSession.self, from: data) else { throw AccountError.secureStorage }
+              let value = try? JSONDecoder().decode(SavedAccountSession.self, from: data) else { throw APIError.secureStorage }
         return value
     }
     func save(_ value: SavedAccountSession) throws {
@@ -36,12 +36,20 @@ struct KeychainAccountStorage: AccountSessionStorage {
         let status = SecItemUpdate(query as CFDictionary, update as CFDictionary)
         if status == errSecItemNotFound {
             let insert = query.merging(update) { _, value in value }
-            guard SecItemAdd(insert as CFDictionary, nil) == errSecSuccess else { throw AccountError.secureStorage }
-        } else if status != errSecSuccess { throw AccountError.secureStorage }
+            guard SecItemAdd(insert as CFDictionary, nil) == errSecSuccess else { throw APIError.secureStorage }
+        } else if status != errSecSuccess { throw APIError.secureStorage }
     }
     func clear() throws {
         let status = SecItemDelete(query as CFDictionary)
-        guard status == errSecSuccess || status == errSecItemNotFound else { throw AccountError.secureStorage }
+        guard status == errSecSuccess || status == errSecItemNotFound else { throw APIError.secureStorage }
+    }
+}
+
+/// Protected destinations survive an expired session; no upload is retried automatically.
+enum AccountDestination: Identifiable, Equatable {
+    case profile, upload(UUID)
+    var id: String {
+        switch self { case .profile: "profile"; case .upload(let id): "upload-\(id)" }
     }
 }
 
@@ -50,122 +58,162 @@ final class AccountStore: ObservableObject {
     @Published private(set) var session: AccountSession?
     @Published private(set) var isLoading = false
     @Published private(set) var isRestoring = true
-    @Published private(set) var isPreview = false
     @Published var message: String?
-    private let api: any AccountServing
+    @Published var presentedDestination: AccountDestination?
+    private(set) var pendingDestination: AccountDestination?
+    let api: any AccountServing
+    var client: APIClient { api.client }
     private let storage: any AccountSessionStorage
     private var restored = false
-    var isConfigured: Bool { api.isConfigured }
-    var canEnter: Bool { session != nil || isPreview }
+    private var generation = UUID()
+    private var expiryTask: Task<Void, Never>?
+    var canEnter: Bool { session != nil }
 
-    init(api: any AccountServing = AccountAPI(), storage: any AccountSessionStorage = KeychainAccountStorage()) {
-        self.api = api
+    init(api: (any AccountServing)? = nil, storage: any AccountSessionStorage = KeychainAccountStorage()) {
+        self.api = api ?? AccountAPI(client: APIClient())
         self.storage = storage
+        client.tokenProvider = { [weak self] in
+            self?.checkExpiry()
+            return self?.session?.accessToken
+        }
+        client.onUnauthorized = { [weak self] token, text in
+            // An old response must never sign out a newer session.
+            guard self?.session?.accessToken == token else { return }
+            self?.invalidate(message: text)
+        }
     }
     static func appStore() -> AccountStore {
         #if DEBUG
-        let arguments = ProcessInfo.processInfo.arguments
-        if arguments.contains("-ui-testing"), arguments.contains("-ui-testing-account-service") {
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("-ui-testing"), args.contains("-ui-testing-account-service") {
             return AccountStore(api: PreviewAccountAPI(), storage: PreviewAccountStorage())
         }
         #endif
         return AccountStore()
     }
-    func checkExpiry() {
-        guard let session, session.expiresAt <= .now else { return }
-        self.session = nil
-        try? storage.clear()
-        message = AccountError.expired.localizedDescription
+    func open(_ destination: AccountDestination) {
+        checkExpiry()
+        if session != nil { presentedDestination = destination }
+        else { pendingDestination = destination }
     }
+    func checkExpiry() {
+        if let session, session.expiresAt <= .now { invalidate(message: "登录已到期，请重新登录。") }
+    }
+    private func invalidate(message: String) {
+        generation = UUID()
+        expiryTask?.cancel()
+        if let destination = presentedDestination { pendingDestination = destination }
+        presentedDestination = nil
+        session = nil
+        self.message = message
+        do { try storage.clear() }
+        catch { self.message = message + "\n本机凭证未能清除，重新打开时会再次检查有效性。" }
+    }
+    private func activate(_ value: AccountSession) {
+        session = value
+        presentedDestination = pendingDestination
+        pendingDestination = nil
+        expiryTask?.cancel()
+        let seconds = max(0, value.expiresAt.timeIntervalSinceNow)
+        expiryTask = Task { [weak self] in
+            do { try await Task.sleep(for: .seconds(min(seconds, 31_536_000))); self?.checkExpiry() }
+            catch { }
+        }
+    }
+    /// Remembered sessions are accepted only after /me verifies them.
     func restore() async {
         guard !restored else { return }
         restored = true
+        let operation = generation
         defer { isRestoring = false }
-        guard isConfigured else { return }
         do {
-            guard let saved = try storage.load(), saved.serviceID == api.serviceID else { return }
-            guard saved.session.expiresAt > .now else { try storage.clear(); message = AccountError.expired.localizedDescription; return }
+            guard let saved = try storage.load() else { return }
+            guard saved.serviceID == client.serviceID else { try storage.clear(); return }
+            guard saved.session.expiresAt > .now else { invalidate(message: "登录已到期，请重新登录。"); return }
             let user = try await api.me(token: saved.session.accessToken)
-            guard user.id == saved.session.user.id else { throw AccountError.invalidResponse }
-            var renewed = saved.session
-            renewed.user = user
-            try storage.save(SavedAccountSession(serviceID: api.serviceID, session: renewed))
-            session = renewed
+            guard operation == generation else { return }
+            guard user.id == saved.session.user.id else { throw APIError.invalidResponse }
+            var next = saved.session
+            next.user = user
+            try storage.save(SavedAccountSession(serviceID: client.serviceID, session: next))
+            activate(next)
         } catch {
-            if error as? AccountError == .expired { try? storage.clear() }
-            message = error.localizedDescription
+            guard operation == generation else { return }
+            if (error as? APIError)?.isUnauthorized == true { invalidate(message: error.localizedDescription) }
+            else { message = error.localizedDescription }
         }
     }
-    func submit(register: Bool, username: String, password: String, confirmation: String, displayName: String) async {
-        guard !isLoading else { return }
+    /// Registration has no token; the caller switches back to the email login form.
+    func register(username: String, email: String, password: String, confirmation: String) async -> Bool {
+        guard !isLoading else { return false }
         message = nil
-        guard isConfigured else { message = AccountError.notConfigured.localizedDescription; return }
-        let username = AccountInput.username(username)
         do {
-            try AccountInput.validate(username: username, password: password, confirmation: register ? confirmation : nil,
-                                      displayName: register ? displayName : "")
+            let name = username.trimmingCharacters(in: .whitespacesAndNewlines)
+            let email = AccountInput.email(email)
+            try AccountInput.validate(email: email, password: password, username: name, confirmation: confirmation)
             isLoading = true
             defer { isLoading = false }
-            let next: AccountSession
-            if register { next = try await api.register(username: username, password: password, displayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines)) }
-            else { next = try await api.login(username: username, password: password) }
-            do { try storage.save(SavedAccountSession(serviceID: api.serviceID, session: next)) }
-            catch {
-                try? await api.logout(token: next.accessToken)
-                throw AccountError.secureStorage
-            }
-            isPreview = false
-            session = next
-        } catch is CancellationError { }
-        catch { message = error.localizedDescription }
+            let result = try await api.register(username: name, email: email, password: password)
+            message = result.message
+            return true
+        } catch { message = error.localizedDescription; return false }
     }
-    func preview() {
-        guard !isConfigured else { return }
-        isPreview = true
+    func login(email: String, password: String, remember: Bool) async {
+        guard !isLoading else { return }
         message = nil
+        let operation = generation
+        do {
+            try AccountInput.validate(email: AccountInput.email(email), password: password)
+            isLoading = true
+            defer { isLoading = false }
+            let next = try await api.login(email: AccountInput.email(email), password: password)
+            guard operation == generation else { return }
+            do {
+                if remember { try storage.save(SavedAccountSession(serviceID: client.serviceID, session: next)) }
+                else { try storage.clear() }
+            } catch {
+                try? await api.logout(token: next.accessToken)
+                throw APIError.secureStorage
+            }
+            activate(next)
+        } catch { if operation == generation { message = error.localizedDescription } }
     }
-    func leavePreview() { isPreview = false; message = nil }
+    /// Logout clears this device immediately, even when revocation cannot reach the server.
     func signOut() async {
         guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
-        do { try storage.clear() }
-        catch { message = AccountError.secureStorage.localizedDescription; return }
         let token = session?.accessToken
-        session = nil
-        isPreview = false
-        message = nil
+        pendingDestination = nil
+        presentedDestination = nil
+        invalidate(message: "已退出登录。")
+        pendingDestination = nil
         if let token {
             do { try await api.logout(token: token) }
-            catch { message = "本机已退出。账号服务暂未确认退出，请稍后重新登录。" }
+            catch { message = "本机已退出。服务暂时无法确认退出，请稍后重试登录。" }
         }
     }
 }
 
 #if DEBUG
-// UI automation only: no network, keychain writes or real registrations.
+// In-memory service is enabled only by explicit UI-automation arguments.
 private final class PreviewAccountStorage: AccountSessionStorage {
     var saved: SavedAccountSession?
     func load() throws -> SavedAccountSession? { saved }
     func save(_ value: SavedAccountSession) throws { saved = value }
     func clear() throws { saved = nil }
 }
-
-private struct PreviewAccountAPI: AccountServing {
-    let isConfigured = true
-    let serviceID = "ui-test-memory"
-    func login(username: String, password: String) async throws -> AccountSession {
-        if password == "wrongpass" { throw AccountError.invalidCredentials }
-        return make(username: username, displayName: "测试用户")
+private final class PreviewAccountAPI: AccountServing {
+    let client = APIClient(configuration: APIConfiguration(baseURL: "https://ui.example.test/api/v1"))
+    func login(email: String, password: String) async throws -> AccountSession {
+        if password == "wrongpass" { throw APIError.unauthorized("邮箱或密码不正确") }
+        return AccountSession(user: AccountUser(id: 1, username: "sleeper_test", email: email, createdAt: .now),
+                              accessToken: "ui-test-only", expiresAt: .now.addingTimeInterval(3600))
     }
-    func register(username: String, password: String, displayName: String) async throws -> AccountSession {
-        make(username: username, displayName: displayName)
+    func register(username: String, email: String, password: String) async throws -> RegistrationResult {
+        RegistrationResult(message: "注册成功，请登录")
     }
-    func me(token: String) async throws -> AccountUser { throw AccountError.expired }
+    func me(token: String) async throws -> AccountUser { throw APIError.unauthorized("登录已失效") }
     func logout(token: String) async throws { }
-    private func make(username: String, displayName: String) -> AccountSession {
-        AccountSession(user: AccountUser(id: "ui-only", username: username, displayName: displayName, createdAt: .now),
-                       accessToken: "ui-test-only", expiresAt: .now.addingTimeInterval(3600))
-    }
 }
 #endif

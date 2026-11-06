@@ -5,10 +5,7 @@ final class AccountUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
-    }
-    private func launch(configured: Bool) {
-        app.launchArguments = ["-ui-testing", "-ui-testing-account", "-compact-preview"]
-        if configured { app.launchArguments.append("-ui-testing-account-service") }
+        app.launchArguments = ["-ui-testing", "-ui-testing-account", "-ui-testing-account-service", "-compact-preview"]
         app.launch()
         XCTAssertTrue(app.segmentedControls["accountMode"].waitForExistence(timeout: 5))
     }
@@ -25,71 +22,74 @@ final class AccountUITests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
     }
-    func testUnconfiguredServiceShowsHonestPreviewWithoutRegistering() {
-        launch(configured: false)
-        XCTAssertTrue(app.staticTexts["accountNotConfigured"].exists)
-        capture("50-account-login-unconfigured")
-        app.segmentedControls["accountMode"].buttons["注册"].tap()
-        XCTAssertTrue(app.secureTextFields["accountConfirmPassword"].exists)
+    private func enterLogin(password: String = "test-pass-only") {
+        let email = app.textFields["accountEmail"]
+        if (email.value as? String)?.contains("@") != true {
+            show(email); email.tap(); email.typeText("sleeper@example.com\n")
+        }
+        let input = app.secureTextFields["accountPassword"]
+        show(input); input.tap(); input.typeText(password + "\n")
         show(app.buttons["accountSubmit"])
-        XCTAssertFalse(app.buttons["accountSubmit"].isEnabled)
-        capture("51-account-register-unconfigured")
-        for _ in 0..<4 where !app.buttons["accountPreview"].isHittable { app.swipeDown() }
-        app.buttons["accountPreview"].tap()
-        capture("52-account-after-preview")
-        XCTAssertTrue(app.tabBars.buttons["健康"].waitForExistence(timeout: 5))
-        app.tabBars.buttons["健康"].tap()
-        app.buttons["openAccount"].tap()
-        XCTAssertTrue(app.staticTexts["本机预览 · 尚未登录或注册"].waitForExistence(timeout: 5))
-        capture("52-account-preview-center")
+        app.buttons["accountSubmit"].tap()
     }
-
-    func testConfiguredRegistrationEntersAppAndSignOutReturnsToLogin() {
-        launch(configured: true)
+    func testRegisterReturnsToEmailLoginThenProfileAndLogoutWork() {
+        capture("60-email-login")
+        XCTAssertTrue(app.switches["accountRemember"].exists)
         XCTAssertFalse(app.buttons["accountPreview"].exists)
         app.segmentedControls["accountMode"].buttons["注册"].tap()
         let username = app.textFields["accountUsername"]
-        username.tap()
-        username.typeText("sleeper_test")
-        app.buttons["accountKeyboardDone"].tap()
+        username.tap(); username.typeText("sleeper_test\n")
+        let email = app.textFields["accountEmail"]
+        show(email); email.tap(); email.typeText("sleeper@example.com\n")
         let password = app.secureTextFields["accountPassword"]
-        show(password); password.tap(); password.typeText("test-pass-only")
-        password.typeText("\n")
-        let confirmation = app.secureTextFields["accountConfirmPassword"]
-        show(confirmation); confirmation.tap(); confirmation.typeText("test-pass-only")
-        confirmation.typeText("\n")
-        let nickname = app.textFields["accountDisplayName"]
-        show(nickname); nickname.tap(); nickname.typeText("Sleep Test")
-        app.buttons["accountKeyboardDone"].tap()
-        capture("53-account-filled-test-form")
-        show(app.buttons["accountSubmit"])
+        show(password); password.tap(); password.typeText("test-pass-only\n")
+        let confirm = app.secureTextFields["accountConfirmPassword"]
+        show(confirm); confirm.tap(); confirm.typeText("test-pass-only\n")
+        show(app.buttons["accountSubmit"]); capture("61-register-form")
         app.buttons["accountSubmit"].tap()
-        let entered = app.tabBars.buttons["健康"].waitForExistence(timeout: 8)
-        capture("53-account-after-test-submit")
-        XCTAssertTrue(entered)
+        XCTAssertTrue(app.switches["accountRemember"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.tabBars.buttons["健康"].exists)
+        enterLogin()
+        XCTAssertTrue(app.tabBars.buttons["健康"].waitForExistence(timeout: 5))
         app.tabBars.buttons["健康"].tap()
         app.buttons["openAccount"].tap()
-        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "sleeper_test")).firstMatch.waitForExistence(timeout: 5))
-        capture("53-account-test-session-center")
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "sleeper@example.com")).firstMatch.waitForExistence(timeout: 5))
+        capture("62-account-profile")
         app.buttons["accountSignOut"].tap()
         app.buttons["确定退出"].tap()
         XCTAssertTrue(app.segmentedControls["accountMode"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.tabBars.buttons["健康"].exists)
     }
-
-    func testWrongPasswordStaysInlineWithoutAnAlert() {
-        launch(configured: true)
-        let username = app.textFields["accountUsername"]
-        username.tap(); username.typeText("sleeper_test")
-        app.buttons["accountKeyboardDone"].tap()
-        let password = app.secureTextFields["accountPassword"]
-        password.tap(); password.typeText("wrongpass\n")
-        show(app.buttons["accountSubmit"])
-        app.buttons["accountSubmit"].tap()
-        XCTAssertTrue(app.staticTexts["accountMessage"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["accountMessage"].label.contains("账号或密码不正确"))
-        XCTAssertEqual(app.alerts.count, 0)
+    func testWrongPasswordDisplaysBackendMessageAndStaysLoggedOut() {
+        enterLogin(password: "wrongpass")
+        XCTAssertTrue(app.alerts.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.alerts.staticTexts["邮箱或密码不正确"].exists)
+        capture("63-login-server-error")
+        app.alerts.buttons["知道了"].tap()
         XCTAssertFalse(app.tabBars.buttons["健康"].exists)
-        capture("54-account-inline-error")
+    }
+    func testUploadReviewUsesCurrentAccountAndPreservesOptionalQuestionnaires() {
+        enterLogin()
+        XCTAssertTrue(app.buttons["addSleep"].waitForExistence(timeout: 5))
+        app.buttons["addSleep"].tap()
+        XCTAssertTrue(app.buttons["saveSleep"].waitForExistence(timeout: 5))
+        app.buttons["saveSleep"].tap()
+        let upload = app.buttons["openSleepUpload"]
+        show(upload); upload.tap()
+        XCTAssertTrue(app.textFields["uploadISI"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.textFields["uploadAIS"].exists)
+        XCTAssertTrue(app.buttons["submitSleepUpload"].exists)
+        XCTAssertTrue(app.staticTexts["sleeper@example.com"].exists)
+        capture("64-sleep-upload-review")
+    }
+    func testInvalidEmailShowsValidationWithoutEnteringApp() {
+        app.textFields["accountEmail"].tap()
+        app.textFields["accountEmail"].typeText("invalid\n")
+        let password = app.secureTextFields["accountPassword"]
+        show(password); password.tap(); password.typeText("test-pass-only\n")
+        show(app.buttons["accountSubmit"]); app.buttons["accountSubmit"].tap()
+        XCTAssertTrue(app.alerts.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.alerts.staticTexts["请填写完整的邮箱地址。"].exists)
+        XCTAssertFalse(app.tabBars.buttons["健康"].exists)
     }
 }

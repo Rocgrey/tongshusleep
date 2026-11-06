@@ -3,13 +3,13 @@ import Charts
 import SwiftData
 
 struct HealthOverviewView: View {
+    @EnvironmentObject private var account: AccountStore
     @EnvironmentObject private var health: HealthOverviewStore
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var scenePhase
     var embedded = false
     @State private var showsSources = false
     @State private var showsAccess = false
-    @State private var showsAccount = false
     @State private var detail: HealthMetric?
     @State private var help: MetricHelp?
     @AppStorage("healthManualProfile") private var manualProfile = false
@@ -64,7 +64,6 @@ struct HealthOverviewView: View {
             .toolbar(embedded ? .visible : .hidden, for: .navigationBar)
             .sheet(isPresented: $showsSources) { HealthSourceSelectionView() }
             .sheet(isPresented: $showsAccess) { HealthAccessHelpView() }
-            .sheet(isPresented: $showsAccount) { AccountCenterView() }
             .sheet(item: $help) { MetricHelpSheet(help: $0) }
             .sheet(item: $detail) { metric in HealthMetricDetailView(metric: metric) }
             .refreshable { await health.refresh(in: context) }
@@ -84,7 +83,7 @@ struct HealthOverviewView: View {
             Button { showsSources = true } label: {
                 Image(systemName: "slider.horizontal.3").font(.system(size: 19)).frame(width: 44, height: 44).background(.white, in: Circle())
             }.accessibilityLabel("健康设置").accessibilityIdentifier("healthSources").help("健康设置")
-            Button { showsAccount = true } label: {
+            Button { account.open(.profile) } label: {
                 Image(systemName: "person.crop.circle").font(.system(size: 22)).frame(width: 44, height: 44).background(.white, in: Circle())
             }.accessibilityLabel("我的账号").accessibilityIdentifier("openAccount").help("我的账号")
         }
