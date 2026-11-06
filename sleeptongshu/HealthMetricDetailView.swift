@@ -32,8 +32,13 @@ struct HealthMetricDetailView: View {
                         Text(inspected?.date.formatted(.dateTime.month().day()) ?? "当日无记录").font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
                     }
                     if days.isEmpty {
-                        ContentUnavailableView("没有可展示的记录", systemImage: metric.symbol,
-                                               description: Text(health.snapshot?.truncatedMetrics.contains(metric) == true ? "该项目达到本次读取上限，暂不合计。" : "试试更长的时间范围，再检查系统健康是否已有记录及读取权限。"))
+                        if metric == .workout && !(health.snapshot?.workouts ?? []).isEmpty {
+                            Label("训练记录已读到，时间重叠或跨日时不合计；可在下方查看每次训练。", systemImage: "figure.run")
+                                .font(.system(size: 13)).foregroundStyle(SleepPalette.muted)
+                        } else {
+                            ContentUnavailableView("等待新的记录", systemImage: metric.symbol,
+                                                   description: Text(health.snapshot?.truncatedMetrics.contains(metric) == true ? "该项目达到本次读取上限，暂不合计。" : "试试更长的时间范围，再检查系统健康是否已有记录及读取权限。"))
+                        }
                     } else {
                         Chart(days) { day in
                             if metric.isCumulative || metric == .sleep {
@@ -49,7 +54,7 @@ struct HealthMetricDetailView: View {
                             .chartXAxis { AxisMarks(values: .automatic(desiredCount: 4)) { _ in AxisValueLabel(format: .dateTime.month().day()) } }
                             .chartYAxis { AxisMarks(position: .leading) }.frame(height: 210)
                             .accessibilityLabel("\(metric.title)每日记录图")
-                        Text("\(days.count) 天有记录 · \(metric.isCumulative ? "日值由系统健康统计" : metric == .sleep ? "日值为睡着时长" : "日值为样本中位数")。空白不算 0，缺口不连线。")
+                        Text("\(days.count) 天有记录 · \(metric.usesDailyStatistics ? "日值由系统健康统计" : metric == .workout ? "训练按开始日期归类，非重叠时长合计" : metric == .sleep ? "日值为睡着时长" : "日值为样本中位数")。空白不算 0，缺口不连线。")
                             .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
                         HStack(spacing: 12) {
                             summary("最低日值", value: days.map(\.value).min())
@@ -62,11 +67,32 @@ struct HealthMetricDetailView: View {
                     Divider()
                     SectionHeading(title: "这个数字代表什么")
                     Text(metric.explanation).font(.system(size: 14)).foregroundStyle(SleepPalette.muted).lineSpacing(6)
+                    if metric == .workout {
+                        let records = (health.snapshot?.workouts ?? []).filter { record in
+                            let start = Calendar.current.date(byAdding: .day, value: 1 - period, to: Calendar.current.startOfDay(for: .now))!
+                            return record.start >= start
+                        }.sorted { $0.start > $1.start }
+                        SectionHeading(title: "最近的训练", subtitle: "只显示训练中已记录的距离与能量")
+                        ForEach(Array(records.prefix(20))) { record in
+                            VStack(alignment: .leading, spacing: 7) {
+                                HStack {
+                                    Label(record.title, systemImage: "figure.run").font(.system(size: 15, weight: .medium))
+                                    Spacer()
+                                    Text("\(record.minutes.formatted(.number.precision(.fractionLength(0)))) 分钟").font(.system(size: 14))
+                                }
+                                Text(record.start.formatted(date: .abbreviated, time: .shortened))
+                                HStack {
+                                    if let distance = record.distanceKilometers { Text("\(distance.formatted(.number.precision(.fractionLength(2)))) 公里") }
+                                    if let energy = record.energyKilocalories { Text("\(energy.formatted(.number.precision(.fractionLength(0)))) 千卡") }
+                                }
+                            }.font(.system(size: 12)).foregroundStyle(SleepPalette.muted).padding(.vertical, 8)
+                        }
+                    }
                     if metric == .hrv || metric == .restingHeart {
                         Text("个人趋势比较最近 14 个完整自然日和之前 14 日，两段各至少 7 天。取各段日值的中位数后相减，不作为疾病或压力诊断。")
                             .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
                     }
-                    if metric.isCumulative {
+                    if metric.usesDailyStatistics {
                         Text("直接采用系统健康的每日统计，不手动累加多台设备的原始数据。今天尚未结束，数值可能继续更新；来源未同步或未获准读取时，统计也可能不完整。")
                             .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
                     }

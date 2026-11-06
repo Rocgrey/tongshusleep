@@ -20,7 +20,7 @@ enum SleepMetricGuide {
 
     static func score(_ record: SleepRecord) -> MetricHelp {
         let duration = min(100, Int(Double(record.asleepMinutes) / 480 * 100))
-        return MetricHelp(title: "睡眠参考分怎么算？", body: "这是 App 自己计算的 0–100 分，用来看看自己最近几晚有没有变化。它不是医生的评价，也不是设备的原始评分。\n\n先算时长分：睡眠分钟数 ÷ 480 × 100，小数不计，最高 100 分。睡够 8 小时，时长分就是 100 分。\n\n再算总分：时长分 × 60% + 睡眠效率 × 40%，最后四舍五入。\n\n\(record.score.map { "本晚：\(duration) × 60% + \(record.efficiency ?? 0) × 40% = \($0) 分。" } ?? "本晚资料不够，暂不打分。")\n\n60% 和 40% 是 App 的设定，没有医学上的及格线。深睡、血氧、打鼾等没有参与计分，所以分高不一定代表睡得好。8 小时是计分用的固定时间，修改睡眠目标不会改变这个算法。\n\n多看看连续几晚的变化和醒来后的感受，不用为一晚的分数担心。", references: [])
+        return MetricHelp(title: "睡眠参考分怎么算？", body: "这是 App 自己计算的 0–100 分，用来看看自己最近几晚有没有变化。它不是医生的评价，也不是设备的原始评分。\n\n先算时长分：睡眠分钟数 ÷ 480 × 100，小数不计，最高 100 分。睡够 8 小时，时长分就是 100 分。\n\n再算总分：时长分 × 60% + 睡眠效率 × 40%，最后四舍五入。\n\n\(record.score.map { "本晚：\(duration) × 60% + \(record.efficiency ?? 0) × 40% = \($0) 分。" } ?? "本晚资料不够，暂不打分。")\n\n60% 和 40% 是 App 的设定，没有通用的及格线。深睡、血氧、打鼾等没有参与计分，所以分高不一定代表睡得好。8 小时是计分用的固定时间，修改睡眠目标不会改变这个算法。\n\n多看看连续几晚的变化和醒来后的感受，不用为一晚的分数担心。", references: [])
     }
 
     static func stages(_ record: SleepRecord) -> MetricHelp {

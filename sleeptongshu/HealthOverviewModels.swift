@@ -2,12 +2,15 @@ import Foundation
 
 enum HealthMetric: String, Codable, CaseIterable, Identifiable {
     case sleep, restingHeart, hrv, heart, oxygen, respiration, steps, exercise, vo2, systolic, diastolic
+    case distance, activeEnergy, restingEnergy, height, bmi, bodyFat, weight, workout
     var id: String { rawValue }
     var title: String {
         switch self {
         case .sleep: "睡眠"; case .restingHeart: "静息心率"; case .hrv: "HRV"; case .heart: "心率"
         case .oxygen: "血氧"; case .respiration: "呼吸率"; case .steps: "步数"; case .exercise: "运动时间"
         case .vo2: "最大摄氧量"; case .systolic: "血压高压"; case .diastolic: "血压低压"
+        case .distance: "步行与跑步距离"; case .activeEnergy: "活动能量"; case .restingEnergy: "静息能量"
+        case .height: "身高"; case .bmi: "体重指数"; case .bodyFat: "体脂率"; case .weight: "体重"; case .workout: "体能训练"
         }
     }
     var unit: String {
@@ -15,6 +18,8 @@ enum HealthMetric: String, Codable, CaseIterable, Identifiable {
         case .sleep: "小时"; case .restingHeart, .heart, .respiration: "次/分"; case .hrv: "毫秒"
         case .oxygen: "%"; case .steps: "步"; case .exercise: "分钟"; case .vo2: "mL/kg/min"
         case .systolic, .diastolic: "mmHg"
+        case .distance: "公里"; case .activeEnergy, .restingEnergy: "千卡"
+        case .height: "厘米"; case .bmi: "kg/m²"; case .bodyFat: "%"; case .weight: "公斤"; case .workout: "分钟"
         }
     }
     var symbol: String {
@@ -22,9 +27,12 @@ enum HealthMetric: String, Codable, CaseIterable, Identifiable {
         case .sleep: "moon.fill"; case .hrv: "waveform.path.ecg"; case .heart, .restingHeart: "heart.fill"
         case .oxygen: "drop.fill"; case .respiration: "lungs.fill"; case .steps: "figure.walk"
         case .exercise: "figure.run"; case .vo2: "figure.outdoor.cycle"; case .systolic, .diastolic: "gauge.with.dots.needle.50percent"
+        case .distance: "figure.walk"; case .activeEnergy: "flame.fill"; case .restingEnergy: "bolt.heart.fill"
+        case .height: "ruler"; case .bmi: "figure.stand"; case .bodyFat: "figure.arms.open"; case .weight: "scalemass.fill"; case .workout: "figure.run"
         }
     }
-    var isCumulative: Bool { self == .steps || self == .exercise }
+    var usesDailyStatistics: Bool { [.steps, .exercise, .distance, .activeEnergy, .restingEnergy].contains(self) }
+    var isCumulative: Bool { usesDailyStatistics || self == .workout }
     func accepts(_ value: Double) -> Bool {
         guard value.isFinite else { return false }
         switch self {
@@ -38,6 +46,13 @@ enum HealthMetric: String, Codable, CaseIterable, Identifiable {
         case .vo2: return (10...100).contains(value)
         case .systolic: return (40...300).contains(value)
         case .diastolic: return (20...200).contains(value)
+        case .distance: return (0...1_000).contains(value)
+        case .activeEnergy, .restingEnergy: return (0...30_000).contains(value)
+        case .height: return (30...260).contains(value)
+        case .bmi: return (5...100).contains(value)
+        case .bodyFat: return value > 0 && value < 100
+        case .weight: return (1...700).contains(value)
+        case .workout: return value > 0 && value <= 1440
         }
     }
     var explanation: String {
@@ -50,9 +65,17 @@ enum HealthMetric: String, Codable, CaseIterable, Identifiable {
         case .respiration: "每分钟呼吸次数。成人安静时常见约 12～20 次/分，睡眠和活动时可能不同；这里没有把所有记录认定为睡眠测量。"
         case .steps: "直接读取系统健康提供的每日步数统计，不把设备原始记录逐条相加。空白表示没读到记录，不按 0 步算。步数没有人人适用的目标，可从个人习惯逐步增加。"
         case .exercise: "系统健康提供的每日运动分钟统计。成年人一般可参考每周 150～300 分钟中等强度活动；设备的运动分钟和这个标准不完全等同。"
-        case .vo2: "最大摄氧量反映运动时利用氧气的能力，单位 mL/kg/min。穿戴设备通常给出估计值，受测量条件影响；不能仅凭这一项评价整体健康。"
+        case .vo2: "最大摄氧量表示运动时，每分钟每公斤体重最多能利用多少毫升氧气。实验室通过呼吸气体测量；穿戴设备通常根据运动心率、速度、距离，以及年龄、体重等资料估计，具体方法因设备而异。它不是步数、距离和热量相加的结果。这里只读取系统健康已有的值，没有记录时不自行拼算。"
         case .systolic: "心脏收缩时的血压。这里只显示系统健康已有的高压样本；不能替代规范的袖带测量，也不能只凭一天的读数诊断。"
         case .diastolic: "心脏放松时的血压。这里只显示系统健康已有的低压样本；高压和低压分别统计，不能把不同时间的两项拼成一次测量。"
+        case .distance: "系统健康记录的步行与跑步距离，按天展示，单位为公里。不包含骑行、游泳等其他距离；使用系统日统计，不自行累加多台设备。"
+        case .activeEnergy: "走动、运动等活动消耗的能量，单位为千卡，采用系统健康日统计。不同设备的估算可能不同；不把它当作饮食或减重的精确依据。"
+        case .restingEnergy: "身体在休息时维持呼吸、心跳等所消耗的能量，采用系统健康日统计。当天尚未结束时，记录还可能继续增加。静息能量和活动能量分开展示。"
+        case .height: "系统健康已有的身高记录，单位为厘米。有新测量时更新，未每天测量属于正常情况。"
+        case .bmi: "体重指数，也叫 BMI，计算方式是体重（公斤）除以身高（米）的平方。这里只显示系统健康已有的 BMI 记录，不把不同时间的身高、体重强行拼算。它不能区分肌肉与脂肪，也不能单独说明身体状态。"
+        case .bodyFat: "脂肪占体重的百分比，通常来自体脂秤或其他测量设备。饮水、测量时间和设备会影响结果；参考范围也随年龄、性别与测量方法变化，关注自己在相同条件下的趋势更有用。"
+        case .weight: "系统健康已有的体重记录，单位为公斤。同一天多次测量取中间的数值，帮助减少偶然波动。建议在相近时间和条件下观察长期变化。"
+        case .workout: "系统健康中的体能训练记录，显示训练时长与类型。它与日常运动分钟是不同项目，不相加。图中按训练开始日期归类；跨日或时间重叠的记录暂不合计，可在下方逐次查看。"
         }
     }
 }
@@ -99,6 +122,17 @@ struct HealthOverviewSnapshot: Codable {
     var truncatedMetrics: [HealthMetric] = []
     var sleepRecords: [SleepPayload]? = nil
     var notices: [String]? = nil
+    var workouts: [HealthWorkoutRecord]? = nil
+}
+
+struct HealthWorkoutRecord: Codable, Identifiable, Equatable {
+    var id: String
+    var title: String
+    var start: Date
+    var end: Date
+    var minutes: Double
+    var distanceKilometers: Double?
+    var energyKilocalories: Double?
 }
 
 struct HealthOverviewArchive: Codable {
@@ -126,7 +160,7 @@ enum HealthOverviewAnalysis {
         return next.observations.contains { observation in
             guard let existing = old[observation.id] else { return true }
             return existing.metric != observation.metric || existing.value != observation.value ||
-                existing.start != observation.start || existing.end != observation.end
+                existing.start != observation.start || (!observation.metric.usesDailyStatistics && existing.end != observation.end)
         }
     }
 

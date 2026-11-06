@@ -130,16 +130,12 @@ final class SleepAppUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["身体状态"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["readHealthOverview"].exists)
         reveal(app.staticTexts["fitnessAgeValue"])
-        XCTAssertEqual(app.staticTexts["fitnessAgeValue"].label, "数据不足")
+        XCTAssertEqual(app.staticTexts["fitnessAgeValue"].label, "等待了解你")
+        XCTAssertTrue(app.buttons["healthRequestAccess"].exists)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "实际年龄未填写")).firstMatch.exists)
         capture("34-health-empty")
         scrollDown()
-        let agingHelp = app.buttons["agingPaceHelp"]
-        reveal(agingHelp)
-        press(agingHelp)
-        XCTAssertTrue(app.staticTexts["能看出衰老速度吗？"].waitForExistence(timeout: 3))
-        capture("35-aging-limits")
-        press(app.buttons["关闭说明"])
+        XCTAssertFalse(app.buttons["agingPaceHelp"].exists)
     }
 
     func testHealthRefreshKeepsExistingDataVisibleWhileProgressUpdates() {
@@ -158,7 +154,7 @@ final class SleepAppUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["界面测试示例 · 非真实健康数据"].waitForExistence(timeout: 5))
         reveal(app.staticTexts["fitnessAgeValue"])
         XCTAssertEqual(app.staticTexts["fitnessAgeValue"].label, "约40")
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "自定义实验算法，未经医学验证")).firstMatch.exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "实验估算，尚未经过验证")).firstMatch.exists)
         scrollDown()
         capture("36-health-overview-example")
         press(app.buttons["fitnessAgeHelp"])
@@ -203,12 +199,10 @@ final class SleepAppUITests: XCTestCase {
         app.launchArguments += ["-ui-testing-health", "-ui-testing-health-sparse", "-preview-health", "-healthManualProfile", "NO"]
         app.launch()
         XCTAssertTrue(app.buttons["readHealthOverview"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["healthReadStatus"].label.contains("已读到 9 项"))
+        XCTAssertTrue(app.staticTexts["healthReadStatus"].label.contains("已读到 17 项"))
         XCTAssertTrue(app.buttons["healthLatest-steps"].exists)
         reveal(app.staticTexts["fitnessAgeValue"])
         XCTAssertEqual(app.staticTexts["fitnessAgeValue"].label, "约40")
-        scrollDown()
-        scrollDown()
         reveal(app.buttons["healthMetric-steps"])
         XCTAssertTrue(app.buttons["healthMetric-steps"].exists)
         XCTAssertFalse(app.buttons["healthMetric-oxygen"].exists)
@@ -232,6 +226,27 @@ final class SleepAppUITests: XCTestCase {
         app.terminate()
         app.launchArguments += ["-ui-testing-health", "-preview-health", "-healthManualProfile", "NO"]
         app.launch()
+    }
+
+    func testExpandedHealthMetricsAndWorkoutDetails() {
+        launchHealthFixture()
+        XCTAssertTrue(app.buttons["healthRequestAccess"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["healthReadStatus"].label.contains("已读到 19 项"))
+        reveal(app.buttons["healthMetric-distance"])
+        capture("47-health-distance-and-energy")
+        press(app.buttons["healthMetric-distance"])
+        XCTAssertTrue(app.navigationBars["步行与跑步距离"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["healthDetailValue"].exists)
+        press(app.buttons["完成"])
+        reveal(app.buttons["healthMetric-weight"])
+        capture("48-health-body-measurements")
+        reveal(app.buttons["healthMetric-workout"])
+        press(app.buttons["healthMetric-workout"])
+        XCTAssertTrue(app.navigationBars["体能训练"].waitForExistence(timeout: 3))
+        reveal(app.staticTexts["最近的训练"])
+        XCTAssertTrue(app.staticTexts["跑步"].exists)
+        capture("49-health-workout-details")
+        press(app.buttons["完成"])
     }
 
     func testNewWearableReportSeparatesReadingsFromUnknownCapabilities() {

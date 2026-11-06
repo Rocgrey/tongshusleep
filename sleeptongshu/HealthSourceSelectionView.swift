@@ -21,6 +21,9 @@ struct HealthSourceSelectionView: View {
                     Text("使用系统健康中已有且获准读取的记录，不需要逐项选择设备。设备换了，只要记录已写入系统健康，刷新后就可以查看。")
                         .font(.system(size: 13)).foregroundStyle(SleepPalette.muted)
                     NavigationLink { HealthAccessGuide() } label: { Label("授权与设备同步指引", systemImage: "questionmark.circle") }
+                    Button { Task { await health.refresh(in: context, requestAccess: true) } } label: {
+                        Label("允许更多读取项目", systemImage: "lock.open")
+                    }.disabled(health.isLoading)
                 }
                 Section {
                     Toggle("手动填写参考资料", isOn: $manualProfile).accessibilityIdentifier("manualHealthProfile")
@@ -40,6 +43,7 @@ struct HealthSourceSelectionView: View {
                     Button { Task { await health.refresh(in: context) } } label: { Label(health.isLoading ? health.progress : "重新读取系统健康", systemImage: "arrow.clockwise") }
                         .disabled(health.isLoading)
                     if let date = health.snapshot?.readAt { LabeledContent("上次读取", value: date.formatted(date: .abbreviated, time: .shortened)) }
+                    if let message = health.message { Text(message).font(.system(size: 12)).foregroundStyle(SleepPalette.muted) }
                     Button {
                         do { exportDocument = SleepBackupDocument(data: try health.export()); showsExport = true }
                         catch { self.error = error.localizedDescription }
@@ -69,9 +73,9 @@ struct HealthSourceSelectionView: View {
                 .fileExporter(isPresented: $showsExport, document: exportDocument, contentType: .json, defaultFilename: "sleeptongshu-health-snapshot") { result in
                     if case .failure(let failure) = result { error = failure.localizedDescription }
                 }
-                .alert("系统健康", isPresented: Binding(get: { error != nil || health.message != nil }, set: { if !$0 { error = nil; health.message = nil } })) {
-                    Button("知道了", role: .cancel) { error = nil; health.message = nil }
-                } message: { Text(error ?? health.message ?? "") }
+                .alert("系统健康", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
+                    Button("知道了", role: .cancel) { error = nil }
+                } message: { Text(error ?? "") }
         }
     }
 }
@@ -98,8 +102,8 @@ struct HealthAccessGuide: View {
                 guideStep("2", title: "先把设备记录同步过来", text: "在手环、手表或戒指的配套 App 中完成同步，并开启向系统健康共享数据。只有配套 App 支持且实际写入的项目，才能在这里读取。蓝牙已连接不代表记录已写入系统健康。")
                 guideStep("3", title: "确认系统里确实有记录", text: "在健康 App 中打开步数、心率或睡眠，查看“显示所有数据”和“数据来源与访问权限”。确认有近期记录后，回到 sleeptongshu 更新健康数据，无需逐项选择设备。")
                 Divider()
-                Label("为什么身体年龄仍是数据不足？", systemImage: "figure.mind.and.body").font(.system(size: 16, weight: .semibold))
-                Text("探索性参考值需要实际年龄，以及最近 7 天至少两类同一天的完整睡眠、步数、静息心率或 HRV 数据。该算法由 App 自定义，未经医学验证，只反映数据波动。普通心率不等于静息心率。研究心肺参考则另需 20～79 岁、参考分组和最大摄氧量；没有这项数据时仍会显示数据不足。")
+                Label("怎样让年龄参考开始更新？", systemImage: "figure.mind.and.body").font(.system(size: 16, weight: .semibold))
+                Text("先补充实际年龄，再同步最近的睡眠或活动。探索性参考使用最近 7 天内同一天至少两类睡眠、步数、静息心率或 HRV 数据，不要求每项都有。它是尚未验证的实验估算，只用于观察自己的变化；其他已读取的记录可以先看。最大摄氧量是独立的心肺能力记录，没有它也不影响探索性年龄。")
                     .font(.system(size: 14)).foregroundStyle(SleepPalette.muted).lineSpacing(5)
                 Text("系统不会告诉 App 你是否拒绝了某项读取权限。因此“未读到”可能是未授权、尚未同步、没有近期记录，或设备没有提供这项数据。")
                     .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)

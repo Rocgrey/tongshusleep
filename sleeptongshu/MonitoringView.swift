@@ -437,7 +437,7 @@ struct PhoneReportView: View {
     @State private var metric = 0
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            SectionHeading(title: "声音与体动", subtitle: isPreview ? "模拟数据 · 仅预览，不会保存到睡眠记录" : "手机采集 · 非医学睡眠分期")
+            SectionHeading(title: "声音与体动", subtitle: isPreview ? "模拟数据 · 仅预览，不会保存到睡眠记录" : "手机采集 · 睡眠分期仅供参考")
             HStack(alignment: .top) {
                 reportNumber("有效声音采集", value: "\(night.coverageMinutes)", unit: "分", color: SleepPalette.teal)
                 reportNumber("疑似鼾声", value: night.classifierAvailable ? "\(Int(night.snoreSeconds / 60))" : "--", unit: "分", color: SleepPalette.awake)

@@ -144,6 +144,34 @@ final class HealthOverviewTests: XCTestCase {
         XCTAssertEqual(HKQuantity(unit: .second(), doubleValue: 0.045).doubleValue(for: HealthMetric.hrv.healthUnit), 45, accuracy: 0.001)
         XCTAssertEqual(HKQuantity(unit: HKUnit(from: "ml/kg*min"), doubleValue: 38).doubleValue(for: HealthMetric.vo2.healthUnit), 38, accuracy: 0.001)
         XCTAssertEqual(HKQuantity(unit: .percent(), doubleValue: 0.98).doubleValue(for: HealthMetric.oxygen.healthUnit) * 100, 98, accuracy: 0.001)
+        XCTAssertEqual(HealthMetric.bodyFat.healthValue(HKQuantity(unit: .percent(), doubleValue: 0.23)), 23, accuracy: 0.001)
+        XCTAssertEqual(HealthMetric.distance.healthValue(HKQuantity(unit: .meter(), doubleValue: 5_000)), 5, accuracy: 0.001)
+        XCTAssertEqual(HealthMetric.height.healthValue(HKQuantity(unit: .meter(), doubleValue: 1.72)), 172, accuracy: 0.001)
+        XCTAssertEqual(HealthMetric.weight.healthValue(HKQuantity(unit: .gram(), doubleValue: 68_000)), 68, accuracy: 0.001)
+        XCTAssertEqual(HealthMetric.activeEnergy.healthValue(HKQuantity(unit: .jouleUnit(with: .kilo), doubleValue: 418.4)), 100, accuracy: 0.01)
+        XCTAssertEqual(HealthMetric.restingEnergy.quantityIdentifier, .basalEnergyBurned)
+        XCTAssertEqual(HealthMetric.bmi.quantityIdentifier, .bodyMassIndex)
+        XCTAssertNil(HealthMetric.workout.quantityIdentifier)
+    }
+
+    func testWorkoutReadKeepsTypeDurationAndAvailableDistanceWithoutInventingEnergy() throws {
+        let workout = HKWorkout(activityType: .running, start: now, end: now.addingTimeInterval(1800), duration: 1500,
+                                totalEnergyBurned: nil, totalDistance: HKQuantity(unit: .meter(), doubleValue: 4_000), metadata: nil)
+        let record = try XCTUnwrap(HealthOverviewStore.workoutRecord(workout))
+        XCTAssertEqual(record.title, "跑步")
+        XCTAssertEqual(record.minutes, 25)
+        XCTAssertEqual(record.distanceKilometers, 4)
+        XCTAssertNil(record.energyKilocalories)
+    }
+
+    func testCumulativeRefreshDoesNotCountClockAdvanceAsNewData() {
+        var reading = observation("today-total", value: 150, metric: .activeEnergy, offset: 0)
+        let old = HealthOverviewSnapshot(readAt: now, sources: [], observations: [reading])
+        reading.end = reading.end.addingTimeInterval(60)
+        var next = HealthOverviewSnapshot(readAt: now.addingTimeInterval(60), sources: [], observations: [reading])
+        XCTAssertFalse(HealthOverviewAnalysis.hasNewData(previous: old, next: next))
+        next.observations[0].value = 160
+        XCTAssertTrue(HealthOverviewAnalysis.hasNewData(previous: old, next: next))
     }
 
     @MainActor

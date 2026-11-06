@@ -6,7 +6,7 @@ import SwiftData
 extension HealthMetric {
     var quantityIdentifier: HKQuantityTypeIdentifier? {
         switch self {
-        case .sleep: nil
+        case .sleep, .workout: nil
         case .heart: .heartRate
         case .restingHeart: .restingHeartRate
         case .hrv: .heartRateVariabilitySDNN
@@ -17,6 +17,13 @@ extension HealthMetric {
         case .vo2: .vo2Max
         case .systolic: .bloodPressureSystolic
         case .diastolic: .bloodPressureDiastolic
+        case .distance: .distanceWalkingRunning
+        case .activeEnergy: .activeEnergyBurned
+        case .restingEnergy: .basalEnergyBurned
+        case .height: .height
+        case .bmi: .bodyMassIndex
+        case .bodyFat: .bodyFatPercentage
+        case .weight: .bodyMass
         }
     }
     var healthUnit: HKUnit {
@@ -26,10 +33,19 @@ extension HealthMetric {
         case .hrv: .secondUnit(with: .milli)
         case .oxygen: .percent()
         case .steps: .count()
-        case .exercise: .minute()
+        case .exercise, .workout: .minute()
         case .vo2: HKUnit.literUnit(with: .milli).unitDivided(by: HKUnit.gramUnit(with: .kilo).unitMultiplied(by: .minute()))
         case .systolic, .diastolic: .millimeterOfMercury()
+        case .distance: .meterUnit(with: .kilo)
+        case .activeEnergy, .restingEnergy: .kilocalorie()
+        case .height: .meterUnit(with: .centi)
+        case .bmi: .count()
+        case .bodyFat: .percent()
+        case .weight: .gramUnit(with: .kilo)
         }
+    }
+    func healthValue(_ quantity: HKQuantity) -> Double {
+        quantity.doubleValue(for: healthUnit) * ([.oxygen, .bodyFat].contains(self) ? 100 : 1)
     }
 }
 
@@ -75,7 +91,8 @@ final class HealthOverviewStore: ObservableObject {
 
     func sourceSummary(for metric: HealthMetric) -> String {
         guard let snapshot, snapshot.observations.contains(where: { $0.metric == metric }) else { return "系统健康" }
-        if metric.isCumulative { return "系统健康 · 每日统计" }
+        if metric.usesDailyStatistics { return "系统健康 · 每日统计" }
+        if metric == .workout { return "系统健康 · 体能训练记录" }
         if metric == .sleep { return "系统健康 · 每晚自动整理" }
         let count = Set(snapshot.observations.filter { $0.metric == metric }.map(\.sourceID)).count
         return count > 1 ? "系统健康 · \(count) 个记录来源" : "系统健康"
@@ -89,7 +106,7 @@ final class HealthOverviewStore: ObservableObject {
     }
     var latestDate: Date? { snapshot?.observations.map(\.end).max() }
 
-    func refresh(in context: ModelContext? = nil) async {
+    func refresh(in context: ModelContext? = nil, requestAccess: Bool = false) async {
         guard !isLoading else { return }
         guard !failedToReadCache else { message = storageError; messageIsError = true; return }
         guard HealthSleepImporter.enabled, HKHealthStore.isHealthDataAvailable() else {
@@ -107,10 +124,14 @@ final class HealthOverviewStore: ObservableObject {
             types.insert(sleep)
             types.insert(HKObjectType.characteristicType(forIdentifier: .dateOfBirth)!)
             types.insert(HKObjectType.characteristicType(forIdentifier: .biologicalSex)!)
-            progress = "等待系统健康授权"
-            let authorization = try await health.statusForAuthorizationRequest(toShare: [], read: types)
-            if authorization != .unnecessary {
-                try await health.requestAuthorization(toShare: [], read: types)
+            types.insert(HKObjectType.workoutType())
+            // Routine refreshes query existing access; only onboarding or the permission button opens the system sheet.
+            if snapshot == nil || requestAccess {
+                progress = "正在检查读取权限"
+                let authorization = try await health.statusForAuthorizationRequest(toShare: [], read: types)
+                if authorization != .unnecessary {
+                    try await health.requestAuthorization(toShare: [], read: types)
+                }
             }
             let readAt = Date.now
             let start = Calendar.current.date(byAdding: .day, value: -90, to: Calendar.current.startOfDay(for: readAt))!
@@ -120,21 +141,24 @@ final class HealthOverviewStore: ObservableObject {
             var candidates: [HealthSleepCandidate] = []
             var notices: [String] = []
             var completed = 0
+            var successful = 0
+            var workouts: [HealthWorkoutRecord] = []
+            var sleepReadFailed = false
             progressValue = 0
-            for metric in HealthMetric.allCases {
-                progress = "正在读取\(metric.title)（\(completed + 1)/\(HealthMetric.allCases.count)）"
+            for (index, metric) in HealthMetric.allCases.enumerated() {
+                progress = "正在读取\(metric.title)（\(index + 1)/\(HealthMetric.allCases.count)）"
+                defer { completed += 1; progressValue = Double(completed) / Double(HealthMetric.allCases.count) }
                 do {
-                if metric.isCumulative {
+                if metric.usesDailyStatistics {
                     let totals = try await readDailyTotals(metric: metric, start: start, end: readAt)
                     observations += totals.observations
                     for source in totals.sources { sources[source.id] = source }
-                    completed += 1
-                    progressValue = Double(completed) / Double(HealthMetric.allCases.count)
+                    successful += 1
                     continue
                 }
-                let type: HKSampleType = metric == .sleep ? sleep : HKObjectType.quantityType(forIdentifier: metric.quantityIdentifier!)!
+                let type: HKSampleType = metric == .sleep ? sleep : metric == .workout ? HKObjectType.workoutType() : HKObjectType.quantityType(forIdentifier: metric.quantityIdentifier!)!
                 let samples = try await read(type: type, start: start, end: readAt)
-                completed += 1
+                successful += 1
                 if samples.count >= 50_000 {
                     truncated.append(metric)
                     notices.append("\(metric.title)记录达到本次读取上限，暂不汇总。")
@@ -151,29 +175,39 @@ final class HealthOverviewStore: ObservableObject {
                         }
                         candidates.append(HealthSleepCandidate(sourceID: id, intervals: intervals))
                     }
+                } else if metric == .workout {
+                    workouts = samples.compactMap { ($0 as? HKWorkout).flatMap(Self.workoutRecord) }
+                    observations += workouts.map { record in
+                        HealthObservation(id: record.id, metric: .workout, sourceID: "system-health-workouts",
+                                          start: record.start, end: record.end, value: record.minutes)
+                    }
                 } else {
                     observations += samples.compactMap { sample in
                         guard let sample = sample as? HKQuantitySample else { return nil }
-                        let value = sample.quantity.doubleValue(for: metric.healthUnit) * (metric == .oxygen ? 100 : 1)
+                        let value = metric.healthValue(sample.quantity)
                         guard metric.accepts(value), sample.endDate >= sample.startDate else { return nil }
                         return HealthObservation(id: sample.uuid.uuidString, metric: metric, sourceID: HealthSourceIdentity.key(sample),
                                                  start: sample.startDate, end: sample.endDate, value: value)
                     }
                 }
-                } catch { notices.append("\(metric.title)本次未能读取，其他项目仍可查看。") }
-                if completed < HealthMetric.allCases.firstIndex(of: metric)! + 1 {
-                    completed = HealthMetric.allCases.firstIndex(of: metric)! + 1
+                } catch {
+                    notices.append("\(metric.title)本次未能读取，保留上次记录。")
+                    observations += snapshot?.observations.filter { $0.metric == metric } ?? []
+                    if metric == .sleep { sleepReadFailed = true }
+                    if metric == .workout { workouts = snapshot?.workouts ?? [] }
+                    for source in snapshot?.sources ?? [] { sources[source.id] = source }
                 }
-                progressValue = Double(completed) / Double(HealthMetric.allCases.count)
             }
-            guard completed > 0 else { throw NSError(domain: "SystemHealth", code: 1, userInfo: [NSLocalizedDescriptionKey: "系统健康暂时无法读取，请稍后重试。旧快照已保留。"] ) }
-            var sleepRecords: [SleepPayload] = []
-            do { sleepRecords = try HealthSleepImporter.automaticRecords(candidates, observations: observations, sources: Array(sources.values)) }
-            catch { notices.append("部分睡眠记录暂未整理，已读到的体征与活动仍可查看。") }
-            for payload in sleepRecords {
+            guard successful > 0 else { throw NSError(domain: "SystemHealth", code: 1, userInfo: [NSLocalizedDescriptionKey: "系统健康暂时无法读取，请稍后重试。旧快照已保留。"] ) }
+            var sleepRecords: [SleepPayload] = sleepReadFailed ? snapshot?.sleepRecords ?? [] : []
+            if !sleepReadFailed {
+                do { sleepRecords = try HealthSleepImporter.automaticRecords(candidates, observations: observations, sources: Array(sources.values)) }
+                catch { notices.append("部分睡眠记录暂未整理，已读到的体征与活动仍可查看。") }
+            }
+            for payload in sleepReadFailed ? [] : sleepRecords {
                 let date = Calendar.current.date(byAdding: .day, value: 1, to: HealthSleepImporter.night(payload.end))!
                 let hours = payload.segments.filter { ![.awake, .unobserved].contains($0.stage) }.reduce(0) { $0 + $1.end.timeIntervalSince($1.start) } / 3600
-                observations.append(HealthObservation(id: payload.id.uuidString, metric: .sleep, sourceID: "system-health-sleep", start: date, end: date, value: hours))
+                observations.append(HealthObservation(id: "system-sleep|\(date.timeIntervalSince1970)", metric: .sleep, sourceID: "system-health-sleep", start: date, end: date, value: hours))
             }
             let birth = try? health.dateOfBirthComponents()
             let age = birth.flatMap { Calendar(identifier: .gregorian).date(from: $0) }
@@ -182,13 +216,19 @@ final class HealthOverviewStore: ObservableObject {
             let reference: HealthReferenceSex = sex == .female ? .female : sex == .male ? .male : .unspecified
             let next = HealthOverviewSnapshot(readAt: readAt, sources: Array(sources.values).sorted { $0.id < $1.id },
                                               observations: observations, age: age, referenceSex: reference, truncatedMetrics: truncated,
-                                              sleepRecords: sleepRecords, notices: notices)
+                                              sleepRecords: sleepRecords, notices: notices, workouts: workouts)
             let hasNewData = HealthOverviewAnalysis.hasNewData(previous: snapshot, next: next)
             // Save before publishing; an unsuccessful refresh leaves the previous snapshot intact.
             try write(HealthOverviewArchive(snapshot: next))
             snapshot = next; cache = [:]; storageError = nil
-            message = hasNewData ? "健康数据已更新，读取到新增记录。" : "暂时没有新的数据可以更新，当前数据已是最新的。"
-            messageIsError = false
+            if !notices.isEmpty {
+                message = "已更新可读取的项目，部分记录稍后再试。"
+            } else if observations.isEmpty {
+                message = "暂时没有新的数据可以更新。可以允许更多读取项目，或先同步设备记录。"
+            } else {
+                message = hasNewData ? "健康数据已更新。新的记录已加入你的健康概览。" : "暂时没有新的数据可以更新，已读取的记录已是最新。"
+            }
+            messageIsError = !notices.isEmpty
             if let context {
                 do { try HealthSleepImporter.save(sleepRecords, in: context) }
                 catch { context.rollback(); message = "健康概览已更新，但睡眠报告保存未完成，请重新刷新。"; messageIsError = true }
@@ -202,6 +242,29 @@ final class HealthOverviewStore: ObservableObject {
         case .asleepCore: .light; case .asleepDeep: .deep; case .asleepREM: .rem
         case .awake: .awake; case .asleepUnspecified: .unspecified; default: nil
         }
+    }
+    nonisolated static func workoutRecord(_ workout: HKWorkout) -> HealthWorkoutRecord? {
+        let minutes = workout.duration / 60
+        guard HealthMetric.workout.accepts(minutes), workout.endDate > workout.startDate else { return nil }
+        let title: String
+        switch workout.workoutActivityType {
+        case .running: title = "跑步"
+        case .walking: title = "步行"
+        case .cycling: title = "骑行"
+        case .swimming: title = "游泳"
+        case .yoga: title = "瑜伽"
+        case .traditionalStrengthTraining, .functionalStrengthTraining: title = "力量训练"
+        case .hiking: title = "徒步"
+        case .elliptical: title = "椭圆机"
+        case .rowing: title = "划船"
+        case .highIntensityIntervalTraining: title = "间歇训练"
+        default: title = "体能训练"
+        }
+        let distance = workout.totalDistance?.doubleValue(for: .meterUnit(with: .kilo))
+        let energy = workout.totalEnergyBurned?.doubleValue(for: .kilocalorie())
+        return HealthWorkoutRecord(id: workout.uuid.uuidString, title: title, start: workout.startDate, end: workout.endDate,
+                                   minutes: minutes, distanceKilometers: distance.flatMap { $0.isFinite && $0 >= 0 ? $0 : nil },
+                                   energyKilocalories: energy.flatMap { $0.isFinite && $0 >= 0 ? $0 : nil })
     }
     private func read(type: HKSampleType, start: Date, end: Date) async throws -> [HKSample] {
         try await withCheckedThrowingContinuation { continuation in
@@ -282,6 +345,14 @@ final class HealthOverviewStore: ObservableObject {
                     case .vo2: baseline = day < 31 ? 39 : 37
                     case .systolic: baseline = 116
                     case .diastolic: baseline = 75
+                    case .distance: baseline = 5.1
+                    case .activeEnergy: baseline = 360
+                    case .restingEnergy: baseline = 1520
+                    case .height: baseline = 172
+                    case .bmi: baseline = 22.8
+                    case .bodyFat: baseline = 23.4
+                    case .weight: baseline = 67.5
+                    case .workout: baseline = 28
                     }
                     let jitter = metric == .vo2 ? 0 : Double(day % 3) * (metric == .steps ? 120 : metric == .sleep ? 0.1 : 0.2)
                     values.append(HealthObservation(id: "\(metric.rawValue)-\(source.id)-\(day)", metric: metric, sourceID: metric.isCumulative ? "system-health-statistics" : source.id,
@@ -293,10 +364,14 @@ final class HealthOverviewStore: ObservableObject {
             values.removeAll { [.oxygen, .vo2].contains($0.metric) }
         }
         snapshot = HealthOverviewSnapshot(readAt: .now, sources: [a, b], observations: values, age: 42, referenceSex: .male)
+        let workoutStart = today.addingTimeInterval(-12 * 3600)
+        snapshot?.workouts = [HealthWorkoutRecord(id: "fixture-run", title: "跑步", start: workoutStart,
+                                                 end: workoutStart.addingTimeInterval(1800), minutes: 30,
+                                                 distanceKilometers: 4, energyKilocalories: 240)]
         if ProcessInfo.processInfo.arguments.contains("-ui-testing-health-loading") {
             isLoading = true
-            progress = "正在读取心率（3/11）"
-            progressValue = 2.0 / 11.0
+            progress = "正在读取心率（3/\(HealthMetric.allCases.count)）"
+            progressValue = 2.0 / Double(HealthMetric.allCases.count)
         }
     }
     #endif
