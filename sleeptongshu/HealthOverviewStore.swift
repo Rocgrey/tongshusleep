@@ -105,7 +105,8 @@ final class HealthOverviewStore: ObservableObject {
     func days(for metric: HealthMetric) -> [HealthDay] {
         if let cached = cache[metric] { return cached }
         guard let snapshot, !snapshot.truncatedMetrics.contains(metric) else { return [] }
-        let result = HealthOverviewAnalysis.daily(snapshot.observations, metric: metric)
+        let calendar = metric == .steps && snapshot.stepsTimeZone == StepDates.timeZone.identifier ? StepDates.calendar : Calendar.current
+        let result = HealthOverviewAnalysis.daily(snapshot.observations, metric: metric, calendar: calendar)
         cache[metric] = result
         return result
     }
@@ -165,6 +166,7 @@ final class HealthOverviewStore: ObservableObject {
             var successful = 0
             var workouts: [HealthWorkoutRecord] = []
             var sleepReadFailed = false
+            var stepsReadFailed = false
             progressValue = 0
             for (index, metric) in HealthMetric.allCases.enumerated() {
                 progress = "正在读取\(metric.title)（\(index + 1)/\(HealthMetric.allCases.count)）"
@@ -214,7 +216,9 @@ final class HealthOverviewStore: ObservableObject {
                 } catch {
                     notices.append("\(metric.title)本次未能读取，保留上次记录。")
                     observations += snapshot?.observations.filter { $0.metric == metric } ?? []
+                    if snapshot?.truncatedMetrics.contains(metric) == true { truncated.append(metric) }
                     if metric == .sleep { sleepReadFailed = true }
+                    if metric == .steps { stepsReadFailed = true }
                     if metric == .workout { workouts = snapshot?.workouts ?? [] }
                     for source in snapshot?.sources ?? [] { sources[source.id] = source }
                 }
@@ -237,7 +241,9 @@ final class HealthOverviewStore: ObservableObject {
             let reference: HealthReferenceSex = sex == .female ? .female : sex == .male ? .male : .unspecified
             let next = HealthOverviewSnapshot(readAt: readAt, sources: Array(sources.values).sorted { $0.id < $1.id },
                                               observations: observations, age: age, referenceSex: reference, truncatedMetrics: truncated,
-                                              sleepRecords: sleepRecords, notices: notices, workouts: workouts)
+                                              sleepRecords: sleepRecords, notices: notices, workouts: workouts,
+                                              stepsTimeZone: stepsReadFailed ? snapshot?.stepsTimeZone : StepDates.timeZone.identifier,
+                                              stepsReadAt: stepsReadFailed ? (snapshot?.stepsReadAt ?? snapshot?.readAt) : readAt)
             let resultMessage = Self.refreshSummary(previous: snapshot, next: next)
             // Save before publishing; an unsuccessful refresh leaves the previous snapshot intact.
             try write(HealthOverviewArchive(snapshot: next))
@@ -304,11 +310,13 @@ final class HealthOverviewStore: ObservableObject {
 
     private func readDailyTotals(metric: HealthMetric, start: Date, end: Date) async throws -> (observations: [HealthObservation], sources: [HealthDataSource]) {
         let queryStore = health
+        let calendar = metric == .steps ? StepDates.calendar : Calendar.current
+        let start = calendar.startOfDay(for: start)
         return try await withCheckedThrowingContinuation { continuation in
             let type = HKObjectType.quantityType(forIdentifier: metric.quantityIdentifier!)!
             let query = HKStatisticsCollectionQuery(quantityType: type,
                 quantitySamplePredicate: HKQuery.predicateForSamples(withStart: start, end: end),
-                options: .cumulativeSum, anchorDate: Calendar.current.startOfDay(for: start), intervalComponents: DateComponents(day: 1))
+                options: .cumulativeSum, anchorDate: calendar.startOfDay(for: start), intervalComponents: DateComponents(calendar: calendar, timeZone: calendar.timeZone, day: 1))
             query.initialResultsHandler = { query, collection, error in
                 queryStore.stop(query)
                 if let error { continuation.resume(throwing: error); return }

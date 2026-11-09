@@ -64,12 +64,15 @@ final class APIClient {
         }
     }
     func request(_ path: String, method: String = "GET", body: Data? = nil,
-                 authenticated: Bool = false, token explicitToken: String? = nil) async throws -> Data {
+                 authenticated: Bool = false, token explicitToken: String? = nil, query: [URLQueryItem] = []) async throws -> Data {
         guard let base = configuration.baseURL else { throw APIError.configuration }
         let token = explicitToken ?? (authenticated ? tokenProvider?() : nil)
         if authenticated && token == nil { throw APIError.unauthorized("请先登录，再继续操作。") }
         try await prepareGateway()
-        var request = URLRequest(url: base.appendingPathComponent(path))
+        var components = URLComponents(url: base.appendingPathComponent(path), resolvingAgainstBaseURL: false)!
+        if !query.isEmpty { components.queryItems = query }
+        guard let url = components.url else { throw APIError.configuration }
+        var request = URLRequest(url: url)
         request.httpMethod = method
         request.cachePolicy = .reloadIgnoringLocalCacheData
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -128,7 +131,7 @@ final class APIClient {
         case 401: return "登录已失效，请重新登录。"
         case 400, 422: return "请检查填写内容后再试。"
         case 403: return "服务暂时无法访问，或当前账号无权执行此操作。"
-        case 409: return "邮箱或用户名已被使用，请检查后再试。"
+        case 409: return "手机号、邮箱或用户名已被使用，请检查后再试。"
         case 429: return "操作有些频繁，请稍后再试。"
         default: return "服务暂时无法处理请求，请稍后再试。"
         }

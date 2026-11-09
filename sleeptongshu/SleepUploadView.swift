@@ -7,7 +7,6 @@ struct SleepUploadView: View {
     @Environment(\.dismiss) private var dismiss
     @Query private var records: [SleepRecord]
     let recordID: UUID
-    @State private var isi = ""
     @State private var ais = ""
     @State private var isLoading = false
     @State private var completed = false
@@ -25,7 +24,7 @@ struct SleepUploadView: View {
                 if let record, let user = account.session?.user {
                     Section("上传到此账号") {
                         Label(user.username, systemImage: "person.crop.circle")
-                        Text(user.email).foregroundStyle(SleepPalette.muted)
+                        Text(user.contactLabel).foregroundStyle(SleepPalette.muted)
                     }
                     Section("这晚睡眠") {
                         LabeledContent("日期", value: record.end.formatted(date: .abbreviated, time: .omitted))
@@ -34,7 +33,6 @@ struct SleepUploadView: View {
                         LabeledContent("参考分", value: record.score.map(String.init) ?? "未记录")
                     }
                     Section {
-                        TextField("ISI 总分（0～28，选填）", text: $isi).keyboardType(.numberPad).accessibilityIdentifier("uploadISI")
                         TextField("AIS 总分（0～24，选填）", text: $ais).keyboardType(.numberPad).accessibilityIdentifier("uploadAIS")
                     } header: { Text("睡眠问卷结果") }
                     footer: { Text("只有完成过对应问卷时才填写总分；未填写的结果不会被补算。") }
@@ -68,7 +66,7 @@ struct SleepUploadView: View {
                 guard let result = Int(value), (0...maximum).contains(result) else { throw APIError.validation("问卷总分超出范围，请检查。") }
                 return result
             }
-            let request = try SleepUploadRequest(record: record, isi: score(isi, maximum: 28), ais: score(ais, maximum: 24))
+            let request = try SleepUploadRequest(record: record, ais: score(ais, maximum: 24))
             let result = try await SleepUploadAPI(client: account.client).upload(request)
             guard result.id > 0, result.user_id == session.user.id else { throw APIError.invalidResponse }
             receipts.save(service: account.client.serviceID, userID: session.user.id, recordID: recordID, remoteID: result.id)

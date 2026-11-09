@@ -103,6 +103,65 @@ final class AccountTests: XCTestCase {
         XCTAssertNil(storage.saved)
     }
 
+    func testPhoneOnlyRegistrationLoginRestoreAndLogoutWithoutEmail() async throws {
+        let phoneUser = Data(#"{"id":71,"username":"phone_test","phone":"13800001234","email":null,"created_at":"2026-11-09T08:00:00Z"}"#.utf8)
+        let store = AccountStore(api: api, storage: storage)
+        AccountURLProtocol.handler = { [self] request in
+            if request.url!.path.hasSuffix("register") {
+                let json = try body(request)
+                XCTAssertEqual(Set(json.keys), ["username", "phone", "password"])
+                XCTAssertEqual(json["phone"] as? String, "13800001234")
+                return (201, Data(#"{"message":"注册成功"}"#.utf8))
+            }
+            if request.url!.path.hasSuffix("login") {
+                let json = try body(request)
+                XCTAssertEqual(Set(json.keys), ["phone", "password"])
+                XCTAssertEqual(json["phone"] as? String, "13800001234")
+                return (200, loginJSON)
+            }
+            if request.url!.path.hasSuffix("me") { return (200, phoneUser) }
+            return (200, Data("{}".utf8))
+        }
+        let registered = await store.register(username: "phone_test", phone: "+86 138-0000-1234", email: "", password: "123456", confirmation: "123456")
+        XCTAssertTrue(registered)
+        await store.login(identifier: "+86 138-0000-1234", password: "123456", remember: true)
+        XCTAssertEqual(store.session?.user.id, 71)
+        XCTAssertNil(store.session?.user.email)
+        XCTAssertEqual(storage.saved?.session.user.phone, "13800001234")
+        let restored = AccountStore(api: api, storage: storage)
+        await restored.restore()
+        XCTAssertEqual(restored.session?.user.id, 71)
+        await restored.signOut()
+        XCTAssertNil(restored.session)
+        XCTAssertNil(storage.saved)
+        let missingEmail = try APIJSON.decode(AccountUser.self, from: Data(#"{"id":71,"username":"phone_test","phone":"13800001234","created_at":"2026-11-09T08:00:00Z"}"#.utf8))
+        XCTAssertEqual(missingEmail.id, 71)
+        XCTAssertNil(missingEmail.email)
+    }
+
+    func testPhoneValidationAndServerErrorsNeverInventAnEmail() async {
+        let store = AccountStore(api: api, storage: storage)
+        AccountURLProtocol.handler = { _ in XCTFail("Invalid input must not make a request"); return (500, Data()) }
+        await store.login(identifier: "123", password: "test-pass", remember: true)
+        XCTAssertNil(store.session)
+        let invalid = await store.register(username: "tester", phone: "123", password: "123456", confirmation: "123456")
+        XCTAssertFalse(invalid)
+        for (status, text) in [(409, "手机号已被注册"), (401, "账号不存在或密码错误"), (422, "手机号格式错误")] {
+            AccountURLProtocol.handler = { _ in (status, try JSONSerialization.data(withJSONObject: ["detail": text])) }
+            await store.login(identifier: "13800001234", password: "test-pass", remember: true)
+            XCTAssertEqual(store.message, text)
+            XCTAssertNil(store.session)
+        }
+    }
+
+    func testOldKeychainSessionWithoutPhoneStillDecodes() throws {
+        let old = SavedAccountSession(serviceID: "service", session: AccountSession(user: AccountUser(id: 7, username: "legacy", email: "old@example.com", createdAt: .now), accessToken: "legacy-token", expiresAt: .distantFuture))
+        let data = try JSONEncoder().encode(old)
+        let restored = try JSONDecoder().decode(SavedAccountSession.self, from: data)
+        XCTAssertNil(restored.session.user.phone)
+        XCTAssertEqual(restored.session.user.id, 7)
+    }
+
     func testRestoreCallsMeAndRevokedSessionClearsCredentials() async {
         AccountURLProtocol.handler = { [self] in normalResponses($0) }
         let first = AccountStore(api: api, storage: storage)
@@ -231,5 +290,32 @@ final class AccountTests: XCTestCase {
         _ = try await gatewayClient.request("auth/me", authenticated: true, token: "test")
         _ = try await gatewayClient.request("auth/me", authenticated: true, token: "test")
         XCTAssertEqual(paths, ["/", "/api/v1/auth/me", "/api/v1/auth/me"])
+    }
+
+    func testStepRequestsUseExactContractQueryAndCapturedBearerAnd401ClearsSession() async throws {
+        AccountURLProtocol.handler = { [self] in normalResponses($0) }
+        let store = AccountStore(api: api, storage: storage)
+        await store.login(email: "test@example.com", password: "test-pass", remember: true)
+        let steps = AccountStepsAPI(client: client)
+        AccountURLProtocol.handler = { [self] request in
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-only-jwt")
+            XCTAssertEqual(request.url?.path, "/api/v1/health/step-record")
+            let json = try body(request)
+            XCTAssertNil(json["user_id"])
+            XCTAssertEqual(json["steps"] as? Int, 0)
+            return (200, Data(#"{"record_id":1,"applied":true,"record":{"id":1,"user_id":7,"record_date":"2026-11-09","steps":0,"source":"healthkit","data_time":"2026-11-09 12:00:00"}}"#.utf8))
+        }
+        let upload = StepUploadRequest(record_date: "2026-11-09", steps: 0, source: "healthkit", source_id: "system-health-statistics", data_time: "2026-11-09 12:00:00", timezone: "Asia/Shanghai")
+        let result = try await steps.upload(upload, token: "test-only-jwt")
+        XCTAssertEqual(result.record.user_id, 7)
+        AccountURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/api/v1/health/step-records")
+            let query = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!.queryItems!
+            XCTAssertEqual(Dictionary(uniqueKeysWithValues: query.map { ($0.name, $0.value!) }), ["start_date": "2026-11-07", "end_date": "2026-11-09"])
+            return (401, Data(#"{"detail":"登录已过期"}"#.utf8))
+        }
+        do { _ = try await steps.fetch(StepRange(start: "2026-11-07", end: "2026-11-09"), token: "test-only-jwt"); XCTFail() }
+        catch { XCTAssertTrue((error as? APIError)?.isUnauthorized == true) }
+        XCTAssertNil(store.session); XCTAssertNil(storage.saved)
     }
 }

@@ -143,30 +143,36 @@ final class AccountStore: ObservableObject {
             else { message = error.localizedDescription }
         }
     }
-    /// Registration has no token; the caller switches back to the email login form.
-    func register(username: String, email: String, password: String, confirmation: String) async -> Bool {
+    /// Registration returns no token. Phone and email remain separate optional credentials.
+    func register(username: String, phone: String? = nil, email: String? = nil, password: String, confirmation: String) async -> Bool {
         guard !isLoading else { return false }
         message = nil
         do {
             let name = username.trimmingCharacters(in: .whitespacesAndNewlines)
-            let email = AccountInput.email(email)
-            try AccountInput.validate(email: email, password: password, username: name, confirmation: confirmation)
+            let email = email.map(AccountInput.email).flatMap { $0.isEmpty ? nil : $0 }
+            let phone = phone.map(AccountInput.phone).flatMap { $0.isEmpty ? nil : $0 }
+            try AccountInput.validateRegistration(username: name, phone: phone, email: email, password: password, confirmation: confirmation)
             isLoading = true
             defer { isLoading = false }
-            let result = try await api.register(username: name, email: email, password: password)
+            let result = try await api.register(username: name, phone: phone, email: email, password: password)
             message = result.message
             return true
         } catch { message = error.localizedDescription; return false }
     }
     func login(email: String, password: String, remember: Bool) async {
+        await login(identifier: email, method: .email, password: password, remember: remember)
+    }
+    func login(identifier: String, method: AccountInput.Method = .phone, password: String, remember: Bool) async {
         guard !isLoading else { return }
         message = nil
         let operation = generation
         do {
-            try AccountInput.validate(email: AccountInput.email(email), password: password)
+            if method == .phone { try AccountInput.validatePhone(identifier) }
+            else { try AccountInput.validate(email: AccountInput.email(identifier), password: password) }
+            guard !password.isEmpty else { throw APIError.validation("请输入密码。") }
             isLoading = true
             defer { isLoading = false }
-            let next = try await api.login(email: AccountInput.email(email), password: password)
+            let next = try await api.login(identifier: identifier, method: method, password: password)
             guard operation == generation else { return }
             do {
                 if remember { try storage.save(SavedAccountSession(serviceID: client.serviceID, session: next)) }
@@ -205,12 +211,12 @@ private final class PreviewAccountStorage: AccountSessionStorage {
 }
 private final class PreviewAccountAPI: AccountServing {
     let client = APIClient(configuration: APIConfiguration(baseURL: "https://ui.example.test/api/v1"))
-    func login(email: String, password: String) async throws -> AccountSession {
-        if password == "wrongpass" { throw APIError.unauthorized("邮箱或密码不正确") }
-        return AccountSession(user: AccountUser(id: 1, username: "sleeper_test", email: email, createdAt: .now),
+    func login(identifier: String, method: AccountInput.Method, password: String) async throws -> AccountSession {
+        if password == "wrongpass" { throw APIError.unauthorized("账号或密码错误") }
+        return AccountSession(user: AccountUser(id: 1, username: "sleeper_test", email: method == .email ? identifier : nil, phone: method == .phone ? identifier : nil, createdAt: .now),
                               accessToken: "ui-test-only", expiresAt: .now.addingTimeInterval(3600))
     }
-    func register(username: String, email: String, password: String) async throws -> RegistrationResult {
+    func register(username: String, phone: String?, email: String?, password: String) async throws -> RegistrationResult {
         RegistrationResult(message: "注册成功，请登录")
     }
     func me(token: String) async throws -> AccountUser { throw APIError.unauthorized("登录已失效") }

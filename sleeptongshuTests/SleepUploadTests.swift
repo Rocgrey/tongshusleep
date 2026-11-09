@@ -12,12 +12,16 @@ final class SleepUploadTests: XCTestCase {
         XCTAssertEqual(Set(json.keys), ["record_date", "sleep_start_time", "sleep_end_time", "total_duration_minutes", "notes"])
         XCTAssertEqual(json["total_duration_minutes"] as? Int, 60)
         XCTAssertEqual(request.sleep_start_time.count, 19)
-        XCTAssertNil(request.isi_score)
+        XCTAssertNil(json["isi_score"])
         XCTAssertNil(request.rem_minutes)
-        let result = try SleepUploadRequest(record: record, isi: 6, ais: 4)
-        XCTAssertEqual(result.isi_score, 6)
+        let result = try SleepUploadRequest(record: record, ais: 4)
         XCTAssertEqual(result.ais_score, 4)
-        XCTAssertThrowsError(try SleepUploadRequest(record: record, isi: 29))
+        XCTAssertThrowsError(try SleepUploadRequest(record: record, ais: 25))
+        let legacy = try APIJSON.decode(SleepUploadResult.self, from: Data(#"{"id":1,"user_id":7,"isi_score":16}"#.utf8))
+        XCTAssertEqual(legacy.user_id, 7)
+        let scored = try JSONSerialization.jsonObject(with: result.encoded()) as! [String: Any]
+        XCTAssertNil(scored["isi_score"])
+        XCTAssertEqual(scored["ais_score"] as? Int, 4)
         record.sourceRawValue = SleepDataSource.sample.rawValue
         XCTAssertThrowsError(try SleepUploadRequest(record: record))
     }

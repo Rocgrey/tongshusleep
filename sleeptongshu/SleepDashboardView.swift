@@ -315,6 +315,7 @@ struct RecordRow: View {
 struct TrendsView: View {
     @Query(sort: \SleepRecord.end) private var records: [SleepRecord]
     @State private var days = 7
+    @State private var stepsMode = false
     @State private var metric = TrendMetric.duration
     @State private var detail: SleepRecord?
     @State private var sourceFilter: String?
@@ -333,56 +334,66 @@ struct TrendsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     VStack(alignment: .leading, spacing: 5) {
-                        Text("睡眠趋势").font(.system(size: 27, weight: .bold)).foregroundStyle(SleepPalette.ink)
-                        Text("比起某一晚，更在意每一天的节奏").font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
+                        Text(stepsMode ? "活动趋势" : "睡眠趋势").font(.system(size: 27, weight: .bold)).foregroundStyle(SleepPalette.ink)
+                        Text(stepsMode ? "让每一天的活动都看得见" : "比起某一晚，更在意每一天的节奏").font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
                     }
+                    Picker("统计内容", selection: $stepsMode) { Text("睡眠").tag(false); Text("步数").tag(true) }
+                        .pickerStyle(.segmented).accessibilityIdentifier("trendCategory")
                     Picker("时间范围", selection: $days) { Text("近 7 天").tag(7); Text("近 30 天").tag(30) }.pickerStyle(.segmented)
                         .accessibilityIdentifier("trendPeriod")
-                    Picker("数据来源", selection: $sourceFilter) {
-                        Text("自动选择来源").tag(nil as String?)
-                        ForEach(Array(Set(records.map(\.seriesKey))).sorted(), id: \.self) { key in
-                            Text(records.first { $0.seriesKey == key }?.seriesLabel ?? key).tag(Optional(key))
-                        }
-                    }.font(.system(size: 12))
-                    Text("不同来源分别统计，示例不会与真实记录混合。手机时长为信号估算，未能估算的记录不计入平均。")
-                        .font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
-                    if periodRecords.isEmpty {
-                        ContentUnavailableView("暂无这段时间的记录", systemImage: "chart.bar", description: Text("添加睡眠记录后查看趋势。"))
+                    if stepsMode {
+                        AccountStepsSection(days: days)
                     } else {
-                        VStack(alignment: .leading, spacing: 15) {
-                            if let record = periodRecords.last { SourceTag(source: record.source) }
-                            HStack(alignment: .firstTextBaseline) {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("平均睡眠时长").font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
-                                    Text(durations.isEmpty ? "--" : SleepRecord.durationText(average)).font(.system(size: 29, weight: .semibold, design: .rounded)).foregroundStyle(SleepPalette.ink)
-                                }
-                                Spacer()
-                                Text("\(periodRecords.count) 条记录").font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
-                            }
-                            Picker("统计指标", selection: $metric) { ForEach(TrendMetric.allCases) { Text($0.rawValue).tag($0) } }
-                                .pickerStyle(.segmented).accessibilityIdentifier("trendMetric")
-                            SleepTrendChart(records: periodRecords, metric: metric, goal: goal)
-                            Label(metric == .duration ? "虚线为你的睡眠目标" : "缺少睡眠阶段的记录不参与此项统计", systemImage: "info.circle")
-                                .font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
-                        }
-                        Divider()
-                        HStack(spacing: 12) {
-                            trendStat("最长一晚", value: durations.max().map(SleepRecord.durationText) ?? "--")
-                            Spacer()
-                            trendStat("达成目标", value: durations.isEmpty ? "--" : "\(durations.filter { Double($0) >= goal * 60 }.count) 晚")
-                        }
-                        SleepRegularityChart(records: periodRecords)
-                        SectionHeading(title: "每日记录", subtitle: "点开一晚，查看完整数据")
-                        LazyVStack(spacing: 0) {
-                            ForEach(periodRecords.reversed()) { record in
-                                Button { detail = record } label: { RecordRow(record: record) }.buttonStyle(.plain)
-                                Divider().padding(.vertical, 8)
-                            }
-                        }
+                        sleepTrends
                     }
                 }.padding(22).frame(maxWidth: 680).frame(maxWidth: .infinity)
             }.background(SleepPalette.background).toolbar(.hidden, for: .navigationBar)
                 .sheet(item: $detail) { record in RecordDetailView(record: record) }
+        }
+    }
+
+    @ViewBuilder private var sleepTrends: some View {
+        Picker("数据来源", selection: $sourceFilter) {
+            Text("自动选择来源").tag(nil as String?)
+            ForEach(Array(Set(records.map(\.seriesKey))).sorted(), id: \.self) { key in
+                Text(records.first { $0.seriesKey == key }?.seriesLabel ?? key).tag(Optional(key))
+            }
+        }.font(.system(size: 12))
+        Text("不同来源分别统计，示例不会与真实记录混合。手机时长为信号估算，未能估算的记录不计入平均。")
+            .font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
+        if periodRecords.isEmpty {
+            ContentUnavailableView("暂无这段时间的记录", systemImage: "chart.bar", description: Text("添加睡眠记录后查看趋势。"))
+        } else {
+            VStack(alignment: .leading, spacing: 15) {
+                if let record = periodRecords.last { SourceTag(source: record.source) }
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("平均睡眠时长").font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
+                        Text(durations.isEmpty ? "--" : SleepRecord.durationText(average)).font(.system(size: 29, weight: .semibold, design: .rounded)).foregroundStyle(SleepPalette.ink)
+                    }
+                    Spacer()
+                    Text("\(periodRecords.count) 条记录").font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
+                }
+                Picker("统计指标", selection: $metric) { ForEach(TrendMetric.allCases) { Text($0.rawValue).tag($0) } }
+                    .pickerStyle(.segmented).accessibilityIdentifier("trendMetric")
+                SleepTrendChart(records: periodRecords, metric: metric, goal: goal)
+                Label(metric == .duration ? "虚线为你的睡眠目标" : "缺少睡眠阶段的记录不参与此项统计", systemImage: "info.circle")
+                    .font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
+            }
+            Divider()
+            HStack(spacing: 12) {
+                trendStat("最长一晚", value: durations.max().map(SleepRecord.durationText) ?? "--")
+                Spacer()
+                trendStat("达成目标", value: durations.isEmpty ? "--" : "\(durations.filter { Double($0) >= goal * 60 }.count) 晚")
+            }
+            SleepRegularityChart(records: periodRecords)
+            SectionHeading(title: "每日记录", subtitle: "点开一晚，查看完整数据")
+            LazyVStack(spacing: 0) {
+                ForEach(periodRecords.reversed()) { record in
+                    Button { detail = record } label: { RecordRow(record: record) }.buttonStyle(.plain)
+                    Divider().padding(.vertical, 8)
+                }
+            }
         }
     }
 

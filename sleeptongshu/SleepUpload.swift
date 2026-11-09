@@ -12,15 +12,14 @@ struct SleepUploadRequest: Codable {
     let light_sleep_minutes: Int?
     let rem_minutes: Int?
     let awake_times: Int?
-    let isi_score: Int?
     let ais_score: Int?
     let notes: String?
 
-    init(record: SleepRecord, isi: Int? = nil, ais: Int? = nil, timeZone: TimeZone = .current) throws {
+    init(record: SleepRecord, ais: Int? = nil, timeZone: TimeZone = .current) throws {
         try record.payload.validate()
         guard record.source != .sample else { throw APIError.validation("示例记录不上传，请选择自己的睡眠记录。") }
-        guard isi.map({ (0...28).contains($0) }) ?? true, ais.map({ (0...24).contains($0) }) ?? true else {
-            throw APIError.validation("ISI 总分范围为 0～28，AIS 总分范围为 0～24。")
+        guard ais.map({ (0...24).contains($0) }) ?? true else {
+            throw APIError.validation("AIS 总分范围为 0～24。")
         }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -38,7 +37,7 @@ struct SleepUploadRequest: Codable {
         light_sleep_minutes = stagesComplete ? record.minutes(.light) : nil
         rem_minutes = stagesComplete ? record.minutes(.rem) : nil
         awake_times = record.awakenings
-        isi_score = isi; ais_score = ais
+        ais_score = ais
         notes = record.note.isEmpty ? nil : record.note
     }
     func encoded() throws -> Data {

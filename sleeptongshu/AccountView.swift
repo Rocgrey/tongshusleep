@@ -37,13 +37,15 @@ struct AccountLoginView: View {
     @State private var register = false
     @State private var username = ""
     @State private var email = ""
+    @State private var phone = ""
+    @State private var method = AccountInput.Method.phone
     @State private var password = ""
     @State private var confirmation = ""
     @State private var registrationNotice: String?
     @AppStorage("accountRememberLogin") private var remember = true
     @State private var showsError = false
     @FocusState private var focused: Field?
-    private enum Field { case username, email, password, confirmation }
+    private enum Field { case username, phone, email, password, confirmation }
     private var passwordContentType: UITextContentType {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-ui-testing") { return .oneTimeCode }
@@ -69,6 +71,11 @@ struct AccountLoginView: View {
                     Text("注册").tag(true)
                 }.pickerStyle(.segmented).disabled(account.isLoading).accessibilityIdentifier("accountMode")
                 VStack(alignment: .leading, spacing: 20) {
+                    if !register {
+                        Picker("登录方式", selection: $method) {
+                            ForEach(AccountInput.Method.allCases, id: \.self) { Text($0.title).tag($0) }
+                        }.pickerStyle(.segmented).accessibilityIdentifier("accountLoginMethod")
+                    }
                     if register {
                         field("用户名", symbol: "person") {
                             TextField("3～32 位中文、字母、数字或下划线", text: $username)
@@ -76,11 +83,17 @@ struct AccountLoginView: View {
                                 .focused($focused, equals: .username).accessibilityIdentifier("accountUsername")
                         }
                     }
-                    field("邮箱", symbol: "envelope") {
+                    if register || method == .phone {
+                        field("手机号", symbol: "iphone") {
+                            TextField("11 位大陆手机号", text: $phone).textContentType(.telephoneNumber).keyboardType(.phonePad)
+                                .focused($focused, equals: .phone).accessibilityIdentifier("accountPhone")
+                        }
+                    }
+                    if register || method == .email { field(register ? "邮箱（选填）" : "邮箱", symbol: "envelope") {
                         TextField("你的邮箱地址", text: $email).textContentType(.username).keyboardType(.emailAddress)
                             .textInputAutocapitalization(.never).autocorrectionDisabled().focused($focused, equals: .email)
                             .accessibilityIdentifier("accountEmail")
-                    }
+                    } }
                     field("密码", symbol: "lock") {
                         SecureField(register ? "至少 6 个字符" : "输入密码", text: $password)
                             .textContentType(passwordContentType).keyboardType(.asciiCapable).focused($focused, equals: .password)
@@ -150,13 +163,14 @@ struct AccountLoginView: View {
         let inputPassword = password, inputConfirmation = confirmation, isRegistration = register
         Task {
             if isRegistration {
-                let success = await account.register(username: username, email: email, password: inputPassword, confirmation: inputConfirmation)
+                let success = await account.register(username: username, phone: phone, email: email, password: inputPassword, confirmation: inputConfirmation)
                 if success {
                     registrationNotice = account.message
                     register = false
+                    method = AccountInput.phone(phone).isEmpty ? .email : .phone
                 } else { showsError = true }
             } else {
-                await account.login(email: email, password: inputPassword, remember: remember)
+                await account.login(identifier: method == .phone ? phone : email, method: method, password: inputPassword, remember: remember)
                 if account.session == nil { showsError = true }
             }
             password = ""; confirmation = ""
@@ -174,11 +188,12 @@ struct AccountCenterView: View {
                 if let user = account.session?.user {
                     Section {
                         Label(user.username, systemImage: "person.crop.circle.fill").font(.system(size: 20, weight: .semibold))
-                        LabeledContent("邮箱", value: user.email).accessibilityIdentifier("profileEmail")
+                        if let phone = user.phone { LabeledContent("手机号", value: phone).accessibilityIdentifier("profilePhone") }
+                        if let email = user.email { LabeledContent("邮箱", value: email).accessibilityIdentifier("profileEmail") }
                         LabeledContent("注册日期", value: user.createdAt.formatted(date: .abbreviated, time: .omitted))
                     }
                     Section("记录与账号") {
-                        Label("仅上传你选择的睡眠记录", systemImage: "lock.shield")
+                        Label("睡眠与步数由你选择同步", systemImage: "lock.shield")
                         Text("本机记录不会因切换账号而被清空。上传前请确认当前账号；已上传的记录在对应账号的平台中保存。")
                             .font(.system(size: 13)).foregroundStyle(SleepPalette.muted)
                     }

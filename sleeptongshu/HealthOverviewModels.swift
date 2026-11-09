@@ -123,6 +123,9 @@ struct HealthOverviewSnapshot: Codable {
     var sleepRecords: [SleepPayload]? = nil
     var notices: [String]? = nil
     var workouts: [HealthWorkoutRecord]? = nil
+    // Absent in old snapshots: display is retained, but those dates are not safe to upload.
+    var stepsTimeZone: String? = nil
+    var stepsReadAt: Date? = nil
 }
 
 struct HealthWorkoutRecord: Codable, Identifiable, Equatable {

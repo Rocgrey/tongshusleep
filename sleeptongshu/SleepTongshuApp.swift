@@ -62,6 +62,7 @@ struct RootTabView: View {
     @StateObject private var scanner = RingScanner()
     @StateObject private var vitals = WearableVitalsStore.appStore()
     @StateObject private var healthOverview = HealthOverviewStore()
+    @StateObject private var accountSteps = AccountStepsStore()
 
     var body: some View {
         TabView(selection: $tab) {
@@ -75,6 +76,7 @@ struct RootTabView: View {
         .environmentObject(scanner)
         .environmentObject(vitals)
         .environmentObject(healthOverview)
+        .environmentObject(accountSteps)
         .onChange(of: scanner.latestVitals) { _, samples in
             let spaced = samples.filter { sample in
                 let previous = vitals.samples.last { $0.device == sample.device && $0.kind == sample.kind && $0.origin == sample.origin }
