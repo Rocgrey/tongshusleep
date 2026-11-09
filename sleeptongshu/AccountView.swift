@@ -152,7 +152,7 @@ struct AccountLoginView: View {
             HStack(spacing: 12) {
                 Image(systemName: symbol).frame(width: 20).foregroundStyle(SleepPalette.muted)
                 content().font(.system(size: 14)).textFieldStyle(.plain).frame(minHeight: 52)
-            }.padding(.horizontal, 14).frame(minHeight: 52).background(.white, in: RoundedRectangle(cornerRadius: 8))
+            }.padding(.horizontal, 14).frame(minHeight: 52).background(SleepPalette.surface, in: RoundedRectangle(cornerRadius: 8))
                 .overlay { RoundedRectangle(cornerRadius: 8).stroke(SleepPalette.line) }
         }
     }

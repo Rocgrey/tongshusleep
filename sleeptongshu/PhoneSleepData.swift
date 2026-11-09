@@ -4,6 +4,7 @@ struct SleepMetadata: Codable {
     var phone: PhoneNight? = nil
     var externalSource: String? = nil
     var externalID: String? = nil
+    var healthSleep: HealthSleepDetails? = nil
 }
 
 struct PhoneEpoch: Codable, Identifiable, Equatable {

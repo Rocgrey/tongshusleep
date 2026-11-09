@@ -173,6 +173,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastUpgradeCheck = 2720;
+				TargetAttributes = { A10000000000000000000005 = { SystemCapabilities = { com.apple.HealthKit = { enabled = 1; }; }; }; };
 			};
 			buildConfigurationList = A10000000000000000000008 /* Build configuration list for PBXProject "sleeptongshu" */;
 			compatibilityVersion = "Xcode 16.0";

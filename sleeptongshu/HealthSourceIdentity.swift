@@ -1,6 +1,12 @@
 import HealthKit
 
 enum HealthSourceIdentity {
+    static func sleepOrigin(_ sample: HKSample) -> HealthSleepOrigin {
+        let device = sample.device
+        return HealthSleepOrigin(sourceID: key(sample), appName: sample.sourceRevision.source.name,
+            bundleIdentifier: sample.sourceRevision.source.bundleIdentifier, deviceName: device?.name,
+            model: device?.model, manufacturer: device?.manufacturer, localIdentifier: device?.localIdentifier)
+    }
     static func key(_ sample: HKSample) -> String {
         let source = sample.sourceRevision.source
         let device = sample.device

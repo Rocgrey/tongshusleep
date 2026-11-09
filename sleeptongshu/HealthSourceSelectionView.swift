@@ -12,6 +12,8 @@ struct HealthSourceSelectionView: View {
     @State private var exportDocument: SleepBackupDocument?
     @State private var showsExport = false
     @State private var error: String?
+    @Query(sort: \SleepRecord.end, order: .reverse) private var records: [SleepRecord]
+    @State private var archivedDetail: SleepRecord?
 
     var body: some View {
         NavigationStack {
@@ -49,6 +51,15 @@ struct HealthSourceSelectionView: View {
                     Text("只清理本 App 保存的健康概览快照，不影响系统健康、睡眠报告或蓝牙体征。下次读取可重新生成。导出包含健康记录，请自行选择接收人。")
                         .font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
                 }
+                if records.contains(where: { !$0.isVisible }) {
+                    Section("系统睡眠归档") {
+                        Text("系统中已不可见的导入记录不参与统计；原始来源和独立备注仍在本机保留。重新读取到相同睡眠后可恢复显示。")
+                            .font(.caption).foregroundStyle(SleepPalette.muted)
+                        ForEach(records.filter { !$0.isVisible }) { record in
+                            Button { archivedDetail = record } label: { RecordRow(record: record) }.buttonStyle(.plain)
+                        }
+                    }
+                }
                 if let sources = health.snapshot?.sources, !sources.isEmpty {
                     Section("已读取的记录来源") {
                         ForEach(sources) { source in
@@ -60,6 +71,7 @@ struct HealthSourceSelectionView: View {
                     }
                 }
             }.scrollContentBackground(.hidden).background(SleepPalette.background)
+                .sheet(item: $archivedDetail) { RecordDetailView(record: $0) }
                 .navigationTitle("健康设置").navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } } }
                 .confirmationDialog("清空本 App 的健康快照？", isPresented: $clear, titleVisibility: .visible) {

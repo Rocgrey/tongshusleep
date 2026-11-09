@@ -50,7 +50,7 @@ final class SleepAppUITests: XCTestCase {
         press(app.segmentedControls["trendMetric"].buttons["效率"])
         XCTAssertTrue(app.staticTexts["30 条记录"].exists)
         capture("03-month-efficiency")
-        reveal(app.staticTexts["入睡与醒来的节奏"])
+        reveal(app.staticTexts["入睡与结束的节奏"])
         capture("44-sleep-regularity")
         reveal(app.staticTexts["每日记录"])
         let rows = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "示例数据"))

@@ -15,7 +15,12 @@ enum SleepMetricGuide {
     static let consensusReference = SleepReference(title: "《国家睡眠基金会睡眠质量建议：第一份报告》（译名）", originalTitle: "National Sleep Foundation's sleep quality recommendations: first report", author: "Maurice Ohayon 等，2017")
 
     static func efficiency(_ record: SleepRecord) -> MetricHelp {
+        if record.source == .healthKit {
+            return MetricHelp(title: "睡眠效率怎么算？", body: "系统睡眠效率 = 真实睡眠时长 ÷ 同一来源的完整卧床时长 × 100%。只有卧床范围被睡眠或清醒记录连续覆盖时才显示；仅卧床或未记录区间不能推算成清醒。\n\n本段：\(record.efficiency.map { "\($0)%" } ?? "尚无足够的覆盖数据，不计算效率")。常见成人参考约 85% 及以上，不能单靠这个数判断睡眠好坏。\n\n清醒次数只统计入睡后、再次睡着前有明确记录的清醒段；不含入睡前或最后起床。覆盖不完整时不显示次数或汇总清醒时长。", references: [qualityReference, consensusReference])
+        }
+        let help =
         MetricHelp(title: "睡眠效率怎么算？", body: "睡眠效率，就是这段记录里有多少时间真正睡着了。\n\n计算：睡着的时间 ÷ 整段记录的时间 × 100%。显示整数，小数不计。\n本晚：\(SleepRecord.durationText(record.asleepMinutes)) ÷ \(SleepRecord.durationText(record.inBedMinutes))\(record.efficiency.map { " ≈ \($0)%" } ?? "；资料不完整，暂不计算")。\n\n成人通常可参考 85% 及以上。比如躺床 8 小时、睡着 7 小时，效率约为 87%。但时间睡得太短，即使效率高，也可能没休息够。\n\n这个参考通常把躺床但还没睡着的时间也算进去。设备可能在你睡着后才开始记录，让结果看起来偏高。请结合睡眠时长和白天精神状态一起看。缺少一段记录时，不给出结果。", references: [qualityReference, consensusReference])
+        return help
     }
 
     static func score(_ record: SleepRecord) -> MetricHelp {
@@ -66,11 +71,20 @@ enum SleepMetricGuide {
         case .unobserved:
             meaning = "这段时间没有可靠记录，不能判断在睡觉还是清醒。不把它当成任何阶段，也暂不计算效率、分数和各阶段比例。"
             references = []
+        case .inBed:
+            meaning = "只知道这段时间在床上，不能判断是否睡着；不计入睡眠时长，也不能当作清醒。"
+            references = []
         }
         let isSleepStage = [.deep, .light, .rem].contains(stage)
-        let summary = isSleepStage
+        var summary = isSleepStage
             ? "本晚 \(record.minutes(stage)) 分钟，\(record.share(stage).map { "占睡眠的 \($0)%" } ?? "资料不完整，暂不计算占比")。\n计算：这个阶段的时间 ÷ 睡着的总时间 × 100%，显示整数，小数不计。"
             : "本晚\(stage.label) \(record.minutes(stage)) 分钟。"
+        if record.source == .healthKit {
+            if stage == .awake && record.awakeMinutes == nil { summary = "本次未汇总清醒时长：覆盖不完整，或来源未提供清醒分期。" }
+            else if isSleepStage && !record.segments.contains(where: { $0.stage == stage }) {
+                summary = "本次来源未提供\(stage.label)记录，不推算时长或占比。"
+            }
+        }
         let limitation = isSleepStage ? "\n\n这些是成人的一般参考，不是设备检测的及格线；儿童和个人情况需要分别看。" : ""
         return MetricHelp(title: "\(stage.label)\(isSleepStage ? "占比" : "时段")", body: "\(summary)\n\n\(meaning)\(limitation)", references: references)
     }

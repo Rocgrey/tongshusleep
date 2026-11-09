@@ -70,7 +70,7 @@ final class HealthOverviewTests: XCTestCase {
         XCTAssertEqual(values.count, 1)
         XCTAssertEqual(values.first?.value, 2)
         XCTAssertEqual(values.first?.start, day(0))
-        XCTAssertNil(HealthOverviewStore.stage(HKCategoryValueSleepAnalysis.inBed.rawValue))
+        XCTAssertEqual(HealthOverviewStore.stage(HKCategoryValueSleepAnalysis.inBed.rawValue), .inBed)
     }
 
     func testTrendRequiresCoverageInBothDisjointWindowsAndExcludesToday() {

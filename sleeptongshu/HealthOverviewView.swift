@@ -43,6 +43,7 @@ struct HealthOverviewView: View {
                 #endif
                 if let error = health.storageError { Text(error).font(.system(size: 12)).foregroundStyle(.red) }
                 healthConnection
+                SystemSleepImportView()
                 if available > 0 { latestReadings }
                 Divider()
                 ageOverview
@@ -81,10 +82,10 @@ struct HealthOverviewView: View {
             }
             Spacer(minLength: 0)
             Button { showsSources = true } label: {
-                Image(systemName: "slider.horizontal.3").font(.system(size: 19)).frame(width: 44, height: 44).background(.white, in: Circle())
+                Image(systemName: "slider.horizontal.3").font(.system(size: 19)).frame(width: 44, height: 44).background(SleepPalette.surface, in: Circle())
             }.accessibilityLabel("健康设置").accessibilityIdentifier("healthSources").help("健康设置")
             Button { account.open(.profile) } label: {
-                Image(systemName: "person.crop.circle").font(.system(size: 22)).frame(width: 44, height: 44).background(.white, in: Circle())
+                Image(systemName: "person.crop.circle").font(.system(size: 22)).frame(width: 44, height: 44).background(SleepPalette.surface, in: Circle())
             }.accessibilityLabel("我的账号").accessibilityIdentifier("openAccount").help("我的账号")
         }
     }
@@ -428,7 +429,7 @@ struct HealthMetricTile: View {
                 }
                 Text(sourceLabel).font(.system(size: 10)).foregroundStyle(SleepPalette.muted).lineLimit(2)
             }.frame(maxWidth: .infinity, minHeight: 180, alignment: .topLeading).padding(14)
-                .background(.white, in: RoundedRectangle(cornerRadius: 8))
+                .background(SleepPalette.surface, in: RoundedRectangle(cornerRadius: 8))
                 .overlay(alignment: .topTrailing) { Image(systemName: "arrow.up.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(metric.healthTint.opacity(0.6)).padding(14) }
                 .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(metric.healthTint.opacity(0.08)) }.contentShape(Rectangle())
         }.buttonStyle(.plain).accessibilityIdentifier("healthMetric-\(metric.rawValue)")

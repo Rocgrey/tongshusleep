@@ -58,9 +58,15 @@ final class HealthOverviewStore: ObservableObject {
     @Published var message: String?
     @Published private(set) var messageIsError = false
     @Published private(set) var storageError: String?
-    private let health = HKHealthStore()
+    private let health: HKHealthStore
+    private let sleepReader: any HealthSleepReading
+    @Published private(set) var sleepMessage: String?
+    @Published private(set) var sleepMessageIsError = false
+    private var lastSleepAttempt: Date?
+    static let noSleepMessage = "未读取到睡眠记录，请检查系统健康中的数据和访问设置"
     private let url: URL?
     private var cache: [HealthMetric: [HealthDay]] = [:]
+    private var cacheTimeZone = TimeZone.current.identifier
     private var failedToReadCache = false
     private var lastAutomaticAttempt: Date?
     private let authorizationDefaults: UserDefaults?
@@ -78,7 +84,16 @@ final class HealthOverviewStore: ObservableObject {
     }
 
     init(url: URL? = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("system-health-overview-v1.json"),
-         authorizationDefaults: UserDefaults? = .standard) {
+         authorizationDefaults: UserDefaults? = .standard, sleepReader: (any HealthSleepReading)? = nil) {
+        let health = HKHealthStore()
+        self.health = health
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-system-sleep") {
+            self.sleepReader = sleepReader ?? PreviewSystemSleepReader()
+        } else { self.sleepReader = sleepReader ?? HKSystemSleepReader(health: health) }
+        #else
+        self.sleepReader = sleepReader ?? HKSystemSleepReader(health: health)
+        #endif
         self.url = url
         self.authorizationDefaults = authorizationDefaults
         #if DEBUG
@@ -103,14 +118,60 @@ final class HealthOverviewStore: ObservableObject {
         return count > 1 ? "系统健康 · \(count) 个记录来源" : "系统健康"
     }
     func days(for metric: HealthMetric) -> [HealthDay] {
+        if cacheTimeZone != TimeZone.current.identifier { cache = [:]; cacheTimeZone = TimeZone.current.identifier }
         if let cached = cache[metric] { return cached }
         guard let snapshot, !snapshot.truncatedMetrics.contains(metric) else { return [] }
         let calendar = metric == .steps && snapshot.stepsTimeZone == StepDates.timeZone.identifier ? StepDates.calendar : Calendar.current
-        let result = HealthOverviewAnalysis.daily(snapshot.observations, metric: metric, calendar: calendar)
+        let observations = metric == .sleep ? snapshot.sleepRecords.map(Self.sleepObservations) ?? snapshot.observations : snapshot.observations
+        let result = HealthOverviewAnalysis.daily(observations, metric: metric, calendar: calendar)
         cache[metric] = result
         return result
     }
     var latestDate: Date? { snapshot?.observations.map(\.end).max() }
+
+    func refreshSleepIfNeeded(in context: ModelContext, now: Date = .now) async {
+        guard let readAt = snapshot?.sleepReadAt, now.timeIntervalSince(readAt) >= 15 * 60,
+              lastSleepAttempt.map({ now.timeIntervalSince($0) >= 60 }) ?? true else { return }
+        lastSleepAttempt = now
+        await readSystemSleep(in: context, now: now)
+    }
+
+    /// A shared store powers both tabs. Read permission never implies consent to upload.
+    func readSystemSleep(in context: ModelContext, requestAccess: Bool = false, now: Date = .now) async {
+        guard !isLoading else { return }
+        guard !failedToReadCache else { sleepMessage = storageError; sleepMessageIsError = true; return }
+        guard sleepReader.isAvailable else { sleepMessage = HealthSleepReadError.unavailable.localizedDescription; sleepMessageIsError = true; return }
+        isLoading = true; sleepMessage = nil; sleepMessageIsError = false; progress = "正在读取系统睡眠"
+        defer { isLoading = false; progress = "" }
+        do {
+            let window = HealthSleepWindow(now: now)
+            let result = try await sleepReader.read(window, requestAccess: requestAccess)
+            let payloads = try HealthSleepImporter.automaticRecords(result.candidates, observations: snapshot?.observations ?? [], sources: result.sources, window: window)
+            var next = snapshot ?? HealthOverviewSnapshot(readAt: now, sources: [], observations: [])
+            let sources = next.sources + result.sources
+            next.sources = Array(Dictionary(sources.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last }).values)
+            next.observations.removeAll { $0.metric == .sleep }
+            next.observations += Self.sleepObservations(payloads)
+            next.sleepRecords = payloads; next.sleepReadAt = now; next.sleepWindow = window
+            next.truncatedMetrics.removeAll { $0 == .sleep }
+            try saveSleepSnapshot(next, in: context, window: window)
+            snapshot = next; cache = [:]
+            sleepMessage = payloads.isEmpty ? Self.noSleepMessage : "已读取 \(payloads.count) 段系统睡眠，睡眠页已更新。"
+        } catch {
+            context.rollback()
+            sleepMessage = "睡眠读取未完成，原有记录已保留：\(error.localizedDescription)"; sleepMessageIsError = true
+        }
+    }
+
+    private static func sleepObservations(_ payloads: [SleepPayload]) -> [HealthObservation] {
+        payloads.compactMap { payload in
+            let record = SleepRecord(payload)
+            guard record.hasSleepDuration else { return nil }
+            let hours = payload.segments.filter { $0.stage.isAsleep }.reduce(0) { $0 + $1.end.timeIntervalSince($1.start) } / 3600
+            return HealthObservation(id: "system-sleep|\(payload.id)", metric: .sleep, sourceID: "system-health-sleep",
+                start: record.day, end: record.day, value: hours)
+        }
+    }
 
     func refresh(in context: ModelContext? = nil, requestAccess: Bool = false) async {
         guard !isLoading else { return }
@@ -167,11 +228,19 @@ final class HealthOverviewStore: ObservableObject {
             var workouts: [HealthWorkoutRecord] = []
             var sleepReadFailed = false
             var stepsReadFailed = false
+            let sleepWindow = HealthSleepWindow(now: readAt)
             progressValue = 0
             for (index, metric) in HealthMetric.allCases.enumerated() {
                 progress = "正在读取\(metric.title)（\(index + 1)/\(HealthMetric.allCases.count)）"
                 defer { completed += 1; progressValue = Double(completed) / Double(HealthMetric.allCases.count) }
                 do {
+                if metric == .sleep {
+                    let result = try await sleepReader.read(sleepWindow, requestAccess: false)
+                    candidates = result.candidates
+                    for source in result.sources { sources[source.id] = source }
+                    successful += 1
+                    continue
+                }
                 if metric.usesDailyStatistics {
                     let totals = try await readDailyTotals(metric: metric, start: start, end: readAt)
                     observations += totals.observations
@@ -179,7 +248,7 @@ final class HealthOverviewStore: ObservableObject {
                     successful += 1
                     continue
                 }
-                let type: HKSampleType = metric == .sleep ? sleep : metric == .workout ? HKObjectType.workoutType() : HKObjectType.quantityType(forIdentifier: metric.quantityIdentifier!)!
+                let type: HKSampleType = metric == .workout ? HKObjectType.workoutType() : HKObjectType.quantityType(forIdentifier: metric.quantityIdentifier!)!
                 let samples = try await read(type: type, start: start, end: readAt)
                 successful += 1
                 if samples.count >= 50_000 {
@@ -188,17 +257,7 @@ final class HealthOverviewStore: ObservableObject {
                     continue
                 }
                 for sample in samples { sources[HealthSourceIdentity.key(sample)] = HealthSourceIdentity.describe(sample) }
-                if metric == .sleep {
-                    let groups = Dictionary(grouping: samples.compactMap { $0 as? HKCategorySample }, by: HealthSourceIdentity.key)
-                    for (id, values) in groups {
-                        let intervals = values.compactMap { sample -> HealthSleepInterval? in
-                            guard let stage = Self.stage(sample.value), sample.endDate > sample.startDate,
-                                  sample.endDate.timeIntervalSince(sample.startDate) <= 24 * 3600 else { return nil }
-                            return HealthSleepInterval(id: sample.uuid, start: sample.startDate, end: sample.endDate, stage: stage)
-                        }
-                        candidates.append(HealthSleepCandidate(sourceID: id, intervals: intervals))
-                    }
-                } else if metric == .workout {
+                if metric == .workout {
                     workouts = samples.compactMap { ($0 as? HKWorkout).flatMap(Self.workoutRecord) }
                     observations += workouts.map { record in
                         HealthObservation(id: record.id, metric: .workout, sourceID: "system-health-workouts",
@@ -226,14 +285,10 @@ final class HealthOverviewStore: ObservableObject {
             guard successful > 0 else { throw NSError(domain: "SystemHealth", code: 1, userInfo: [NSLocalizedDescriptionKey: "系统健康暂时无法读取，请稍后重试。旧快照已保留。"] ) }
             var sleepRecords: [SleepPayload] = sleepReadFailed ? snapshot?.sleepRecords ?? [] : []
             if !sleepReadFailed {
-                do { sleepRecords = try HealthSleepImporter.automaticRecords(candidates, observations: observations, sources: Array(sources.values)) }
-                catch { notices.append("部分睡眠记录暂未整理，已读到的体征与活动仍可查看。") }
+                do { sleepRecords = try HealthSleepImporter.automaticRecords(candidates, observations: observations, sources: Array(sources.values), window: sleepWindow) }
+                catch { sleepReadFailed = true; sleepRecords = snapshot?.sleepRecords ?? []; notices.append("睡眠整理未完成，原有睡眠记录已保留。") }
             }
-            for payload in sleepReadFailed ? [] : sleepRecords {
-                let date = Calendar.current.date(byAdding: .day, value: 1, to: HealthSleepImporter.night(payload.end))!
-                let hours = payload.segments.filter { ![.awake, .unobserved].contains($0.stage) }.reduce(0) { $0 + $1.end.timeIntervalSince($1.start) } / 3600
-                observations.append(HealthObservation(id: "system-sleep|\(date.timeIntervalSince1970)", metric: .sleep, sourceID: "system-health-sleep", start: date, end: date, value: hours))
-            }
+            if !sleepReadFailed { observations += Self.sleepObservations(sleepRecords) }
             let birth = try? health.dateOfBirthComponents()
             let age = birth.flatMap { Calendar(identifier: .gregorian).date(from: $0) }
                 .flatMap { Calendar.current.dateComponents([.year], from: $0, to: readAt).year }
@@ -243,16 +298,18 @@ final class HealthOverviewStore: ObservableObject {
                                               observations: observations, age: age, referenceSex: reference, truncatedMetrics: truncated,
                                               sleepRecords: sleepRecords, notices: notices, workouts: workouts,
                                               stepsTimeZone: stepsReadFailed ? snapshot?.stepsTimeZone : StepDates.timeZone.identifier,
-                                              stepsReadAt: stepsReadFailed ? (snapshot?.stepsReadAt ?? snapshot?.readAt) : readAt)
+                                              stepsReadAt: stepsReadFailed ? (snapshot?.stepsReadAt ?? snapshot?.readAt) : readAt,
+                                              sleepReadAt: sleepReadFailed ? snapshot?.sleepReadAt : readAt,
+                                              sleepWindow: sleepReadFailed ? snapshot?.sleepWindow : sleepWindow)
             let resultMessage = Self.refreshSummary(previous: snapshot, next: next)
-            // Save before publishing; an unsuccessful refresh leaves the previous snapshot intact.
-            try write(HealthOverviewArchive(snapshot: next))
+            if !sleepReadFailed, let context { try saveSleepSnapshot(next, in: context, window: sleepWindow) }
+            else { try write(HealthOverviewArchive(snapshot: next)) }
             snapshot = next; cache = [:]; storageError = nil
             message = resultMessage
             messageIsError = !notices.isEmpty
-            if let context {
-                do { try HealthSleepImporter.save(sleepRecords, in: context) }
-                catch { context.rollback(); message = "健康概览已更新，但睡眠报告保存未完成，请重新刷新。"; messageIsError = true }
+            if !sleepReadFailed {
+                sleepMessage = sleepRecords.isEmpty ? Self.noSleepMessage : "已读取 \(sleepRecords.count) 段系统睡眠，睡眠页已更新。"
+                sleepMessageIsError = false
             }
             // Empty results remain visible on the page with permission and source guidance.
         } catch { message = "读取未完成，原有数据仍保留：\(error.localizedDescription)"; messageIsError = true }
@@ -261,7 +318,7 @@ final class HealthOverviewStore: ObservableObject {
     nonisolated static func stage(_ raw: Int) -> SleepStage? {
         switch HKCategoryValueSleepAnalysis(rawValue: raw) {
         case .asleepCore: .light; case .asleepDeep: .deep; case .asleepREM: .rem
-        case .awake: .awake; case .asleepUnspecified: .unspecified; default: nil
+        case .awake: .awake; case .asleepUnspecified: .unspecified; case .inBed: .inBed; default: nil
         }
     }
     nonisolated static func needsAuthorization(_ status: HKAuthorizationRequestStatus, alreadyRequested: Bool = false) -> Bool {
@@ -345,6 +402,22 @@ final class HealthOverviewStore: ObservableObject {
         snapshot = nil; cache = [:]; storageError = nil; failedToReadCache = false
     }
     func export() throws -> Data { try JSONEncoder().encode(HealthOverviewArchive(snapshot: snapshot)) }
+    /// Stage model changes, persist the cache, then commit; failed writes must not archive valid nights.
+    private func saveSleepSnapshot(_ next: HealthOverviewSnapshot, in context: ModelContext, window: HealthSleepWindow) throws {
+        var wroteCache = false
+        do {
+            try HealthSleepImporter.save(next.sleepRecords ?? [], in: context, window: window, saveChanges: false)
+            try write(HealthOverviewArchive(snapshot: next)); wroteCache = true
+            try context.save()
+        } catch {
+            context.rollback()
+            if wroteCache {
+                do { try write(HealthOverviewArchive(snapshot: snapshot)) }
+                catch { storageError = "睡眠未能保存，健康缓存需要重新读取。原有睡眠记录仍保留。" }
+            }
+            throw error
+        }
+    }
     private func write(_ archive: HealthOverviewArchive) throws {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-ui-testing") { return }

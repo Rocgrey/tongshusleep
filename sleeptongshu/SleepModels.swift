@@ -15,14 +15,15 @@ enum SleepDataSource: String, Codable, CaseIterable {
 }
 
 enum SleepStage: String, Codable, CaseIterable, Identifiable {
-    case awake, rem, light, deep, unspecified, unobserved
+    case awake, rem, light, deep, unspecified, unobserved, inBed
     var id: String { rawValue }
     var label: String {
-        switch self { case .awake: "清醒"; case .rem: "快速眼动"; case .light: "浅睡"; case .deep: "深睡"; case .unspecified: "睡眠（未分期）"; case .unobserved: "未记录" }
+        switch self { case .awake: "清醒"; case .rem: "快速眼动"; case .light: "浅睡"; case .deep: "深睡"; case .unspecified: "未分期睡眠"; case .unobserved: "未记录"; case .inBed: "卧床（睡眠未确定）" }
     }
     var level: Int {
-        switch self { case .awake: 3; case .rem: 2; case .light: 1; case .deep: 0; case .unspecified: 1; case .unobserved: -1 }
+        switch self { case .awake: 3; case .rem: 2; case .light: 1; case .deep: 0; case .unspecified: 4; case .unobserved: -1; case .inBed: -2 }
     }
+    var isAsleep: Bool { [.light, .deep, .rem, .unspecified].contains(self) }
 }
 
 struct SleepSegment: Codable, Identifiable, Equatable {
@@ -133,23 +134,65 @@ final class SleepRecord {
     var segments: [SleepSegment] { (try? JSONDecoder().decode([SleepSegment].self, from: segmentsData)) ?? [] }
     var heartSamples: [HeartSample] { (try? JSONDecoder().decode([HeartSample].self, from: heartSamplesData)) ?? [] }
     var metadata: SleepMetadata? { metadataData.flatMap { try? JSONDecoder().decode(SleepMetadata.self, from: $0) } }
+    var isVisible: Bool { metadata?.healthSleep?.isRemoved != true }
+    var onlyInBed: Bool { source == .healthKit && !hasSleepDuration && (segments.contains { $0.stage == .inBed } || metadata?.healthSleep?.samples.contains { $0.stage == .inBed } == true) }
+    var hasCompleteCoverage: Bool { !segments.isEmpty && !segments.contains { [.unobserved, .inBed].contains($0.stage) } }
+    var sleepOnset: Date? { source == .healthKit ? segments.first(where: { $0.stage.isAsleep })?.start : start }
+    var sleepEnd: Date? { source == .healthKit ? segments.last(where: { $0.stage.isAsleep })?.end : end }
+    var displayTimeZone: TimeZone { metadata?.healthSleep.flatMap { TimeZone(identifier: $0.timeZoneIdentifier) } ?? .current }
+    func displayClock(_ date: Date) -> String {
+        let formatter = DateFormatter(); formatter.timeZone = displayTimeZone; formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+    /// A calendar label, not elapsed time: keep the end date in the sample's original timezone.
+    var day: Date {
+        guard let label = metadata?.healthSleep?.endDay else { return Calendar.current.startOfDay(for: end) }
+        let formatter = DateFormatter(); formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.timeZone = .current; formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: label) ?? Calendar.current.startOfDay(for: end)
+    }
     var inBedMinutes: Int { max(0, Int(end.timeIntervalSince(start) / 60)) }
     var asleepMinutes: Int {
         if source == .phone { return metadata?.phone?.estimatedMinutes ?? 0 }
-        return segments.isEmpty ? inBedMinutes : segments.filter { $0.stage != .awake && $0.stage != .unobserved }.map(\.minutes).reduce(0, +)
+        if source == .healthKit { return Int(segments.filter { $0.stage.isAsleep }.reduce(0) { $0 + $1.end.timeIntervalSince($1.start) } / 60) }
+        return segments.isEmpty ? inBedMinutes : segments.filter { $0.stage.isAsleep }.map(\.minutes).reduce(0, +)
     }
     var hasStages: Bool { segments.contains { [.deep, .light, .rem].contains($0.stage) } }
-    var hasSleepDuration: Bool { source != .phone || metadata?.phone?.estimatedMinutes != nil }
-    func minutes(_ stage: SleepStage) -> Int { segments.filter { $0.stage == stage }.map(\.minutes).reduce(0, +) }
-    var efficiency: Int? { !segments.isEmpty && !segments.contains { $0.stage == .unobserved } && inBedMinutes > 0 ? Int(Double(asleepMinutes) / Double(inBedMinutes) * 100) : nil }
+    var hasSleepDuration: Bool {
+        if source == .healthKit { return segments.contains { $0.stage.isAsleep } }
+        return source != .phone || metadata?.phone?.estimatedMinutes != nil
+    }
+    func minutes(_ stage: SleepStage) -> Int { Int(segments.filter { $0.stage == stage }.reduce(0) { $0 + $1.end.timeIntervalSince($1.start) } / 60) }
+    var efficiency: Int? {
+        guard hasCompleteCoverage, inBedMinutes > 0 else { return nil }
+        if source == .healthKit {
+            guard hasSleepDuration, let health = metadata?.healthSleep, health.bedRangeIsComplete != false,
+                  HealthSleepNormalizer.covers(start...end, with: health.samples.filter { $0.stage == .inBed }) else { return nil }
+        }
+        return Int(Double(asleepMinutes) / Double(inBedMinutes) * 100)
+    }
     func share(_ stage: SleepStage) -> Int? {
+        if source == .healthKit && !segments.contains(where: { $0.stage == stage }) { return nil }
         guard [.deep, .light, .rem].contains(stage), hasStages,
-              !segments.contains(where: { [.unobserved, .unspecified].contains($0.stage) }), asleepMinutes > 0 else { return nil }
+              !segments.contains(where: { [.unobserved, .unspecified, .inBed].contains($0.stage) }), asleepMinutes > 0 else { return nil }
         return Int(Double(minutes(stage)) / Double(asleepMinutes) * 100)
     }
     var deepShare: Int? { share(.deep) }
-    var awakenings: Int? { hasStages && !segments.contains { $0.stage == .unobserved } ? segments.dropFirst().filter { $0.stage == .awake }.count : nil }
+    var awakenings: Int? {
+        if source == .healthKit {
+            guard hasSleepDuration, hasCompleteCoverage, hasStages || segments.contains(where: { $0.stage == .awake }) else { return nil }
+            return segments.indices.filter { index in
+                index > 0 && segments[index].stage == .awake && segments[index - 1].stage.isAsleep && segments.dropFirst(index + 1).contains { $0.stage.isAsleep }
+            }.count
+        }
+        return hasStages && hasCompleteCoverage ? segments.dropFirst().filter { $0.stage == .awake }.count : nil
+    }
+    var awakeMinutes: Int? {
+        if source == .healthKit && (!hasCompleteCoverage || (!hasStages && !segments.contains { $0.stage == .awake })) { return nil }
+        return hasSleepDuration && !segments.isEmpty ? minutes(.awake) : nil
+    }
     var score: Int? {
+        guard source != .healthKit else { return nil }
         guard let efficiency else { return nil }
         let duration = min(100, Int(Double(asleepMinutes) / 480 * 100))
         return Int((Double(duration) * 0.6 + Double(efficiency) * 0.4).rounded())
@@ -161,6 +204,26 @@ final class SleepRecord {
     }
     static func durationText(_ minutes: Int) -> String { "\(minutes / 60)小时\(minutes % 60)分" }
     static func clock(_ date: Date) -> String { date.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits)) }
+}
+
+/// Inputs are one selected source series; nights and naps share the sleep end-date label.
+struct SleepTrendDay: Identifiable {
+    let date: Date
+    let asleepMinutes: Int
+    let efficiency: Double?
+    let deepShare: Double?
+    var id: Date { date }
+
+    static func summarize(_ records: [SleepRecord]) -> [SleepTrendDay] {
+        Dictionary(grouping: records.filter(\.hasSleepDuration), by: \.day).map { date, values in
+            let asleep = values.reduce(0) { $0 + $1.asleepMinutes }
+            let bed = values.reduce(0) { $0 + $1.inBedMinutes }
+            let efficiency = values.allSatisfy { $0.efficiency != nil } && bed > 0 ? Double(asleep) / Double(bed) * 100 : nil
+            let deep = values.allSatisfy { $0.deepShare != nil } && asleep > 0
+                ? Double(values.reduce(0) { $0 + $1.minutes(.deep) }) / Double(asleep) * 100 : nil
+            return SleepTrendDay(date: date, asleepMinutes: asleep, efficiency: efficiency, deepShare: deep)
+        }.sorted { $0.date < $1.date }
+    }
 }
 
 struct SleepBackup: Codable {

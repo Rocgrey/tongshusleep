@@ -24,18 +24,22 @@ struct SleepUploadRequest: Codable {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.timeZone = timeZone
+        formatter.timeZone = record.source == .healthKit ? record.displayTimeZone : timeZone
         formatter.dateFormat = "yyyy-MM-dd"
-        record_date = formatter.string(from: record.end)
+        record_date = record.metadata?.healthSleep?.endDay ?? formatter.string(from: record.end)
         formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        sleep_start_time = formatter.string(from: record.start)
-        sleep_end_time = formatter.string(from: record.end)
+        sleep_start_time = formatter.string(from: record.source == .healthKit ? record.sleepOnset ?? record.start : record.start)
+        sleep_end_time = formatter.string(from: record.source == .healthKit ? record.sleepEnd ?? record.end : record.end)
         total_duration_minutes = record.hasSleepDuration ? record.asleepMinutes : nil
         sleep_score = record.score
-        let stagesComplete = record.hasStages && !record.segments.contains { [.unspecified, .unobserved].contains($0.stage) }
-        deep_sleep_minutes = stagesComplete ? record.minutes(.deep) : nil
-        light_sleep_minutes = stagesComplete ? record.minutes(.light) : nil
-        rem_minutes = stagesComplete ? record.minutes(.rem) : nil
+        let stagesComplete = record.hasStages && !record.segments.contains { [.unspecified, .unobserved, .inBed].contains($0.stage) }
+        func stageMinutes(_ stage: SleepStage) -> Int? {
+            guard stagesComplete, record.source != .healthKit || record.segments.contains(where: { $0.stage == stage }) else { return nil }
+            return record.minutes(stage)
+        }
+        deep_sleep_minutes = stageMinutes(.deep)
+        light_sleep_minutes = stageMinutes(.light)
+        rem_minutes = stageMinutes(.rem)
         awake_times = record.awakenings
         ais_score = ais
         notes = record.note.isEmpty ? nil : record.note

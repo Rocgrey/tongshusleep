@@ -3,6 +3,9 @@ import Charts
 
 struct StageTimeline: View {
     let record: SleepRecord
+    @State private var selected: SleepSegment?
+    @ScaledMetric(relativeTo: .body) private var chartHeight = 170.0
+    private var levels: [Int] { Array(Set(record.segments.map { $0.stage.level })).sorted() }
     var body: some View {
         Chart(record.segments) { segment in
             RectangleMark(xStart: .value("开始", segment.start), xEnd: .value("结束", segment.end),
@@ -10,16 +13,16 @@ struct StageTimeline: View {
                           yEnd: .value("阶段上界", Double(segment.stage.level) + 0.32))
             .foregroundStyle(segment.stage.color).cornerRadius(3)
             .accessibilityLabel(segment.stage.label)
-            .accessibilityValue("\(SleepRecord.clock(segment.start))，\(segment.minutes)分钟")
+            .accessibilityValue("\(record.displayClock(segment.start)) 至 \(record.displayClock(segment.end))，\(segment.minutes)分钟")
         }
         .chartXScale(domain: record.start...record.end)
-        .chartYScale(domain: (record.minutes(.unobserved) > 0 ? -1.6 : -0.6)...3.6)
+        .chartYScale(domain: (Double(levels.first ?? 0) - 0.6)...(Double(levels.last ?? 3) + 0.6))
         .chartYAxis {
-            AxisMarks(position: .leading, values: record.minutes(.unobserved) > 0 ? [-1, 0, 1, 2, 3] : [0, 1, 2, 3]) { value in
+            AxisMarks(position: .leading, values: levels) { value in
                 AxisGridLine().foregroundStyle(SleepPalette.line.opacity(0.6))
                 AxisValueLabel {
                     if let level = value.as(Int.self), let stage = SleepStage.allCases.first(where: { $0.level == level }) {
-                        Text(level == 1 && !record.hasStages ? "睡眠" : stage == .rem ? "REM" : stage.label).font(.system(size: 10)).foregroundStyle(SleepPalette.muted)
+                        Text(stage == .rem ? "REM" : stage == .inBed ? "卧床" : stage.label).font(.caption2).foregroundStyle(SleepPalette.muted)
                     }
                 }
             }
@@ -27,11 +30,33 @@ struct StageTimeline: View {
         .chartXAxis {
             AxisMarks(values: [record.start, record.start.addingTimeInterval(record.end.timeIntervalSince(record.start) / 2), record.end]) { value in
                 AxisValueLabel {
-                    if let date = value.as(Date.self) { Text(SleepRecord.clock(date)).font(.system(size: 10)).foregroundStyle(SleepPalette.muted) }
+                    if let date = value.as(Date.self) { Text(record.displayClock(date)).font(.caption2).foregroundStyle(SleepPalette.muted) }
                 }
             }
         }
-        .frame(height: 150)
+        .chartOverlay { proxy in
+            GeometryReader { geometry in
+                Color.clear.contentShape(Rectangle()).onTapGesture { location in
+                    guard let plot = proxy.plotFrame else { return }
+                    let x = location.x - geometry[plot].origin.x
+                    guard let date = proxy.value(atX: x, as: Date.self) else { return }
+                    selected = record.segments.first { $0.start <= date && $0.end > date }
+                }
+            }
+        }
+        .frame(height: chartHeight).accessibilityIdentifier("sleepStageTimeline")
+        .sheet(item: $selected) { segment in
+            NavigationStack {
+                Form {
+                    LabeledContent("阶段", value: segment.stage.label)
+                    LabeledContent("开始", value: record.displayClock(segment.start))
+                    LabeledContent("结束", value: record.displayClock(segment.end))
+                    LabeledContent("时长", value: "\(segment.minutes) 分钟")
+                    Text("记录时区：\(record.displayTimeZone.identifier)").font(.caption)
+                }.navigationTitle("阶段详情").navigationBarTitleDisplayMode(.inline)
+                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { selected = nil } } }
+            }.presentationDetents([.medium, .large])
+        }
     }
 }
 
@@ -69,21 +94,29 @@ struct SleepTrendChart: View {
     let records: [SleepRecord]
     let metric: TrendMetric
     let goal: Double
+    private var days: [SleepTrendDay] { SleepTrendDay.summarize(records) }
+    private func value(_ day: SleepTrendDay) -> Double? {
+        switch metric {
+        case .duration: Double(day.asleepMinutes) / 60
+        case .efficiency: day.efficiency
+        case .deep: day.deepShare
+        }
+    }
     var body: some View {
         Chart {
             if metric == .duration {
                 RuleMark(y: .value("目标", goal)).foregroundStyle(SleepPalette.teal.opacity(0.5)).lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
             }
-            ForEach(records) { record in
-                if let value = metric.value(record) {
-                    BarMark(x: .value("日期", record.end, unit: .day), y: .value(metric.rawValue, value))
-                        .foregroundStyle(record.id == records.last?.id ? SleepPalette.teal : SleepPalette.mint.opacity(0.7)).cornerRadius(4)
-                        .accessibilityLabel(record.end.formatted(.dateTime.month().day()))
+            ForEach(days) { day in
+                if let value = value(day) {
+                    BarMark(x: .value("日期", day.date, unit: .day), y: .value(metric.rawValue, value))
+                        .foregroundStyle(day.date == days.last?.date ? SleepPalette.teal : SleepPalette.mint.opacity(0.7)).cornerRadius(4)
+                        .accessibilityLabel(day.date.formatted(.dateTime.month().day()))
                         .accessibilityValue("\(value.formatted(.number.precision(.fractionLength(1))))\(metric.unit)")
                 }
             }
         }
-        .chartYScale(domain: 0...(metric == .duration ? max(10, (records.compactMap(metric.value).max() ?? 0) + 1) : 100))
+        .chartYScale(domain: 0...(metric == .duration ? max(10, (days.compactMap(value).max() ?? 0) + 1) : 100))
         .chartYAxis {
             AxisMarks(position: .leading) { value in
                 AxisGridLine().foregroundStyle(SleepPalette.line)
@@ -101,9 +134,17 @@ struct SleepTrendChart: View {
 
 struct SleepStageBalance: View {
     let record: SleepRecord
-    private var stages: [SleepStage] { [.deep, .light, .rem, .awake, .unspecified, .unobserved].filter { record.minutes($0) > 0 } }
+    @Environment(\.dynamicTypeSize) private var dynamicType
+    private var stages: [SleepStage] { SleepStage.allCases.filter { record.minutes($0) > 0 } }
     var body: some View {
-        HStack(spacing: 22) {
+        if dynamicType.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 16) { distribution; legend }
+        } else { ViewThatFits(in: .horizontal) {
+            HStack(spacing: 22) { distribution; legend }
+            VStack(alignment: .leading, spacing: 16) { distribution; legend }
+        }.accessibilityElement(children: .contain) }
+    }
+    private var distribution: some View {
             Chart(stages) { stage in
                 SectorMark(angle: .value("分钟", record.minutes(stage)), innerRadius: .ratio(0.76), angularInset: 2)
                     .foregroundStyle(stage.color).cornerRadius(2)
@@ -115,40 +156,42 @@ struct SleepStageBalance: View {
                         Text("整晚分布").font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
                     }
                 }
+    }
+    private var legend: some View {
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(stages) { stage in
                     HStack(spacing: 7) {
                         Circle().fill(stage.color).frame(width: 6, height: 6)
-                        Text(stage.label).font(.system(size: 12))
+                        Text(stage.label).font(.caption)
                         Spacer(minLength: 4)
                         Text(SleepRecord.durationText(record.minutes(stage))).font(.system(size: 12, weight: .medium, design: .rounded)).monospacedDigit()
                     }
                 }
             }
-        }.accessibilityElement(children: .contain)
     }
 }
 
 struct SleepRegularityChart: View {
     let records: [SleepRecord]
+    private var sleeps: [SleepRecord] { records.filter { $0.hasSleepDuration && $0.sleepOnset != nil && $0.sleepEnd != nil } }
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SectionHeading(title: "入睡与醒来的节奏", subtitle: "每条线是一晚的记录范围，不代表整段都睡着")
+            SectionHeading(title: "入睡与结束的节奏", subtitle: "每条线从入睡到最后睡眠结束，包含期间已记录的清醒；午睡单独显示")
             Chart {
-                ForEach(Array(records.enumerated()), id: \.element.id) { index, record in
-                    BarMark(xStart: .value("开始", hour(record.start)), xEnd: .value("结束", hour(record.start) + record.end.timeIntervalSince(record.start) / 3600),
-                            y: .value("晚次", records.count - 1 - index), height: .fixed(6))
+                ForEach(Array(sleeps.enumerated()), id: \.element.id) { index, record in
+                    BarMark(xStart: .value("开始", hour(record.sleepOnset!, zone: record.displayTimeZone)), xEnd: .value("结束", endHour(record)),
+                            y: .value("晚次", sleeps.count - 1 - index), height: .fixed(6))
                         .foregroundStyle(record.source == .sample ? SleepPalette.deep.opacity(0.55) : SleepPalette.teal)
                         .cornerRadius(3)
-                        .accessibilityLabel(record.end.formatted(.dateTime.month().day()))
-                        .accessibilityValue("\(SleepRecord.clock(record.start)) 至 \(SleepRecord.clock(record.end))")
+                        .accessibilityLabel(record.day.formatted(.dateTime.month().day()))
+                        .accessibilityValue("\(record.displayClock(record.sleepOnset!)) 至 \(record.displayClock(record.sleepEnd!))")
                 }
-            }.chartYScale(domain: -0.5...max(0.5, Double(records.count) - 0.5))
+            }.chartYScale(domain: -0.5...max(0.5, Double(sleeps.count) - 0.5))
                 .chartYAxis {
-                    AxisMarks(position: .leading, values: Array(0..<records.count)) { value in
+                    AxisMarks(position: .leading, values: Array(0..<sleeps.count)) { value in
                         AxisValueLabel {
-                            if let index = value.as(Int.self), records.indices.contains(index) {
-                                Text(records[records.count - 1 - index].end.formatted(.dateTime.month().day())).font(.system(size: 10))
+                            if let index = value.as(Int.self), sleeps.indices.contains(index) {
+                                Text(sleeps[sleeps.count - 1 - index].day.formatted(.dateTime.month().day())).font(.caption2)
                             }
                         }
                     }
@@ -157,12 +200,18 @@ struct SleepRegularityChart: View {
                     AxisGridLine().foregroundStyle(SleepPalette.line)
                     AxisValueLabel { if let hour = value.as(Double.self) { Text("\(Int(hour + 12) % 24):00").font(.system(size: 10)) } }
                 }
-            }.frame(height: CGFloat(max(120, min(540, records.count * 18))))
-                .accessibilityLabel("每晚记录开始和结束时间图")
+            }.frame(height: CGFloat(max(120, min(540, sleeps.count * 18))))
+                .accessibilityLabel("每次入睡和睡眠结束时间图")
+            Text("线长按实际经过时间绘制。遇到时钟调整，以详情中的当地开始、结束时刻为准。")
+                .font(.caption).foregroundStyle(SleepPalette.muted)
         }
     }
-    private func hour(_ date: Date) -> Double {
-        let parts = Calendar.current.dateComponents([.hour, .minute], from: date)
+    private func hour(_ date: Date, zone: TimeZone) -> Double {
+        var calendar = Calendar(identifier: .gregorian); calendar.timeZone = zone
+        let parts = calendar.dateComponents([.hour, .minute], from: date)
         return Double(((parts.hour ?? 0) + 12) % 24) + Double(parts.minute ?? 0) / 60
+    }
+    private func endHour(_ record: SleepRecord) -> Double {
+        hour(record.sleepOnset!, zone: record.displayTimeZone) + record.sleepEnd!.timeIntervalSince(record.sleepOnset!) / 3600
     }
 }

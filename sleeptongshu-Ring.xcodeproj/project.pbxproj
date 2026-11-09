@@ -82,6 +82,7 @@
 			isa = PBXProject;
 			attributes = {
 				LastUpgradeCheck = 2720;
+				TargetAttributes = { C10000000000000000000005 = { SystemCapabilities = { com.apple.HealthKit = { enabled = 1; }; }; }; };
 			};
 			buildConfigurationList = C10000000000000000000002 /* Build configuration list for PBXProject "sleeptongshu-Ring" */;
 			compatibilityVersion = "Xcode 16.0";

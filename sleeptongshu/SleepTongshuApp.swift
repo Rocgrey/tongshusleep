@@ -21,7 +21,7 @@ struct SleepTongshuApp: App {
     var body: some Scene {
         WindowGroup {
             if let container {
-                AppEntryView().environmentObject(account).modelContainer(container).tint(SleepPalette.teal).preferredColorScheme(.light)
+                AppEntryView().environmentObject(account).modelContainer(container).tint(SleepPalette.teal)
                     .environment(\.locale, Locale(identifier: "zh_CN"))
             } else {
                 ContentUnavailableView("无法打开本地记录", systemImage: "externaldrive.badge.exclamationmark",
@@ -32,21 +32,22 @@ struct SleepTongshuApp: App {
 }
 
 enum SleepPalette {
-    static let background = Color(red: 0.97, green: 0.98, blue: 0.98)
-    static let ink = Color(red: 0.12, green: 0.16, blue: 0.18)
-    static let muted = Color(red: 0.39, green: 0.44, blue: 0.47)
+    static let background = Color(uiColor: .systemGroupedBackground)
+    static let surface = Color(uiColor: .secondarySystemGroupedBackground)
+    static let ink = Color(uiColor: .label)
+    static let muted = Color(uiColor: .secondaryLabel)
     static let teal = Color(red: 0.03, green: 0.46, blue: 0.42)
     static let rose = Color(red: 0.80, green: 0.28, blue: 0.40)
     static let mint = Color(red: 0.37, green: 0.73, blue: 0.67)
     static let deep = Color(red: 0.30, green: 0.37, blue: 0.77)
     static let rem = Color(red: 0.66, green: 0.57, blue: 0.88)
     static let awake = Color(red: 0.91, green: 0.59, blue: 0.36)
-    static let line = Color(red: 0.88, green: 0.90, blue: 0.92)
+    static let line = Color(uiColor: .separator)
 }
 
 extension SleepStage {
     var color: Color {
-        switch self { case .awake: SleepPalette.awake; case .rem: SleepPalette.rem; case .light: SleepPalette.mint; case .deep: SleepPalette.deep; case .unspecified: SleepPalette.mint; case .unobserved: SleepPalette.line }
+        switch self { case .awake: SleepPalette.awake; case .rem: SleepPalette.rem; case .light: SleepPalette.mint; case .deep: SleepPalette.deep; case .unspecified: SleepPalette.teal; case .unobserved: SleepPalette.line; case .inBed: SleepPalette.muted.opacity(0.5) }
     }
 }
 

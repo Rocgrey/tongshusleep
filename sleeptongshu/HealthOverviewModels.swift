@@ -126,6 +126,8 @@ struct HealthOverviewSnapshot: Codable {
     // Absent in old snapshots: display is retained, but those dates are not safe to upload.
     var stepsTimeZone: String? = nil
     var stepsReadAt: Date? = nil
+    var sleepReadAt: Date? = nil
+    var sleepWindow: HealthSleepWindow? = nil
 }
 
 struct HealthWorkoutRecord: Codable, Identifiable, Equatable {
@@ -160,6 +162,7 @@ enum HealthOverviewAnalysis {
     static func hasNewData(previous: HealthOverviewSnapshot?, next: HealthOverviewSnapshot) -> Bool {
         guard let previous else { return !next.observations.isEmpty }
         let old = Dictionary(previous.observations.map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
+        if !Set(old.keys).isSubset(of: Set(next.observations.map(\.id))) { return true }
         return next.observations.contains { observation in
             guard let existing = old[observation.id] else { return true }
             return existing.metric != observation.metric || existing.value != observation.value ||
@@ -201,7 +204,11 @@ enum HealthOverviewAnalysis {
             let readings = Set(values.map { Reading(start: $0.start, end: $0.end, value: $0.value) })
             let value: Double
             if metric.isCumulative { value = values.reduce(0) { $0 + $1.value } }
-            else if metric == .sleep { value = values.map(\.value).max()! }
+            else if metric == .sleep {
+                // Current imports contain disjoint episodes from one reconciled series.
+                // Older multi-source snapshots have no intervals: retain their conservative maximum.
+                value = Set(values.map(\.sourceID)).count == 1 ? values.reduce(0) { $0 + $1.value } : values.map(\.value).max()!
+            }
             else { value = median(readings.map(\.value))! }
             guard metric.accepts(value) else { return nil }
             return HealthDay(date: date, value: value, count: metric.isCumulative ? values.count : readings.count)
@@ -225,15 +232,13 @@ enum HealthOverviewAnalysis {
     }
 
     static func sleepObservations(_ intervals: [HealthSleepInterval], sourceID: String, calendar: Calendar = .current) -> [HealthObservation] {
-        // Group at local noon, union stages before counting so duplicate exports do not inflate sleep.
-        let groups = Dictionary(grouping: intervals) { HealthSleepImporter.night($0.end, calendar: calendar) }
-        return groups.compactMap { day, entries in
-            let segments = HealthSleepNormalizer.segments(entries)
-            let asleep = segments.filter { ![.awake, .unobserved].contains($0.stage) }
+        let records = (try? HealthSleepImporter.automaticRecords([HealthSleepCandidate(sourceID: sourceID, intervals: intervals)], observations: [], sources: [], calendar: calendar)) ?? []
+        return records.compactMap { payload in
+            let asleep = payload.segments.filter { $0.stage.isAsleep }
             let hours = asleep.reduce(0) { $0 + $1.end.timeIntervalSince($1.start) } / 3600
-            guard HealthMetric.sleep.accepts(hours) else { return nil }
-            let date = calendar.date(byAdding: .day, value: 1, to: day)!
-            return HealthObservation(id: "sleep|\(sourceID)|\(day.timeIntervalSince1970)", metric: .sleep, sourceID: sourceID,
+            guard !asleep.isEmpty, HealthMetric.sleep.accepts(hours) else { return nil }
+            let date = calendar.startOfDay(for: payload.end)
+            return HealthObservation(id: "sleep|\(payload.id)", metric: .sleep, sourceID: sourceID,
                                      start: date, end: date, value: hours)
         }.sorted { $0.start < $1.start }
     }
