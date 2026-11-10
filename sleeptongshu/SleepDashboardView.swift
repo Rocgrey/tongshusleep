@@ -17,7 +17,11 @@ struct SleepDashboardView: View {
     @State private var help: MetricHelp?
     @AppStorage("sleepGoalHours") private var goal = 8.0
 
-    private var selected: SleepRecord? { records.first { $0.id == selectedID } ?? records.first { $0.source != .sample } ?? records.first }
+    private var selected: SleepRecord? {
+        records.first { $0.id == selectedID }
+            ?? (systemSleepSelected ? records.first(where: \.hasSleepDuration) : nil)
+            ?? records.first { $0.source != .sample } ?? records.first
+    }
     private var selectedIndex: Int { records.firstIndex { $0.id == selected?.id } ?? 0 }
 
     var body: some View {
@@ -136,6 +140,8 @@ struct SleepDashboardView: View {
                         Text("\(record.asleepMinutes % 60)").font(.system(size: 41, weight: .semibold, design: .rounded)).monospacedDigit()
                         Text("分").font(.system(size: 13))
                     }.foregroundStyle(SleepPalette.ink).minimumScaleFactor(0.75).lineLimit(1)
+                        .accessibilityElement(children: .ignore).accessibilityLabel(SleepRecord.durationText(record.asleepMinutes))
+                        .accessibilityIdentifier("totalSleepDuration")
                     }
                 }
                 Spacer(minLength: 8)

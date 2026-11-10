@@ -43,7 +43,7 @@ struct HealthOverviewView: View {
                 #endif
                 if let error = health.storageError { Text(error).font(.system(size: 12)).foregroundStyle(.red) }
                 healthConnection
-                SystemSleepImportView()
+                SystemSleepImportView(showsReadButton: false)
                 if available > 0 { latestReadings }
                 Divider()
                 ageOverview
@@ -105,17 +105,7 @@ struct HealthOverviewView: View {
             }
             Text("有记录的项目都会展示：活动、睡眠、体征与身体测量。统一读取最近 90 天，无需选择设备。")
                 .font(.system(size: 13)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
-            Button { Task { await health.refresh(in: context, requestAccess: true) } } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: health.isLoading ? "arrow.triangle.2.circlepath" : "heart.text.clipboard")
-                        .font(.system(size: 19, weight: .medium))
-                    Text(health.isLoading ? "正在读取健康记录" : "从系统健康读取")
-                        .font(.system(size: 15, weight: .semibold))
-                    Spacer(minLength: 6)
-                    Image(systemName: "arrow.down.circle").font(.system(size: 19))
-                }.foregroundStyle(.white).padding(.horizontal, 18).frame(maxWidth: .infinity, minHeight: 54)
-                    .background(health.isLoading ? SleepPalette.teal.opacity(0.6) : SleepPalette.teal, in: RoundedRectangle(cornerRadius: 8))
-            }.buttonStyle(.plain).disabled(health.isLoading).accessibilityIdentifier("readHealthOverview")
+            SystemHealthReadButton()
             if health.isLoading { refreshProgress }
             if let message = health.message {
                 Label(message, systemImage: health.messageIsError ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
@@ -128,7 +118,7 @@ struct HealthOverviewView: View {
                 HStack(spacing: 0) {
                     readStat("数据项目", value: "\(available)", tint: SleepPalette.teal)
                     readStat("记录来源", value: "\(snapshot.sources.count)", tint: SleepPalette.deep)
-                    readStat("睡眠晚数", value: "\(snapshot.sleepRecords?.count ?? health.days(for: .sleep).count)", tint: SleepPalette.rose)
+                    readStat("睡眠记录", value: "\(snapshot.sleepRecords.map { HealthSleepReadSummary($0).sleepRecords.count } ?? health.days(for: .sleep).count)", tint: SleepPalette.rose)
                 }.padding(.vertical, 6)
                 Text("上次读取 \(snapshot.readAt.formatted(date: .abbreviated, time: .shortened))")
                     .font(.system(size: 11)).foregroundStyle(SleepPalette.muted)

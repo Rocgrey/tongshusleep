@@ -130,6 +130,20 @@ struct HealthOverviewSnapshot: Codable {
     var sleepWindow: HealthSleepWindow? = nil
 }
 
+/// Summarize imported facts, keeping bed-only intervals separate from confirmed sleep.
+struct HealthSleepReadSummary {
+    let records: [SleepRecord]
+    init(_ payloads: [SleepPayload]) {
+        records = payloads.map(SleepRecord.init).filter(\.isVisible).sorted { $0.end > $1.end }
+    }
+    var sleepRecords: [SleepRecord] { records.filter(\.hasSleepDuration) }
+    var bedRecords: [SleepRecord] { records.filter(\.onlyInBed) }
+    var countText: String {
+        if sleepRecords.isEmpty { return "已读取 \(bedRecords.count) 段卧床记录，尚无可确认的睡眠时长。" }
+        return "已读取 \(sleepRecords.count) 段睡眠记录" + (bedRecords.isEmpty ? "。" : "，另有 \(bedRecords.count) 段仅卧床记录。")
+    }
+}
+
 struct HealthWorkoutRecord: Codable, Identifiable, Equatable {
     var id: String
     var title: String

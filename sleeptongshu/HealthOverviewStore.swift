@@ -156,7 +156,7 @@ final class HealthOverviewStore: ObservableObject {
             next.truncatedMetrics.removeAll { $0 == .sleep }
             try saveSleepSnapshot(next, in: context, window: window)
             snapshot = next; cache = [:]
-            sleepMessage = payloads.isEmpty ? Self.noSleepMessage : "已读取 \(payloads.count) 段系统睡眠，睡眠页已更新。"
+            sleepMessage = payloads.isEmpty ? Self.noSleepMessage : HealthSleepReadSummary(payloads).countText
         } catch {
             context.rollback()
             sleepMessage = "睡眠读取未完成，原有记录已保留：\(error.localizedDescription)"; sleepMessageIsError = true
@@ -176,6 +176,12 @@ final class HealthOverviewStore: ObservableObject {
     func refresh(in context: ModelContext? = nil, requestAccess: Bool = false) async {
         guard !isLoading else { return }
         #if DEBUG
+        // Explicit test fixture only; production always executes the complete HealthKit read below.
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-system-sleep"), let context {
+            await readSystemSleep(in: context, requestAccess: requestAccess)
+            message = sleepMessage; messageIsError = sleepMessageIsError
+            return
+        }
         if ProcessInfo.processInfo.arguments.contains("-ui-testing"),
            ProcessInfo.processInfo.arguments.contains("-ui-testing-health-refresh-unchanged"), var next = snapshot {
             isLoading = true; message = nil; progress = "正在检查更新"; progressValue = 0
@@ -308,7 +314,7 @@ final class HealthOverviewStore: ObservableObject {
             message = resultMessage
             messageIsError = !notices.isEmpty
             if !sleepReadFailed {
-                sleepMessage = sleepRecords.isEmpty ? Self.noSleepMessage : "已读取 \(sleepRecords.count) 段系统睡眠，睡眠页已更新。"
+                sleepMessage = sleepRecords.isEmpty ? Self.noSleepMessage : HealthSleepReadSummary(sleepRecords).countText
                 sleepMessageIsError = false
             }
             // Empty results remain visible on the page with permission and source guidance.

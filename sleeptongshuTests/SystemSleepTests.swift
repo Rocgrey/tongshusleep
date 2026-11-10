@@ -33,6 +33,19 @@ import SwiftData
         }
         XCTAssertNil(HealthOverviewStore.stage(999))
     }
+    func testReadSummarySeparatesConfirmedSleepFromBedOnlyAndIgnoresArchivedRecords() throws {
+        let sleeps = try payloads([interval(.unspecified, -144, -137), interval(.unspecified, -120, -114),
+            interval(.inBed, -72, -65), interval(.inBed, -24, -16)])
+        let summary = HealthSleepReadSummary(sleeps)
+        XCTAssertEqual(summary.sleepRecords.count, 2); XCTAssertEqual(summary.bedRecords.count, 2)
+        XCTAssertTrue(summary.countText.contains("2 段睡眠记录，另有 2 段仅卧床记录"))
+        XCTAssertEqual(summary.sleepRecords.first?.asleepMinutes, 360)
+        XCTAssertFalse(summary.sleepRecords.contains { $0.hasStages })
+        let bed = HealthSleepReadSummary(sleeps.filter { SleepRecord($0).onlyInBed })
+        XCTAssertTrue(bed.countText.contains("尚无可确认的睡眠时长"))
+        var archived = sleeps[0]; archived.metadata?.healthSleep?.isRemoved = true
+        XCTAssertTrue(HealthSleepReadSummary([archived]).records.isEmpty)
+    }
     func testBedOnlyDoesNotProduceDurationStagesScoreEfficiencyOrUploadDuration() throws {
         let record = SleepRecord(try XCTUnwrap(payloads([interval(.inBed, 0, 8)]).first))
         XCTAssertTrue(record.onlyInBed); XCTAssertFalse(record.hasSleepDuration); XCTAssertFalse(record.hasStages)

@@ -112,6 +112,10 @@ enum HealthSleepReadError: LocalizedError {
                     timeZoneIdentifier: calendar.timeZone.identifier)
             }
             intervals.append(sample(.inBed, 0, 8))
+            if arguments.contains("-system-sleep-mixed") {
+                if day > 1 { intervals.append(sample(.unspecified, 0, 8)) }
+                continue
+            }
             if arguments.contains("-system-sleep-bed-only") { continue }
             if arguments.contains("-system-sleep-unspecified") { intervals.append(sample(.unspecified, 0, 8)); continue }
             intervals += [sample(.awake, 0, 0.25), sample(.light, 0.25, 2), sample(.deep, 2, 4),

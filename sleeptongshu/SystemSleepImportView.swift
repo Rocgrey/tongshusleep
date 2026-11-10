@@ -1,12 +1,31 @@
 import SwiftUI
 import SwiftData
 
-/// Both tabs use the same reader, status and SwiftData reconciliation.
-struct SystemSleepImportView: View {
+/// A single action on either tab reads all available, user-authorized health types.
+struct SystemHealthReadButton: View {
     @EnvironmentObject private var health: HealthOverviewStore
     @Environment(\.modelContext) private var context
+    var body: some View {
+        Button { Task { await health.refresh(in: context, requestAccess: true) } } label: {
+            HStack(spacing: 12) {
+                if health.isLoading { ProgressView().tint(.white) }
+                else { Image(systemName: "heart.text.clipboard") }
+                Text(health.isLoading ? "正在读取健康记录" : "从系统健康读取").font(.body.weight(.semibold))
+                Spacer(minLength: 6)
+                Image(systemName: "arrow.down.circle")
+            }.foregroundStyle(.white).padding(16).frame(maxWidth: .infinity, minHeight: 54)
+                .background(SleepPalette.teal, in: RoundedRectangle(cornerRadius: 8))
+        }.buttonStyle(.plain).disabled(health.isLoading).accessibilityIdentifier("readHealthOverview")
+    }
+}
+
+/// Both tabs use the same reader, status and SwiftData reconciliation.
+struct SystemSleepImportView: View {
+    var showsReadButton = true
+    @EnvironmentObject private var health: HealthOverviewStore
     @State private var showsHelp = false
     private var payloads: [SleepPayload] { health.snapshot?.sleepRecords ?? [] }
+    private var summary: HealthSleepReadSummary { HealthSleepReadSummary(payloads) }
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top) {
@@ -15,22 +34,23 @@ struct SystemSleepImportView: View {
                 Button { showsHelp = true } label: { Image(systemName: "info.circle").frame(width: 36, height: 36) }
                     .accessibilityLabel("系统睡眠读取说明")
             }
-            Text("只读最近 90 天的睡眠，在本机整理时间与阶段。不写入系统健康，也不会自动上传。")
+            Text(showsReadButton ? "统一读取最近 90 天的睡眠、活动和可用体征，在本机整理。不写入系统健康，也不会自动上传。" : "睡眠随上方的健康数据一起更新。卧床与睡着时长分别展示，不推算缺失的阶段。")
                 .font(.subheadline).foregroundStyle(SleepPalette.muted).fixedSize(horizontal: false, vertical: true)
             #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("-ui-testing-system-sleep") {
                 Label("界面测试示例 · 非真实健康数据", systemImage: "info.circle").font(.caption).foregroundStyle(SleepPalette.rose)
             }
             #endif
-            Button { Task { await health.readSystemSleep(in: context, requestAccess: true) } } label: {
-                HStack(spacing: 10) {
-                    if health.isLoading { ProgressView().tint(.white) } else { Image(systemName: "arrow.down.heart") }
-                    Text(health.isLoading ? "正在读取" : "读取系统睡眠").font(.body.weight(.semibold))
-                    Spacer(minLength: 4)
-                    Image(systemName: "arrow.clockwise")
-                }.padding(14).frame(maxWidth: .infinity, minHeight: 50)
-                    .foregroundStyle(.white).background(SleepPalette.teal, in: RoundedRectangle(cornerRadius: 8))
-            }.buttonStyle(.plain).disabled(health.isLoading).accessibilityIdentifier("readSystemSleep")
+            if showsReadButton {
+                SystemHealthReadButton()
+                if health.isLoading {
+                    Text(health.progress).font(.caption).foregroundStyle(SleepPalette.muted)
+                }
+                if let message = health.message {
+                    Text(message).font(.caption).foregroundStyle(health.messageIsError ? SleepPalette.rose : SleepPalette.muted)
+                        .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("healthRefreshMessage")
+                }
+            }
             if let readAt = health.snapshot?.sleepReadAt {
                 Label("最近读取 \(readAt.formatted(date: .abbreviated, time: .shortened))", systemImage: "clock")
                     .font(.caption).foregroundStyle(SleepPalette.muted).accessibilityIdentifier("systemSleepReadAt")
@@ -42,14 +62,25 @@ struct SystemSleepImportView: View {
             if let message = health.sleepMessage {
                 Text(message).font(.caption).foregroundStyle(health.sleepMessageIsError ? SleepPalette.rose : SleepPalette.muted)
                     .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("systemSleepMessage")
-            } else if health.snapshot?.sleepReadAt != nil && payloads.isEmpty {
-                Text(HealthOverviewStore.noSleepMessage).font(.caption).foregroundStyle(SleepPalette.muted)
+            } else if health.snapshot?.sleepReadAt != nil {
+                Text(payloads.isEmpty ? HealthOverviewStore.noSleepMessage : summary.countText)
+                    .font(.caption).foregroundStyle(SleepPalette.muted).accessibilityIdentifier("systemSleepMessage")
+            }
+            if let latest = summary.sleepRecords.first {
+                Text("最近睡眠 \(latest.day.formatted(date: .abbreviated, time: .omitted)) · \(SleepRecord.durationText(latest.asleepMinutes))" + (latest.hasStages ? "" : " · 未分期睡眠"))
+                    .font(.subheadline).foregroundStyle(SleepPalette.ink).fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("latestConfirmedSystemSleep")
+            }
+            if let latest = summary.bedRecords.first {
+                Text("最近卧床 \(latest.day.formatted(date: .abbreviated, time: .omitted))：来源只标记了卧床，不能当作睡着时长或生成深睡、浅睡、REM。")
+                    .font(.caption).foregroundStyle(SleepPalette.muted).fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("latestSystemBedRecord")
             }
         }.sheet(isPresented: $showsHelp) {
             NavigationStack { ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     Text("读取你已记录的睡眠").font(.title2.bold())
-                    Text("点击读取后，只申请睡眠读取权限。系统可能提供手机、手表以及第三方 App 已写入的记录；能否读到取决于数据是否存在和访问设置。")
+                    Text("点击“从系统健康读取”统一申请睡眠、活动和可用体征等读取权限，可按自己的意愿选择项目。不申请任何写入权限。睡眠页与健康页一起更新；系统可能提供手机、手表以及第三方 App 已写入的记录，能否读到取决于数据是否存在和访问设置。")
                     Text("蓝牙连接本身不会产生系统健康睡眠记录。设备配套 App 需要支持并实际写入 Apple 健康；请先在配套 App 中完成同步。")
                     Text("没有记录时，打开健康 App，查看“浏览 → 睡眠”的实际数据；再到健康 App 的头像 → App（或数据访问与设备）→ sleeptongshu 检查睡眠读取设置。系统版本不同，入口名称可能略有不同。")
                     Text("系统不会告诉我们你是否关闭了读取权限。未读取到记录时无法据此判断原因；本机旧导入会移到健康设置的归档中，保留备注。恢复访问并重新读取后可再次显示。")

@@ -25,7 +25,7 @@ final class SystemSleepUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["阶段详情"].waitForExistence(timeout: 5))
         capture("system-sleep-stage-detail-test-data")
         app.buttons["完成"].tap()
-        for _ in 0..<8 where !app.buttons["readSystemSleep"].isHittable { app.swipeDown() }
+        for _ in 0..<8 where !app.buttons["readHealthOverview"].isHittable { app.swipeDown() }
         readSleep()
         app.tabBars.buttons["趋势"].tap()
         XCTAssertTrue(app.staticTexts["6 条记录"].waitForExistence(timeout: 5))
@@ -78,9 +78,30 @@ final class SystemSleepUITests: XCTestCase {
         capture("system-sleep-large-type-stages-test-data")
     }
 
+    func testUnifiedHealthReadSeparatesBedOnlyAndOpensLatestConfirmedSleep() {
+        app.launchArguments += ["-system-sleep-mixed", "-preview-health"]
+        app.launch()
+        readSleep()
+        reveal(app.staticTexts["latestConfirmedSystemSleep"])
+        XCTAssertTrue(app.staticTexts["latestConfirmedSystemSleep"].label.contains("8小时0分"))
+        XCTAssertTrue(app.staticTexts["systemSleepMessage"].label.contains("5 段睡眠记录，另有 2 段仅卧床记录"))
+        reveal(app.staticTexts["latestSystemBedRecord"])
+        XCTAssertTrue(app.staticTexts["latestSystemBedRecord"].exists)
+        capture("unified-health-sleep-summary-test-data")
+        app.tabBars.buttons["睡眠"].tap()
+        let duration = app.descendants(matching: .any).matching(identifier: "totalSleepDuration").firstMatch
+        reveal(duration)
+        XCTAssertEqual(duration.label, "8小时0分")
+        XCTAssertFalse(app.buttons["readSystemSleep"].exists)
+        capture("latest-confirmed-sleep-before-bed-only-test-data")
+    }
+
     private func readSleep() {
-        let button = app.buttons["readSystemSleep"]
+        let button = app.buttons["readHealthOverview"]
         reveal(button)
+        XCTAssertEqual(app.buttons.matching(identifier: "readHealthOverview").count, 1)
+        XCTAssertFalse(app.buttons["readSystemSleep"].exists)
+        XCTAssertFalse(app.buttons["读取系统睡眠"].exists)
         button.tap()
         XCTAssertTrue(app.staticTexts["systemSleepReadAt"].waitForExistence(timeout: 8))
         expectation(for: NSPredicate(format: "enabled == true"), evaluatedWith: button)
