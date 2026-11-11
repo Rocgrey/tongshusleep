@@ -90,6 +90,25 @@ final class WearableHistoryTests: XCTestCase {
         XCTAssertTrue(WearableProbeProtocol.sampleRanges([index(0, 9)], limit: 0).isEmpty)
     }
 
+    func testCompleteZeroBasedDirectoryDoesNotUnderflowIncludingSingleRecord() {
+        var single = IW_HisIndex(); single.startSeq = 0; single.endSeq = 0
+        XCTAssertEqual(WearableProbeProtocol.sampleRanges([single], limit: 2880), [0...0])
+        var health = IW_HisIndex(); health.startSeq = 0; health.endSeq = 2828
+        let chunks = WearableProbeProtocol.sampleRanges([health], limit: 2880)
+        XCTAssertEqual(chunks.first?.lowerBound, 0)
+        XCTAssertEqual(chunks.last?.upperBound, 2828)
+        XCTAssertEqual(Set(chunks.flatMap { Array($0) }), Set(UInt32(0)...UInt32(2828)))
+        for end: UInt32 in 0...40 {
+            var index = IW_HisIndex(); index.startSeq = 0; index.endSeq = end
+            for limit: UInt32 in [1, end + 1, end + 2, 2880] {
+                let ranges = WearableProbeProtocol.sampleRanges([index], limit: limit, chunk: 7)
+                let values = Set(ranges.flatMap { Array($0) })
+                XCTAssertEqual(values.count, Int(min(limit, end + 1)))
+                XCTAssertEqual(values.max(), end)
+            }
+        }
+    }
+
     func testOldReportWithMisnamedBatteryFieldStillDecodes() throws {
         var report = try report(complete)
         report.batteryLevel0To9 = 100

@@ -50,3 +50,13 @@
 - `SleepTongshuApp.swift`：沿用现有体征存储，接收完成结果并去重保存。
 - `MonitoringView.swift`、`WearableProbeView.swift`、`WearableVitalsView.swift`、`WearableVitals.swift`：设备预览、报告图表、当前设备选择及已知 HRV 单位。
 - `WearableHistoryTests.swift`、`WearableBIOUITests.swift`：回归测试；真实报告回放只在本机私有文件存在时执行。
+
+## 连接闪退修复（同日后续）
+
+用户报告点击已记忆 BIO 后闪退。已从连接的 iPhone 只读取得系统崩溃报告；15:13:20 和 15:15:39 两次均为 `EXC_BREAKPOINT / SIGTRAP`，栈顶是 `WearableProbeProtocol.sampleRanges`。原始崩溃文件和设备日志仅保存在本机，不提交仓库。
+
+原因是无符号整数计算 `high - take + 1`：完整读取从序号 0 开始的目录时，`take` 等于 `high + 1`，中间减法先发生下溢，来不及执行最后的加一。修正为 `high - (take - 1)`，保持相同区间含义，避免中间结果越界。
+
+新增回归覆盖单条 `0...0`、实际大小的 `0...2828` 完整目录、41 种零起点目录及不同截取上限，原有最大序号与跨目录测试保留。19 项历史/协议测试通过，戒指工程真机签名构建通过；修复版已覆盖安装并启动，数据库保留。最新版新一轮 BLE 历史读取结果仍待真机复测，不以安装或单元测试代替设备读取成功。
+
+崩溃前的新报告已实际收到型号 BIO9、固件、电量 100 和当天累计 4221 步，但还未进入历史接收。因此这次没有新增历史体征，不能把崩溃后的空报告解释为设备没有数据。

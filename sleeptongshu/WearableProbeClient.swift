@@ -31,7 +31,7 @@ enum WearableProbeProtocol {
         for index in ordered {
             let low = UInt64(index.startSeq), high = min(UInt64(index.endSeq), ceiling - 1)
             guard ceiling > 0, high >= low, remaining > 0 else { continue }
-            let take = min(remaining, high - low + 1), start = high - take + 1
+            let take = min(remaining, high - low + 1), start = high - (take - 1)
             var cursor = start
             while cursor <= high {
                 let end = min(high, cursor + UInt64(chunk) - 1)
