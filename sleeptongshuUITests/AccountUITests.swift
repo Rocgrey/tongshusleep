@@ -119,7 +119,7 @@ final class AccountUITests: XCTestCase {
         XCTAssertTrue(app.segmentedControls["stepsSource"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["尚未读取账号步数"].exists)
         capture("72-account-steps-empty")
-        app.segmentedControls["stepsSource"].buttons["本机系统健康"].tap()
+        app.segmentedControls["stepsSource"].buttons["系统健康"].tap()
         XCTAssertTrue(app.staticTexts["尚未读取这段时间的系统步数"].exists)
         app.tabBars.buttons["健康"].tap(); app.buttons["openAccount"].tap()
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "13800001234")).firstMatch.waitForExistence(timeout: 5))

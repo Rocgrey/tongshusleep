@@ -4,13 +4,18 @@ import SwiftData
 struct SleepDashboardView: View {
     @EnvironmentObject private var account: AccountStore
     @EnvironmentObject private var health: HealthOverviewStore
+    @EnvironmentObject private var deviceSteps: DeviceStepsStore
+    @EnvironmentObject private var deviceVitals: WearableVitalsStore
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var dynamicType
     @Query(sort: \SleepRecord.end, order: .reverse) private var storedRecords: [SleepRecord]
-    private var records: [SleepRecord] { storedRecords.filter { $0.isVisible && (!systemSleepSelected || $0.source == .healthKit) } }
-    @State private var systemSleepSelected = false
-    @State private var initializedSource = false
+    @State private var sourceOverride: SleepDashboardSource?
+    private var source: SleepDashboardSource {
+        sourceOverride ?? SleepDashboardSource.preferred(records: storedRecords, hasDeviceData: !deviceSteps.rows.isEmpty || !deviceVitals.visibleSamples.isEmpty, hasReadHealth: health.snapshot?.sleepReadAt != nil)
+    }
+    private var records: [SleepRecord] { storedRecords.filter { source.includes($0) } }
+    private var systemSleepSelected: Bool { source == .health }
     @State private var selectedID: UUID?
     @State private var showsHistory = false
     @State private var showsEditor = false
@@ -29,10 +34,15 @@ struct SleepDashboardView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 25) {
                     brandHeader
-                    SystemSleepImportView()
-                    Picker("睡眠来源", selection: $systemSleepSelected) {
-                        Text("全部记录").tag(false); Text("系统健康").tag(true)
+                    Picker("睡眠来源", selection: Binding(get: { source }, set: { sourceOverride = $0; selectedID = nil })) {
+                        ForEach(SleepDashboardSource.allCases, id: \.self) { Text($0.label).tag($0) }
                     }.pickerStyle(.segmented).accessibilityIdentifier("sleepDashboardSource")
+                    if systemSleepSelected { SystemSleepImportView() }
+                    else {
+                        DisclosureGroup("从系统健康读取（可选）") { SystemSleepImportView().padding(.top, 12) }
+                            .font(.subheadline).accessibilityIdentifier("optionalSystemHealth")
+                    }
+                    DeviceStepsSummaryView()
                     if let record = selected {
                         dateNavigation(record)
                         overview(record)
@@ -51,6 +61,12 @@ struct SleepDashboardView: View {
                             Label("当前为预览记录，真实睡眠单独保存。可在本地数据中移除预览记录。", systemImage: "info.circle")
                                 .font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
                         }
+                    } else if source == .device {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Label("暂无设备睡眠记录", systemImage: "moon.zzz").font(.headline).foregroundStyle(SleepPalette.ink)
+                            Text("设备尚未返回可用的睡眠结果。已有体征或睡眠原始输入时，不推算睡眠时长和分期；无需先读取系统健康。")
+                                .font(.subheadline).foregroundStyle(SleepPalette.muted).fixedSize(horizontal: false, vertical: true)
+                        }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
                     } else {
                         ContentUnavailableView {
                             Label(systemSleepSelected ? "暂无系统睡眠" : "从第一晚开始", systemImage: "moon.zzz")
@@ -58,17 +74,14 @@ struct SleepDashboardView: View {
                         actions: { Button("添加记录") { showsEditor = true }.buttonStyle(.borderedProminent) }
                         .padding(.vertical, 40)
                     }
+                    if !systemSleepSelected { DeviceRecentVitalsView() }
                 }.padding(.horizontal, 22).padding(.top, 14).padding(.bottom, 26)
                     .frame(maxWidth: 680).frame(maxWidth: .infinity)
             }
             .background(SleepPalette.background)
             .toolbar(.hidden, for: .navigationBar)
             .task {
-                if !initializedSource { systemSleepSelected = health.snapshot?.sleepReadAt != nil; initializedSource = true }
                 await health.refreshSleepIfNeeded(in: context)
-            }
-            .onChange(of: health.snapshot?.sleepReadAt) { _, date in
-                if date != nil { systemSleepSelected = true; selectedID = nil }
             }
             .onChange(of: scenePhase) { _, phase in if phase == .active { Task { await health.refreshSleepIfNeeded(in: context) } } }
             .sheet(isPresented: $showsEditor) { SleepEditorView() }
@@ -129,6 +142,9 @@ struct SleepDashboardView: View {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 10) {
                     SourceTag(source: record.source)
+                    if record.source == .band, let name = record.metadata?.externalSource {
+                        Text(name).font(.caption).foregroundStyle(SleepPalette.muted).fixedSize(horizontal: false, vertical: true)
+                    }
                     Text("给身体，一晚好眠").font(.system(size: 19, weight: .bold)).foregroundStyle(SleepPalette.ink)
                     Text(record.source == .phone ? "估算睡眠时长" : "总睡眠时长").font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
                     if !record.hasSleepDuration {

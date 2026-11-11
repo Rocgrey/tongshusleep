@@ -98,6 +98,7 @@ final class SystemSleepUITests: XCTestCase {
 
     private func readSleep() {
         let button = app.buttons["readHealthOverview"]
+        if !button.exists { app.segmentedControls["sleepDashboardSource"].buttons["系统健康"].tap() }
         reveal(button)
         XCTAssertEqual(app.buttons.matching(identifier: "readHealthOverview").count, 1)
         XCTAssertFalse(app.buttons["readSystemSleep"].exists)

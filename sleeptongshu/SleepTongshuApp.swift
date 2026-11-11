@@ -64,6 +64,7 @@ struct RootTabView: View {
     @StateObject private var vitals = WearableVitalsStore.appStore()
     @StateObject private var healthOverview = HealthOverviewStore()
     @StateObject private var accountSteps = AccountStepsStore()
+    @StateObject private var deviceSteps = DeviceStepsStore.appStore()
 
     var body: some View {
         TabView(selection: $tab) {
@@ -78,7 +79,18 @@ struct RootTabView: View {
         .environmentObject(vitals)
         .environmentObject(healthOverview)
         .environmentObject(accountSteps)
+        .environmentObject(deviceSteps)
         .environmentObject(scanner.encryptedBand)
+        .onReceive(scanner.wearable.$report) { report in
+            if let report, let day = DeviceStepDay.read(report) { deviceSteps.merge([day]) }
+        }
+        .onReceive(scanner.encryptedBand.$activityDays) { days in
+            deviceSteps.merge(days.map { day in
+                DeviceStepDay(device: WearableVital.deviceKey(day.deviceID.uuidString),
+                              deviceName: day.deviceID == scanner.encryptedBand.deviceID ? scanner.encryptedBand.deviceName ?? "蓝牙设备" : deviceSteps.rows.first(where: { $0.device == WearableVital.deviceKey(day.deviceID.uuidString) })?.deviceName ?? "蓝牙设备",
+                              day: day.day, steps: day.steps, readAt: day.updatedAt, dayBasis: "设备记录日期")
+            })
+        }
         .onReceive(scanner.wearable.$history) { history in
             guard let history else { return }
             do { scanner.wearable.didSaveHistory(count: try vitals.merge(history.vitals), total: history.vitals.count) }
@@ -109,6 +121,15 @@ struct RootTabView: View {
             }
             #endif
             let testing = ProcessInfo.processInfo.arguments.contains("-ui-testing")
+            #if DEBUG
+            if testing, ProcessInfo.processInfo.arguments.contains("-ui-testing-device-sleep"),
+               let sample = SampleSleepRecords.makeMonth().first {
+                var payload = sample.payload
+                payload.source = .band; payload.metadata = SleepMetadata(externalSource: "设备界面测试示例 · 非真实数据")
+                context.insert(SleepRecord(payload))
+                try? context.save()
+            }
+            #endif
             guard !hasSeededDemo || testing else { return }
             do {
                 if records.isEmpty {

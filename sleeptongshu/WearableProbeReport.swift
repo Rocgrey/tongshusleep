@@ -43,6 +43,7 @@ struct WearableProbeReport: Codable {
     var batteryRaw: UInt32? = nil
     var batteryIsPercentage: Bool? = nil
     var currentSteps: UInt32?
+    var currentStepsReadAt: Date? = nil
     var services: [String] = []
     var characteristics: [String: [String]] = [:]
     var channels: [WearableProbeChannel] = [

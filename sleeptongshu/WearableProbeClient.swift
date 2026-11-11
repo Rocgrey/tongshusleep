@@ -377,7 +377,17 @@ final class WearableProbeClient: ObservableObject {
                         answers.insert("time")
                         event("设备实时时钟原值：\(rt.time.seconds)，时区：\(rt.hasTimeZone ? String(rt.timeZone) : "未提供")")
                     }
-                    if rt.hasHealth { report?.currentSteps = rt.health.steps; answers.insert("health") }
+                    if rt.hasHealth {
+                        if rt.health.hasSteps {
+                            // Publish the pair atomically so observers never date a new total
+                            // with the previous read's timestamp (or invent a missing zero).
+                            if var next = report {
+                                next.currentSteps = rt.health.steps; next.currentStepsReadAt = .now
+                                report = next
+                            }
+                        }
+                        answers.insert("health")
+                    }
                     if rt.hasHealthresult {
                         let value = rt.healthresult
                         var vitals: [(VitalKind, Double)] = []
