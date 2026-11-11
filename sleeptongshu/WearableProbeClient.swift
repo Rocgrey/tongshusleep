@@ -82,6 +82,7 @@ final class WearableProbeClient: ObservableObject {
                 var fixture = WearableProbeReport(deviceName: "BPH6-6886 · 界面测试示例", deviceKey: "ui-fixture",
                                                    userReportedFirmware: "78.1.0.41 · 算法 1.11.2")
                 fixture.finishedAt = .now
+                if ProcessInfo.processInfo.arguments.contains("-ui-testing-probe-incomplete") { fixture.finishedAt = nil }
                 fixture.currentSteps = 4312
                 fixture.observedFirmware = "78.1.0.41"
                 fixture.channels[0].received = 3; fixture.channels[0].state = "本段读取完成"

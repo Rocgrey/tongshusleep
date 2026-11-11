@@ -6,6 +6,7 @@ struct MonitoringView: View {
     @EnvironmentObject private var phone: PhoneSleepMonitor
     @EnvironmentObject private var scanner: RingScanner
     @EnvironmentObject private var vitals: WearableVitalsStore
+    @EnvironmentObject private var encryptedBand: EncryptedBandStore
     @Environment(\.modelContext) private var context
     @Query private var records: [SleepRecord]
     @StateObject private var ring = VeepooRingClient()
@@ -177,7 +178,7 @@ struct MonitoringView: View {
             HStack(spacing: 18) {
                 Image(systemName: "circle.circle").font(.system(size: 46)).foregroundStyle(SleepPalette.deep)
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(scanner.connectedName ?? (ring.isBusy ? ring.deviceName : nil) ?? "睡眠设备")
+                    Text(scanner.connectedName ?? (encryptedBand.isBusy ? encryptedBand.deviceName : nil) ?? (ring.isBusy ? ring.deviceName : nil) ?? "睡眠设备")
                         .font(.system(size: 18, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
                     Text(scanner.status).font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
                 }
@@ -189,6 +190,7 @@ struct MonitoringView: View {
             }
             if scanner.veepooChannelDetected || ring.isBusy || (scanner.connectedName == nil && !ring.events.isEmpty) { ringPanel }
             if scanner.wearableProbeAvailable { WearableProbePanel(client: scanner.wearable, connected: scanner.connectedName != nil) }
+            EncryptedBandPanel()
             Button { showsVitals = true } label: {
                 HStack {
                     Label("体征记录", systemImage: "heart.text.clipboard")
@@ -200,6 +202,8 @@ struct MonitoringView: View {
             if let value = scanner.liveHeartRate { Label("实时心率 \(value) 次/分", systemImage: "heart.fill").font(.system(size: 17, weight: .semibold)).foregroundStyle(.pink) }
             if ring.isBusy {
                 Button("取消戒指同步", role: .cancel) { ringTask?.cancel(); ring.cancel() }
+            } else if encryptedBand.isBusy || scanner.isHandingOff {
+                ProgressView("正在读取设备，请保持 App 打开")
             } else if scanner.connectedName != nil {
                 Button("断开设备", role: .destructive) { scanner.disconnect() }
             } else if scanner.connectingID != nil {
@@ -212,7 +216,7 @@ struct MonitoringView: View {
                         .frame(maxWidth: .infinity).padding(.vertical, 7)
                 }.buttonStyle(.borderedProminent).accessibilityIdentifier("scanBluetooth")
             }
-            if scanner.connectedName == nil && !ring.isBusy {
+            if scanner.connectedName == nil && !ring.isBusy && !encryptedBand.isBusy && !scanner.isHandingOff {
               if !scanner.rememberedDevices.isEmpty {
                 SectionHeading(title: "已连接过的设备", subtitle: "点击直接重连，无需再次搜索")
                 ForEach(scanner.rememberedDevices) { device in

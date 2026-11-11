@@ -137,16 +137,19 @@ final class SleepRecord {
     var isVisible: Bool { metadata?.healthSleep?.isRemoved != true }
     var onlyInBed: Bool { source == .healthKit && !hasSleepDuration && (segments.contains { $0.stage == .inBed } || metadata?.healthSleep?.samples.contains { $0.stage == .inBed } == true) }
     var hasCompleteCoverage: Bool { !segments.isEmpty && !segments.contains { [.unobserved, .inBed].contains($0.stage) } }
-    var sleepOnset: Date? { source == .healthKit ? segments.first(where: { $0.stage.isAsleep })?.start : start }
-    var sleepEnd: Date? { source == .healthKit ? segments.last(where: { $0.stage.isAsleep })?.end : end }
-    var displayTimeZone: TimeZone { metadata?.healthSleep.flatMap { TimeZone(identifier: $0.timeZoneIdentifier) } ?? .current }
+    var sleepOnset: Date? { source == .healthKit || metadata?.encryptedBand != nil ? segments.first(where: { $0.stage.isAsleep })?.start : start }
+    var sleepEnd: Date? { source == .healthKit || metadata?.encryptedBand != nil ? segments.last(where: { $0.stage.isAsleep })?.end : end }
+    var displayTimeZone: TimeZone {
+        metadata?.healthSleep.flatMap { TimeZone(identifier: $0.timeZoneIdentifier) }
+            ?? metadata?.encryptedBand.flatMap { TimeZone(secondsFromGMT: $0.utcOffsetMinutes * 60) } ?? .current
+    }
     func displayClock(_ date: Date) -> String {
         let formatter = DateFormatter(); formatter.timeZone = displayTimeZone; formatter.dateFormat = "HH:mm"
         return formatter.string(from: date)
     }
     /// A calendar label, not elapsed time: keep the end date in the sample's original timezone.
     var day: Date {
-        guard let label = metadata?.healthSleep?.endDay else { return Calendar.current.startOfDay(for: end) }
+        guard let label = metadata?.healthSleep?.endDay ?? metadata?.encryptedBand?.endDay else { return Calendar.current.startOfDay(for: end) }
         let formatter = DateFormatter(); formatter.calendar = Calendar(identifier: .gregorian)
         formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.timeZone = .current; formatter.dateFormat = "yyyy-MM-dd"
         return formatter.date(from: label) ?? Calendar.current.startOfDay(for: end)
@@ -179,7 +182,7 @@ final class SleepRecord {
     }
     var deepShare: Int? { share(.deep) }
     var awakenings: Int? {
-        if source == .healthKit {
+        if source == .healthKit || metadata?.encryptedBand != nil {
             guard hasSleepDuration, hasCompleteCoverage, hasStages || segments.contains(where: { $0.stage == .awake }) else { return nil }
             return segments.indices.filter { index in
                 index > 0 && segments[index].stage == .awake && segments[index - 1].stage.isAsleep && segments.dropFirst(index + 1).contains { $0.stage.isAsleep }
@@ -188,11 +191,11 @@ final class SleepRecord {
         return hasStages && hasCompleteCoverage ? segments.dropFirst().filter { $0.stage == .awake }.count : nil
     }
     var awakeMinutes: Int? {
-        if source == .healthKit && (!hasCompleteCoverage || (!hasStages && !segments.contains { $0.stage == .awake })) { return nil }
+        if (source == .healthKit || metadata?.encryptedBand != nil) && (!hasCompleteCoverage || (!hasStages && !segments.contains { $0.stage == .awake })) { return nil }
         return hasSleepDuration && !segments.isEmpty ? minutes(.awake) : nil
     }
     var score: Int? {
-        guard source != .healthKit else { return nil }
+        guard source != .healthKit, metadata?.encryptedBand == nil else { return nil }
         guard let efficiency else { return nil }
         let duration = min(100, Int(Double(asleepMinutes) / 480 * 100))
         return Int((Double(duration) * 0.6 + Double(efficiency) * 0.4).rounded())

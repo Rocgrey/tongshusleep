@@ -63,6 +63,11 @@ struct WearableProbeView: View {
                         }
                         VStack(alignment: .leading, spacing: 14) {
                             SectionHeading(title: "各类数据读取情况", subtitle: "空目录表示这次没有记录；未响应还不能判断是否支持")
+                            if report.finishedAt == nil {
+                                Label(client.isBusy ? "读取尚未结束，请等各通道检查完成后再分享报告。" : "这份报告没有读取结束标记，可能只包含部分通道；请重新连接并等待读取结束。", systemImage: "clock.badge.exclamationmark")
+                                    .font(.caption).foregroundStyle(SleepPalette.rose).fixedSize(horizontal: false, vertical: true)
+                                    .accessibilityIdentifier("incompleteWearableProbe")
+                            }
                             if report.channels.contains(where: { $0.received > 0 }) {
                                 Chart(report.channels.filter { $0.received > 0 }) { channel in
                                     BarMark(x: .value("收到包数", channel.received), y: .value("通道", channel.name))
@@ -105,6 +110,7 @@ struct WearableProbeView: View {
                         Text(report.note).font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
                         if let url = client.reportURL {
                             ShareLink(item: url) { Label("分享接入报告 JSON", systemImage: "square.and.arrow.up") }
+                                .disabled(client.isBusy)
                                 .accessibilityIdentifier("shareWearableProbe")
                             Text("报告含健康记录，分享前请确认接收人。")
                                 .font(.system(size: 11)).foregroundStyle(SleepPalette.muted)

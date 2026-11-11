@@ -78,6 +78,10 @@ struct RootTabView: View {
         .environmentObject(vitals)
         .environmentObject(healthOverview)
         .environmentObject(accountSteps)
+        .environmentObject(scanner.encryptedBand)
+        .onReceive(scanner.encryptedBand.$batchID.dropFirst()) { _ in
+            scanner.encryptedBand.save(in: context, vitals: vitals)
+        }
         .onChange(of: scanner.latestVitals) { _, samples in
             let spaced = samples.filter { sample in
                 let previous = vitals.samples.last { $0.device == sample.device && $0.kind == sample.kind && $0.origin == sample.origin }

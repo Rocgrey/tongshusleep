@@ -58,6 +58,8 @@ final class RingScanner: NSObject, ObservableObject {
     @Published private(set) var wearableChannelDetected = false
     @Published private(set) var wearableProbeAvailable = false
     let wearable = WearableProbeClient()
+    let encryptedBand = EncryptedBandStore()
+    @Published private(set) var encryptedBandChannelDetected = false
     private var wearableWriter: CBCharacteristic?
     private var wearableNotify: CBCharacteristic?
     private var wearableStarted = false
@@ -106,6 +108,8 @@ final class RingScanner: NSObject, ObservableObject {
     }
 
     func forget(_ device: RememberedDevice) {
+        do { try encryptedBand.forget(device.id) }
+        catch { status = "设备凭证未能移除，请重试。"; return }
         if pendingReconnect?.id == device.id { pendingReconnect = nil }
         rememberedDevices.removeAll { $0.id == device.id }
         rememberedStorage.save(rememberedDevices)
@@ -131,6 +135,7 @@ final class RingScanner: NSObject, ObservableObject {
         guard let connected, connected.state == .connected, !isInspecting else { return }
         inspectionTimeout?.cancel()
         wearable.cancel()
+        encryptedBandChannelDetected = false
         wearableChannelDetected = false; wearableProbeAvailable = false; wearableWriter = nil; wearableNotify = nil; wearableStarted = false
         inspectedAt = .now
         isInspecting = true
@@ -175,12 +180,16 @@ final class RingScanner: NSObject, ObservableObject {
         if batteryState == .checking { batteryState = .unavailable }
         if modelState == .checking { modelState = .unavailable }
         if heartRateState == .checking { heartRateState = .unavailable }
-        status = wearableChannelDetected ? "已连接 · 自动读取数据，进度见下方" : veepooChannelDetected ? "已连接 · 即将自动同步" : "已连接 · 尚不支持此设备的睡眠与体征同步"
+        status = encryptedBandChannelDetected ? "已连接 · 加密设备需验证已有绑定凭证" : wearableChannelDetected ? "已连接 · 自动读取数据，进度见下方" : veepooChannelDetected ? "已连接 · 即将自动同步" : "已连接 · 尚不支持此设备的睡眠与体征同步"
         if let connected {
             rememberedDevices.removeAll { $0.id == connected.identifier }
             rememberedDevices.insert(RememberedDevice(id: connected.identifier, name: connectedName ?? "设备", lastConnected: .now,
                                                        verifiedRing: veepooChannelDetected, verifiedWearable: wearableChannelDetected, verifiedConnection: true), at: 0)
             rememberedStorage.save(rememberedDevices)
+        }
+        if encryptedBandChannelDetected, let connected, encryptedBand.hasCredential(connected.identifier) {
+            startEncryptedBandSync()
+            return
         }
         if !wearableChannelDetected, !wearableStarted, let connected,
            WearableGatt.reportedFirmware(for: connectedName ?? "") != nil {
@@ -205,7 +214,7 @@ final class RingScanner: NSObject, ObservableObject {
     }
 
     func scan() {
-        guard connected == nil, connectingID == nil, !isHandingOff else { return }
+        guard connected == nil, connectingID == nil, !isHandingOff, !encryptedBand.isBusy else { return }
         wantsScan = true
         if central == nil { central = CBCentralManager(delegate: self, queue: .main) }
         else { beginScanIfReady() }
@@ -235,7 +244,7 @@ final class RingScanner: NSObject, ObservableObject {
     }
 
     func connect(_ device: NearbyRing) {
-        guard connectingID == nil, connected == nil, let central, central.state == .poweredOn else { return }
+        guard connectingID == nil, connected == nil, !encryptedBand.isBusy, !isHandingOff, let central, central.state == .poweredOn else { return }
         stopScan()
         connectingID = device.id
         connected = device.peripheral
@@ -252,6 +261,7 @@ final class RingScanner: NSObject, ObservableObject {
 
     func disconnect() {
         wearable.cancel()
+        encryptedBandChannelDetected = false
         wearableChannelDetected = false; wearableProbeAvailable = false; wearableWriter = nil; wearableNotify = nil; wearableStarted = false
         pendingReconnect = nil
         connectionTimeout?.cancel()
@@ -270,6 +280,33 @@ final class RingScanner: NSObject, ObservableObject {
         discoveredServices = []; discoveredCharacteristics = [:]; readErrors = []; pendingServices = []; inspectedAt = nil
         veepooChannelDetected = false
         status = "已断开连接"
+    }
+
+    var encryptedBandTarget: (id: UUID, name: String)? {
+        guard encryptedBandChannelDetected, let connected, let connectedName else { return nil }
+        return (connected.identifier, connectedName)
+    }
+
+    /// Hand off to a dedicated encrypted session only after the scanner releases its connection.
+    func startEncryptedBandSync() {
+        guard !isInspecting, !isHandingOff, !encryptedBand.isBusy,
+              let target = encryptedBandTarget, let peripheral = connected,
+              encryptedBand.hasCredential(target.id) else { return }
+        isHandingOff = true
+        Task { [weak self] in
+            guard let self else { return }
+            defer { self.isHandingOff = false }
+            self.disconnect()
+            for _ in 0..<40 {
+                if peripheral.state == .disconnected {
+                    self.encryptedBand.sync(id: target.id, name: target.name)
+                    return
+                }
+                do { try await Task.sleep(for: .milliseconds(100)) }
+                catch { return }
+            }
+            self.encryptedBand.fail("原连接尚未释放，请重新连接设备。")
+        }
     }
 
     func releaseForVendorSync() async throws -> CBPeripheral {
@@ -388,6 +425,13 @@ extension RingScanner: @preconcurrency CBCentralManagerDelegate, @preconcurrency
             wearableWriter = service.characteristics?.first { $0.uuid.uuidString == WearableGatt.write && ($0.properties.contains(.write) || $0.properties.contains(.writeWithoutResponse)) }
             wearableChannelDetected = wearableNotify != nil && wearableWriter != nil
             if wearableChannelDetected { veepooChannelDetected = false }
+        }
+        if service.uuid == STBandBandLink.fe95 {
+            let values = service.characteristics ?? []
+            let notify = values.contains { $0.uuid == STBandBandLink.rxUUID && ($0.properties.contains(.notify) || $0.properties.contains(.indicate)) }
+            let write = values.contains { $0.uuid == STBandBandLink.txUUID && ($0.properties.contains(.write) || $0.properties.contains(.writeWithoutResponse)) }
+            encryptedBandChannelDetected = notify && write
+            if encryptedBandChannelDetected { veepooChannelDetected = false; wearableChannelDetected = false }
         }
         for characteristic in service.characteristics ?? [] {
             let canRead = BLEStandardAccess.canRead(service: service.uuid.uuidString, characteristic: characteristic.uuid.uuidString)
