@@ -56,7 +56,9 @@ struct MonitoringView: View {
             .background(SleepPalette.background).foregroundStyle(SleepPalette.ink)
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(isPresented: $showsLocalData) { LocalDataView() }
-            .navigationDestination(isPresented: $showsVitals) { WearableVitalsView() }
+            .navigationDestination(isPresented: $showsVitals) {
+                WearableVitalsView(preferredDevice: scanner.wearableProbeAvailable ? scanner.wearable.report?.deviceKey : nil)
+            }
             .sheet(isPresented: $showsValidation) { DeviceValidationView(store: ring.validation) }
             .sheet(isPresented: $showsWearableReport) { WearableProbeView(client: scanner.wearable) }
             .sheet(isPresented: $showPreview) {

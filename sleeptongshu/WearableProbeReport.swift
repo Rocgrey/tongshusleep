@@ -8,7 +8,13 @@ struct WearableProbeChannel: Codable, Identifiable {
     var received = 0
     var requestedStart: UInt32? = nil
     var requestedEnd: UInt32? = nil
+    var requestedRanges: [WearableProbeRange]? = nil
     var id: Int { type }
+}
+
+struct WearableProbeRange: Codable {
+    var start: UInt32
+    var end: UInt32
 }
 
 struct WearableProbeRecord: Codable, Identifiable {
@@ -34,6 +40,8 @@ struct WearableProbeReport: Codable {
     var observedFirmware: String?
     var observedAlgorithm: String?
     var batteryLevel0To9: UInt32?
+    var batteryRaw: UInt32? = nil
+    var batteryIsPercentage: Bool? = nil
     var currentSteps: UInt32?
     var services: [String] = []
     var characteristics: [String: [String]] = [:]
@@ -46,7 +54,7 @@ struct WearableProbeReport: Codable {
     var records: [WearableProbeRecord] = []
     var events: [String] = []
     var rejectedFrames = 0
-    var note = "本报告是有数量和时长限制的接入验证，不是完整历史备份。心跳间隔最多请求最近一个目录块的 288 包，健康记录最多 120 包，其他通道各 8 包；总计最多 512 包、2 MB。目录范围不保证覆盖整夜，未返回不代表硬件不支持。睡眠输入不是睡眠阶段；波形的单位、采样率及设备时间仍需核对，不生成自研分期或计步结果。报告仅保存在本机。"
+    var note = "本报告有数量和时长限制，不是完整历史备份。健康记录分段读取最近最多 2880 包，心跳间隔最多 288 包，其他通道各 8 包；总计最多 4096 包、8 MB。目录范围不保证覆盖整夜，未返回不代表硬件不支持。有效体征保存在本机，重复读取不累加；分钟步数不能当作当天总步数。睡眠输入不是睡眠分期，原始波形仍需核对编码，不生成自研分期。"
 }
 
 enum WearableProbeStorage {

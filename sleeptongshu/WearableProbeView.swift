@@ -26,10 +26,20 @@ struct WearableProbePanel: View {
                 }
                 Text("\(report.channels.filter { $0.received > 0 }.count) 类历史数据已返回 · 连接后自动读取")
                     .font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
+                if let message = client.savedVitalsMessage {
+                    Text(message).font(.caption).foregroundStyle(SleepPalette.teal)
+                }
+                if let history = client.history, !history.vitals.isEmpty {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 85), alignment: .leading)], alignment: .leading, spacing: 12) {
+                        preview("最近心率", value: history.rows.reversed().compactMap(\.heart).first, unit: "次/分")
+                        preview("最近血氧", value: history.rows.reversed().compactMap(\.oxygen).first, unit: "%")
+                        preview("HRV · SDNN", value: history.rows.reversed().compactMap(\.sdnn).first, unit: "毫秒")
+                    }
+                }
                 Button { showsReport = true } label: { Label("查看本次接入报告", systemImage: "doc.text.magnifyingglass") }
                     .font(.system(size: 13)).accessibilityIdentifier("wearableProbeReport")
             }
-            Text("连接后自动读取，约需 1～3 分钟。心跳间隔会读取较长历史，其他通道先检查一段记录。睡眠输入还不是深睡、浅睡或快速眼动。")
+            Text("连接后自动读取，约需 1～3 分钟。有效心率、血氧、血压和 HRV 会保存到体征记录。睡眠输入还不是深睡、浅睡或快速眼动。")
                 .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
         }.sheet(isPresented: $showsReport) { WearableProbeView(client: client) }
     }
@@ -38,6 +48,14 @@ struct WearableProbePanel: View {
             Text(title).font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
             Text(value).font(.system(size: 25, weight: .semibold, design: .rounded)).monospacedDigit()
         }.frame(maxWidth: .infinity, alignment: .leading)
+    }
+    private func preview(_ title: String, value: Double?, unit: String) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title).font(.caption).foregroundStyle(SleepPalette.muted)
+            Text(value.map { $0.formatted(.number.precision(.fractionLength(0...1))) } ?? "—")
+                .font(.system(size: 21, weight: .semibold, design: .rounded)).monospacedDigit()
+            Text(unit).font(.caption2).foregroundStyle(SleepPalette.muted)
+        }.accessibilityElement(children: .combine)
     }
 }
 
@@ -56,10 +74,14 @@ struct WearableProbeView: View {
                                 .font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
                             field("实际返回型号", report.observedModel ?? "未返回")
                             field("实际返回固件", report.observedFirmware ?? "未返回")
+                            DeviceBatteryView(reading: client.battery, isCurrent: client.isConnected, isReading: client.isBusy, deviceName: report.deviceName)
                             field("用户提供的版本", report.userReportedFirmware ?? "未提供")
                             if let value = report.observedAlgorithm { field("设备血压版本字段", value) }
                             Text("用户提供的版本仅供核对，实际兼容性以本次响应为准。")
                                 .font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
+                        }
+                        if let history = client.history {
+                            WearableHealthHistoryView(history: history, savedMessage: client.savedVitalsMessage)
                         }
                         VStack(alignment: .leading, spacing: 14) {
                             SectionHeading(title: "各类数据读取情况", subtitle: "空目录表示这次没有记录；未响应还不能判断是否支持")
@@ -84,7 +106,7 @@ struct WearableProbeView: View {
                                             .foregroundStyle(channel.received > 0 ? SleepPalette.teal : SleepPalette.muted)
                                     }
                                     Text(channel.state).font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
-                                    if channel.available > 0 { Text("目录中共 \(channel.available) 条，本次仅取其中一段").font(.system(size: 11)).foregroundStyle(SleepPalette.muted) }
+                                    if channel.available > 0 { Text("目录中约 \(channel.available) 条，本次在读取上限内分段获取").font(.system(size: 11)).foregroundStyle(SleepPalette.muted) }
                                     if let start = channel.requestedStart, let end = channel.requestedEnd {
                                         Text("本次请求序号 \(start)～\(end) · 实收 \(channel.received) 包")
                                             .font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
@@ -94,7 +116,7 @@ struct WearableProbeView: View {
                             }
                         }
                         let heart = report.records.filter { $0.heartRate != nil }.sorted { $0.sequence < $1.sequence }
-                        if !heart.isEmpty {
+                        if !heart.isEmpty && client.history?.rows.contains(where: { $0.heart != nil }) != true {
                             SectionHeading(title: "已返回的心率", subtitle: "单位：次/分 · 按设备记录顺序排列")
                             Chart(heart) { record in
                                 PointMark(x: .value("记录序号", record.sequence), y: .value("心率", record.heartRate!))
@@ -135,5 +157,71 @@ struct WearableProbeView: View {
             Spacer(minLength: 12)
             Text(value).multilineTextAlignment(.trailing)
         }.font(.system(size: 12))
+    }
+}
+
+/// Charts only contain decoded measurements; missing channels never become zeroes.
+private struct WearableHealthHistoryView: View {
+    let history: WearableDecodedHistory
+    let savedMessage: String?
+    private let columns = [GridItem(.adaptive(minimum: 135), alignment: .leading)]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            SectionHeading(title: "已读取的体征", subtitle: "按设备测量时间展示 · 缺失数据不补零")
+            if let savedMessage { Text(savedMessage).font(.caption).foregroundStyle(SleepPalette.teal) }
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 18) {
+                metric("最近心率", value: latest(\.heart), unit: "次/分", icon: "heart.fill", tint: SleepPalette.rose)
+                metric("最近血氧", value: latest(\.oxygen), unit: "%", icon: "drop.fill", tint: SleepPalette.teal)
+                metric("血压高压 / 低压", text: pressure, unit: "mmHg", icon: "waveform.path.ecg", tint: SleepPalette.deep)
+                metric("HRV · SDNN", value: latest(\.sdnn), unit: "毫秒", icon: "waveform", tint: SleepPalette.deep)
+                metric("HRV · RMSSD", value: latest(\.rmssd), unit: "毫秒", icon: "waveform.path", tint: SleepPalette.teal)
+                metric("设备压力", value: latest(\.stress), unit: "/100", icon: "leaf", tint: SleepPalette.rose)
+                if latest(\.temperature) != nil { metric("设备估算体温", value: latest(\.temperature), unit: "℃", icon: "thermometer.medium", tint: SleepPalette.rose) }
+                if latest(\.respiration) != nil { metric("呼吸率", value: latest(\.respiration), unit: "次/分", icon: "lungs", tint: SleepPalette.teal) }
+            }
+            let heart = history.rows.filter { $0.heart != nil }
+            if !heart.isEmpty {
+                Chart(heart) { row in
+                    PointMark(x: .value("测量时间", row.date), y: .value("心率", row.heart!))
+                        .foregroundStyle(SleepPalette.rose)
+                }.frame(height: 165).chartYAxis { AxisMarks(position: .leading) }
+                    .accessibilityLabel("设备真实历史心率")
+            }
+            let oxygen = history.rows.filter { $0.oxygen != nil }
+            if !oxygen.isEmpty {
+                Chart(oxygen) { row in
+                    PointMark(x: .value("测量时间", row.date), y: .value("血氧", row.oxygen!))
+                        .foregroundStyle(SleepPalette.teal)
+                }.frame(height: 130).chartYAxis { AxisMarks(position: .leading) }
+                    .accessibilityLabel("设备真实历史血氧")
+            }
+            if let start = history.rows.first?.date, let end = history.rows.last?.date {
+                Text("记录时间：\(start.formatted(date: .abbreviated, time: .shortened)) 至 \(end.formatted(date: .abbreviated, time: .shortened))")
+                    .font(.caption).foregroundStyle(SleepPalette.muted)
+            }
+            Text("HRV 表示心跳间隔的变化，两种算法值分开展示；压力按设备疲劳值换算，越高表示设备估计的压力越大。仅显示有效测量，不从原始编码猜测结果。")
+                .font(.caption).foregroundStyle(SleepPalette.muted)
+            if history.skippedTimes > 0 {
+                Text("\(history.skippedTimes) 条记录的设备时间尚未确认，保留在报告中，暂不写入日常体征。")
+                    .font(.caption).foregroundStyle(SleepPalette.muted)
+            }
+        }
+    }
+    private func latest(_ key: KeyPath<WearableHealthRow, Double?>) -> Double? { history.rows.reversed().compactMap { $0[keyPath: key] }.first }
+    private var pressure: String {
+        guard let row = history.rows.last(where: { $0.systolic != nil && $0.diastolic != nil }) else { return "—" }
+        return "\(Int(row.systolic!)) / \(Int(row.diastolic!))"
+    }
+    private func metric(_ title: String, value: Double?, unit: String, icon: String, tint: Color) -> some View {
+        metric(title, text: value.map { $0.formatted(.number.precision(.fractionLength(0...1))) } ?? "—", unit: unit, icon: icon, tint: tint)
+    }
+    private func metric(_ title: String, text: String, unit: String, icon: String, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Label(title, systemImage: icon).font(.caption).foregroundStyle(tint)
+            Text(text).font(.system(size: 22, weight: .semibold, design: .rounded)).monospacedDigit()
+            Text(unit).font(.caption).foregroundStyle(SleepPalette.muted)
+        }.frame(maxWidth: .infinity, alignment: .leading).accessibilityElement(children: .combine)
+            .accessibilityIdentifier("wearableMetric-\(title)")
     }
 }

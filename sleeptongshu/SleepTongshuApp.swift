@@ -79,6 +79,11 @@ struct RootTabView: View {
         .environmentObject(healthOverview)
         .environmentObject(accountSteps)
         .environmentObject(scanner.encryptedBand)
+        .onReceive(scanner.wearable.$history) { history in
+            guard let history else { return }
+            do { scanner.wearable.didSaveHistory(count: try vitals.merge(history.vitals), total: history.vitals.count) }
+            catch { scanner.wearable.didSaveHistory(count: nil, total: history.vitals.count, error: error.localizedDescription) }
+        }
         .onReceive(scanner.encryptedBand.$batchID.dropFirst()) { _ in
             scanner.encryptedBand.save(in: context, vitals: vitals)
         }

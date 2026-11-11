@@ -54,6 +54,7 @@ struct WearableVital: Identifiable, Codable, Equatable {
     var kind: VitalKind
     var value: Double
     var origin: String
+    var displayUnit: String { kind == .hrv && origin == "设备历史 · SDNN（毫秒）" ? "毫秒" : kind.unit }
     var id: String { "\(device)|\(kind.rawValue)|\(date.timeIntervalSince1970)|\(origin)" }
 
     static func deviceKey(_ raw: String) -> String {

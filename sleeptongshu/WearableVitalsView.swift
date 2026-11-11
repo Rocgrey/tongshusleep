@@ -3,10 +3,14 @@ import Charts
 
 struct WearableVitalsView: View {
     @EnvironmentObject private var store: WearableVitalsStore
+    var preferredDevice: String? = nil
     @State private var device = ""
     @State private var kind = VitalKind.heart
     @State private var days = 7
     @State private var selectedDate: Date?
+    @State private var appliedPreferredDevice = false
+    private var usesSDNN: Bool { kind == .hrv && !selected.isEmpty && selected.allSatisfy { $0.displayUnit == "毫秒" } }
+    private var unit: String { usesSDNN ? "毫秒" : kind.unit }
 
     private var devices: [String] { Set(store.visibleSamples.map(\.device)).sorted() }
     private var deviceSamples: [WearableVital] {
@@ -80,7 +84,7 @@ struct WearableVitalsView: View {
                 ForEach(devices, id: \.self) { key in
                     Text(DevicePresentation.name(store.visibleSamples.first { $0.device == key }?.deviceLabel ?? "设备")).tag(key)
                 }
-            }.pickerStyle(.menu).frame(maxWidth: .infinity, alignment: .leading)
+            }.pickerStyle(.menu).frame(maxWidth: .infinity, alignment: .leading).accessibilityIdentifier("vitalDevicePicker")
             Picker("时间范围", selection: $days) { Text("近 7 天").tag(7); Text("近 30 天").tag(30) }
                 .pickerStyle(.segmented).accessibilityIdentifier("vitalPeriod")
         }
@@ -99,11 +103,11 @@ struct WearableVitalsView: View {
                             }
                             HStack(alignment: .firstTextBaseline, spacing: 4) {
                                 Text(VitalInsights.number(sample.value)).font(.system(size: 24, weight: .semibold, design: .rounded)).monospacedDigit()
-                                Text(item.unit).font(.system(size: 10))
+                                Text(sample.displayUnit).font(.system(size: 10))
                             }.lineLimit(1).minimumScaleFactor(0.8)
                         }.frame(maxWidth: .infinity, minHeight: 64, alignment: .leading).padding(14)
                             .foregroundStyle(kind == item ? SleepPalette.teal : SleepPalette.ink)
-                            .background(kind == item ? SleepPalette.teal.opacity(0.09) : Color.white, in: RoundedRectangle(cornerRadius: 8))
+                            .background(kind == item ? SleepPalette.teal.opacity(0.09) : SleepPalette.surface, in: RoundedRectangle(cornerRadius: 8))
                     }.buttonStyle(.plain).accessibilityLabel("查看\(item.title)趋势")
                 }
             }
@@ -131,7 +135,8 @@ struct WearableVitalsView: View {
     private var reference: some View {
         VStack(alignment: .leading, spacing: 10) {
             Label(kind.referenceText, systemImage: "info.circle").font(.system(size: 13, weight: .semibold)).foregroundStyle(SleepPalette.teal)
-            Text(kind.referenceNote).font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
+            Text(usesSDNN ? "这里显示设备给出的 SDNN，单位为毫秒，按厂家示例换算。请与自己同一设备的多天记录比较；不同算法的 HRV 不宜直接比较。" : kind.referenceNote)
+                .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
             Text(kind.referenceSource).font(.system(size: 10)).foregroundStyle(SleepPalette.muted)
         }.padding(.vertical, 16).frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityIdentifier("vitalReference")
@@ -139,12 +144,12 @@ struct WearableVitalsView: View {
 
     private var timeline: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SectionHeading(title: "每次记录的变化", subtitle: "\(kind.title) · \(kind.unit)")
+            SectionHeading(title: "每次记录的变化", subtitle: "\(kind.title) · \(unit)")
             if let inspected {
                 HStack {
                     Text(inspected.date.formatted(.dateTime.month().day().hour().minute().locale(Locale(identifier: "zh_CN"))))
                     Spacer()
-                    Text("\(VitalInsights.number(inspected.value)) \(kind.unit)").fontWeight(.semibold).foregroundStyle(tint)
+                    Text("\(VitalInsights.number(inspected.value)) \(unit)").fontWeight(.semibold).foregroundStyle(tint)
                 }.font(.system(size: 12)).frame(height: 22)
             }
             Chart {
@@ -154,7 +159,7 @@ struct WearableVitalsView: View {
                     RuleMark(y: .value("参考下限", range.lowerBound)).lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4])).foregroundStyle(SleepPalette.teal.opacity(0.5))
                 }
                 ForEach(selected) { sample in
-                    PointMark(x: .value("时间", sample.date), y: .value(kind.unit, sample.value)).foregroundStyle(tint).symbolSize(30)
+                    PointMark(x: .value("时间", sample.date), y: .value(unit, sample.value)).foregroundStyle(tint).symbolSize(30)
                 }
                 if selectedDate != nil, let inspected {
                     RuleMark(x: .value("所选时间", inspected.date)).foregroundStyle(tint.opacity(0.4))
@@ -173,7 +178,7 @@ struct WearableVitalsView: View {
 
     private var dailyChart: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SectionHeading(title: "每天的高低变化", subtitle: "\(daily.count) 天有记录 · \(kind.unit)")
+            SectionHeading(title: "每天的高低变化", subtitle: "\(daily.count) 天有记录 · \(unit)")
             Chart(daily) { day in
                 BarMark(x: .value("日期", day.date, unit: .day), yStart: .value("最低", day.minimum), yEnd: .value("最高", day.maximum), width: .ratio(0.25))
                     .foregroundStyle(tint.opacity(0.3)).cornerRadius(3)
@@ -195,7 +200,7 @@ struct WearableVitalsView: View {
                 ForEach(VitalInsights.buckets(selected)) { bucket in
                     VStack(spacing: 7) {
                         HStack {
-                            Text("\(bucket.label) \(kind.unit)")
+                            Text("\(bucket.label) \(unit)")
                             Spacer()
                             Text("\(bucket.count) 条").monospacedDigit()
                         }.font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
@@ -208,7 +213,7 @@ struct WearableVitalsView: View {
                         }.frame(height: 8)
                     }
                     .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("\(bucket.label) \(kind.unit)，\(bucket.count) 条")
+                    .accessibilityLabel("\(bucket.label) \(unit)，\(bucket.count) 条")
                 }
             }.accessibilityIdentifier("vitalDistribution")
             Text("条越长，落在这个数值范围里的记录越多。各段相邻边界只计一次；这些分组不是正常或异常的划分。")
@@ -226,7 +231,7 @@ struct WearableVitalsView: View {
                             Text(sample.origin == "设备时段均值" ? "这段时间的平均值" : sample.origin).font(.system(size: 10)).foregroundStyle(SleepPalette.muted)
                         }
                         Spacer()
-                        Text("\(VitalInsights.number(sample.value)) \(kind.unit)").font(.system(size: 13, weight: .medium))
+                        Text("\(VitalInsights.number(sample.value)) \(sample.displayUnit)").font(.system(size: 13, weight: .medium))
                     }
                     Divider()
                 }
@@ -238,11 +243,14 @@ struct WearableVitalsView: View {
         VStack(alignment: .leading, spacing: 7) {
             Text(title).font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
             Text(VitalInsights.number(value)).font(.system(size: 23, weight: .semibold, design: .rounded)).monospacedDigit()
-            Text(kind.unit).font(.system(size: 10)).foregroundStyle(SleepPalette.muted)
+            Text(unit).font(.system(size: 10)).foregroundStyle(SleepPalette.muted)
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func refreshSelection() {
+        if !appliedPreferredDevice, let preferredDevice, devices.contains(preferredDevice) {
+            device = preferredDevice; appliedPreferredDevice = true
+        }
         if !devices.contains(device) { device = store.visibleSamples.last?.device ?? "" }
         refreshKind()
     }

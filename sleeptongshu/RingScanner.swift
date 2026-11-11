@@ -202,11 +202,17 @@ final class RingScanner: NSObject, ObservableObject {
             wearableStarted = true; wearableProbeAvailable = true
             wearable.prepare(name: connectedName ?? "设备", id: connected.identifier,
                              services: discoveredServices, characteristics: discoveredCharacteristics)
-            connected.setNotifyValue(true, for: wearableNotify)
+            let session = wearable.sessionID
+            // CoreBluetooth need not emit another state callback for an already-active
+            // subscription. Refreshing a connected device must start the read immediately.
+            if wearableNotify.isNotifying, let wearableWriter {
+                wearable.start(peripheral: connected, writer: wearableWriter)
+            } else { connected.setNotifyValue(true, for: wearableNotify) }
             Task { [weak self] in
                 do { try await Task.sleep(for: .seconds(5)) } catch { return }
                 guard let self, self.connected?.identifier == connected.identifier,
-                      self.wearableNotify === wearableNotify, !wearableNotify.isNotifying,
+                      self.wearable.sessionID == session, !self.wearable.isBusy,
+                      self.wearableNotify === wearableNotify,
                       self.wearable.report?.finishedAt == nil else { return }
                 self.wearable.fail("数据接收未能开启，请重新连接")
             }
