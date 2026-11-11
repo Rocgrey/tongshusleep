@@ -5,6 +5,8 @@ struct WearableProbePanel: View {
     @ObservedObject var client: WearableProbeClient
     var connected = false
     @State private var showsReport = false
+    @AppStorage("wearableRawCaptureOnceV1") private var rawCaptureOnce = false
+    @EnvironmentObject private var rawSync: RawSensorSyncStore
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -15,6 +17,10 @@ struct WearableProbePanel: View {
                 if client.isBusy { ProgressView().controlSize(.small) }
             }
             Text(client.status).font(.system(size: 12)).foregroundStyle(SleepPalette.teal)
+            Toggle("下次连接采集原始信号", isOn: $rawCaptureOnce).font(.subheadline).disabled(client.isBusy)
+                .accessibilityIdentifier("rawSensorCaptureOnce")
+            Text("仅短时采集 10 秒，完成后自动关闭；原始包先保存在本机，开启账号自动同步时上传到你的平台，不直接生成睡眠阶段。")
+                .font(.caption).foregroundStyle(SleepPalette.muted)
             if let report = client.report {
                 DeviceBatteryView(reading: client.battery, isCurrent: connected, isReading: client.isBusy, deviceName: report.deviceName)
                 Text(report.deviceName).font(.system(size: 12, weight: .medium)).foregroundStyle(SleepPalette.muted)
@@ -28,6 +34,9 @@ struct WearableProbePanel: View {
                     .font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
                 if let message = client.savedVitalsMessage {
                     Text(message).font(.caption).foregroundStyle(SleepPalette.teal)
+                }
+                if client.report?.rawSensorStatus != nil {
+                    Text(rawSync.message).font(.caption).foregroundStyle(SleepPalette.muted)
                 }
                 if let history = client.history, !history.vitals.isEmpty {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 85), alignment: .leading)], alignment: .leading, spacing: 12) {
@@ -83,6 +92,7 @@ struct WearableProbeView: View {
                         if let history = client.history {
                             WearableHealthHistoryView(history: history, savedMessage: client.savedVitalsMessage)
                         }
+                        RawSensorReportView(report: report)
                         VStack(alignment: .leading, spacing: 14) {
                             SectionHeading(title: "各类数据读取情况", subtitle: "空目录表示这次没有记录；未响应还不能判断是否支持")
                             if report.finishedAt == nil {

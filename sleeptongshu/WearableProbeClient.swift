@@ -19,6 +19,12 @@ enum WearableProbeProtocol {
         var request = IW_RtSubscriber(); request.time = .onlyOnce
         return WearableFrame(opcode: 0x70, payload: try request.serializedData())
     }
+    static func sensorRequest(stop: Bool) throws -> WearableFrame {
+        var request = IW_RtSubscriber()
+        request.sensor.operation = stop ? .sensorStopSync : .sensorStartSync
+        request.sensor.type = UInt32(IW_SensorType.acc.rawValue | IW_SensorType.bioz.rawValue)
+        return WearableFrame(opcode: 0x70, payload: try request.serializedData())
+    }
 
     /// Bound unique sequences across directory blocks. Adjacent transport chunks overlap
     /// one endpoint so both observed exclusive-end firmware and older firmware can respond.
@@ -106,6 +112,9 @@ final class WearableProbeClient: ObservableObject {
     private var storedBytes = 0
     private var generation = UUID()
     private var lastHistoryAt: Date?
+    private var rawCaptureActive = false
+    private var rawWords = 0
+    private var rawPacketKeys: Set<String> = []
 
     init() {
         #if DEBUG
@@ -147,6 +156,18 @@ final class WearableProbeClient: ObservableObject {
                         return try? WearableProbeProtocol.record(value, type: 0)
                     }
                     fixture.channels[0].received = fixture.records.count
+                    if ProcessInfo.processInfo.arguments.contains("-ui-testing-raw-sensors") {
+                        fixture.rawSensorPackets = [UInt32(16), 512].compactMap { type in
+                            var notification = IW_RtNotification()
+                            notification.rtSensordata.type = type
+                            notification.rtSensordata.time.seconds = 1794390000
+                            notification.rtSensordata.seq = 37
+                            notification.rtSensordata.data = type == 16 ? [100, UInt32(bitPattern: -1012), 202, 102, UInt32(bitPattern: -1010), 204] : [105, 140, 900, 1400, 300, 105]
+                            guard let bytes = try? notification.serializedData() else { return nil }
+                            return try? RawSensorPacket(notification.rtSensordata, notification: bytes)
+                        }
+                        fixture.rawSensorStatus = "原始信号界面测试示例 · 非真实采集"
+                    }
                     battery = DeviceBatteryReading(level: 100, isPercentage: true)
                     history = WearableHistoryDecoder.decode(fixture)
                 }
@@ -173,6 +194,7 @@ final class WearableProbeClient: ObservableObject {
         generation = UUID()
         decoder = WearableFrameDecoder(); answers = []; indexes = [:]; received = [:]; failedTypes = []
         activeType = nil; activeRange = nil; storedBytes = 0; battery = nil; reportURL = nil
+        rawCaptureActive = false; rawWords = 0; rawPacketKeys = []
         history = nil; savedVitalsMessage = nil; lastHistoryAt = nil
         report = WearableProbeReport(deviceName: name, deviceKey: WearableVital.deviceKey(id.uuidString),
                                      userReportedFirmware: WearableGatt.reportedFirmware(for: name),
@@ -197,6 +219,26 @@ final class WearableProbeClient: ObservableObject {
                 _ = try await self.ask(try WearableProbeProtocol.realtimeRequest(battery: false), key: "health")
                 _ = try await self.ask(try WearableProbeProtocol.timeRequest(), key: "time")
                 self.checkpoint()
+                if UserDefaults.standard.bool(forKey: "wearableRawCaptureOnceV1") {
+                    UserDefaults.standard.set(false, forKey: "wearableRawCaptureOnceV1")
+                    if WearableHistoryDecoder.isBIO(model: self.report?.observedModel, firmware: self.report?.observedFirmware) {
+                        self.status = "正在短时采集设备原始信号"
+                        self.rawCaptureActive = true
+                        self.report?.rawSensorStatus = "正在采集，最多 10 秒；不计算睡眠阶段"
+                        do {
+                            try await self.send(try WearableProbeProtocol.sensorRequest(stop: false))
+                            try await Task.sleep(for: .seconds(10))
+                            try await self.send(try WearableProbeProtocol.sensorRequest(stop: true))
+                        } catch {
+                            self.stopRawCapture()
+                            throw error
+                        }
+                        self.rawCaptureActive = false
+                        let count = self.report?.rawSensorPackets?.count ?? 0
+                        self.report?.rawSensorStatus = count == 0 ? "短时请求已结束，未收到原始信号；不代表设备不支持" : "短时采集结束，保留 \(count) 个原始包；不计算睡眠阶段"
+                        self.checkpoint()
+                    } else { self.report?.rawSensorStatus = "本次未确认设备协议，未发送原始信号采集指令" }
+                }
                 for type in self.report?.channels.map(\.type) ?? [] {
                     try Task.checkCancellation()
                     self.activeType = type; self.activeRange = nil
@@ -251,6 +293,7 @@ final class WearableProbeClient: ObservableObject {
     func fail(_ message: String) { event(message); cancel(); status = message }
 
     func cancel() {
+        stopRawCapture()
         task?.cancel(); task = nil
         if isBusy || (report != nil && report?.finishedAt == nil) {
             for index in report?.channels.indices ?? 0..<0 where report?.channels[index].state.hasPrefix("正在") == true {
@@ -264,6 +307,7 @@ final class WearableProbeClient: ObservableObject {
     }
 
     private func finish() {
+        stopRawCapture()
         for index in report?.channels.indices ?? 0..<0 where report?.channels[index].state.hasPrefix("正在") == true {
             report?.channels[index].state = "读取已结束，本项未完成"
         }
@@ -281,8 +325,33 @@ final class WearableProbeClient: ObservableObject {
 
     private func checkpoint() {
         guard let report else { return }
-        do { reportURL = try WearableProbeStorage.save(report) }
+        do {
+            reportURL = try WearableProbeStorage.save(report)
+            try RawSensorPendingStorage.save(report)
+        }
         catch { status = "报告未能保存：\(error.localizedDescription)" }
+    }
+    private func stopRawCapture() {
+        guard rawCaptureActive else { return }
+        rawCaptureActive = false
+        report?.rawSensorStatus = "采集已中断，已收到的原始包保留；停止指令尽力发送"
+        // Cancellation cannot await send(); this small stop frame fits one BLE write.
+        if let peripheral, let writer, peripheral.state == .connected,
+           let frame = try? WearableProbeProtocol.sensorRequest(stop: true) {
+            let mode: CBCharacteristicWriteType = writer.properties.contains(.write) ? .withResponse : .withoutResponse
+            if frame.encoded().count <= peripheral.maximumWriteValueLength(for: mode), mode == .withResponse || peripheral.canSendWriteWithoutResponse {
+                peripheral.writeValue(frame.encoded(), for: writer, type: mode)
+            }
+        }
+    }
+    private func receiveRawSensor(_ sensor: IW_RtSensorData, notification: Data) throws {
+        guard rawCaptureActive else { return }
+        let packet = try RawSensorPacket(sensor, notification: notification)
+        guard (report?.rawSensorPackets?.count ?? 0) < 256,
+              rawWords + packet.sensorDataList.count <= 100000 else { return }
+        guard rawPacketKeys.insert(packet.packetKey).inserted else { return }
+        if report?.rawSensorPackets == nil { report?.rawSensorPackets = [] }
+        report?.rawSensorPackets?.append(packet); rawWords += packet.sensorDataList.count
     }
 
     private func channel(_ type: Int, state: String) {
@@ -372,6 +441,10 @@ final class WearableProbeClient: ObservableObject {
                     if value.hasEncryptionStatus { event("设备返回加密状态原值：\(value.encryptionStatus)") }
                 case 0x70:
                     let value = try IW_RtNotification(serializedBytes: frame.payload)
+                    if case .rtSensordata(let sensor) = value.data {
+                        try receiveRawSensor(sensor, notification: frame.payload)
+                        continue
+                    }
                     guard case .rtData(let rt) = value.data else { continue }
                     if rt.hasBattery {
                         let raw = rt.battery.level

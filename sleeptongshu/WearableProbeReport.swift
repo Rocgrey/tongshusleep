@@ -45,6 +45,8 @@ struct WearableProbeReport: Codable {
     var currentSteps: UInt32?
     var currentStepsReadAt: Date? = nil
     var algorithmDeviceID: String? = nil
+    var rawSensorPackets: [RawSensorPacket]? = nil
+    var rawSensorStatus: String? = nil
     var services: [String] = []
     var characteristics: [String: [String]] = [:]
     var channels: [WearableProbeChannel] = [

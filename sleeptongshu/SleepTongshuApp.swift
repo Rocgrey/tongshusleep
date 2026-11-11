@@ -69,6 +69,7 @@ struct RootTabView: View {
     @StateObject private var deviceSteps = DeviceStepsStore.appStore()
     @StateObject private var automaticSync = AutomaticSyncStore()
     @StateObject private var bioAlgorithm = BIOAlgorithmStore()
+    @StateObject private var rawSensors = RawSensorSyncStore()
     @AppStorage("automaticHealthSyncV1") private var autoSync = true
     private var syncRequests: [DeviceSyncRequest] {
         let sleep = records.filter { $0.isVisible && $0.source != .sample }.compactMap { try? DeviceSyncRequest.sleep($0) }
@@ -77,7 +78,7 @@ struct RootTabView: View {
             + DeviceSyncRequest.vitalDays(vitals.visibleSamples)).sorted { $0.record_key < $1.record_key }
     }
     private var syncIdentity: String {
-        "\(account.session?.accessToken ?? "")|\(autoSync)|\(scenePhase == .active)|" + syncRequests.map(\.fingerprint).joined()
+        "\(account.session?.accessToken ?? "")|\(autoSync)|\(scenePhase == .active)|\(scanner.wearable.report?.finishedAt?.timeIntervalSince1970 ?? 0)|" + syncRequests.map(\.fingerprint).joined()
     }
 
     var body: some View {
@@ -96,13 +97,16 @@ struct RootTabView: View {
         .environmentObject(deviceSteps)
         .environmentObject(automaticSync)
         .environmentObject(bioAlgorithm)
+        .environmentObject(rawSensors)
         .environmentObject(scanner.encryptedBand)
         .task(id: syncIdentity) {
+            if account.session == nil { rawSensors.reset() }
             guard autoSync, scenePhase == .active, !ProcessInfo.processInfo.arguments.contains("-ui-testing") else { return }
             let requests = syncRequests
             while !Task.isCancelled {
                 await automaticSync.sync(requests, session: account.session, service: account.client.serviceID, api: AutomaticSyncAPI(client: account.client))
                 await bioAlgorithm.analyze(scanner.wearable.report, account: account, context: context)
+                await rawSensors.sync(scanner.wearable.report, account: account)
                 do { try await Task.sleep(for: .seconds(45)) } catch { return }
             }
         }

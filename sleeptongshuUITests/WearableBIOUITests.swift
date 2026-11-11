@@ -1,6 +1,24 @@
 import XCTest
 
 final class WearableBIOUITests: XCTestCase {
+    func testRawSensorsAreSeparateAndCorrectlyNamed() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["-ui-testing", "-ui-testing-probe", "-ui-testing-bio", "-ui-testing-raw-sensors", "-preview-monitor", "-preview-wearable"]
+        app.launch()
+        XCTAssertTrue(app.switches["rawSensorCaptureOnce"].waitForExistence(timeout: 6))
+        app.buttons["wearableProbeReport"].tap()
+        let chart = app.descendants(matching: .any).matching(identifier: "rawSensorChart").firstMatch
+        for _ in 0..<15 where !chart.isHittable { app.swipeUp(velocity: .slow) }
+        XCTAssertTrue(chart.isHittable)
+        let picker = app.buttons["rawSensorPicker"]
+        XCTAssertTrue(picker.exists); picker.tap()
+        let bioz = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "BIOZ")).firstMatch
+        XCTAssertTrue(bioz.waitForExistence(timeout: 3)); bioz.tap()
+        XCTAssertTrue(app.staticTexts["原始信号界面测试示例 · 非真实采集"].exists)
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "raw-sensors-synthetic-compact-dark"; shot.lifetime = .keepAlways; add(shot)
+    }
     private func verifyNight(largeText: Bool) {
         continueAfterFailure = false
         let app = XCUIApplication()
