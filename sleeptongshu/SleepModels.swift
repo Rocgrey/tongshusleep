@@ -120,12 +120,18 @@ final class SleepRecord {
     }
 
     func replace(with payload: SleepPayload) {
+        let savedAIS = metadata?.aisScore
         start = payload.start; end = payload.end; sourceRawValue = payload.source.rawValue
         segmentsData = (try? JSONEncoder().encode(payload.segments)) ?? Data()
         heartSamplesData = (try? JSONEncoder().encode(payload.heartSamples)) ?? Data()
         averageHeartRate = payload.averageHeartRate; averageSpO2 = payload.averageSpO2
         averageRespiratoryRate = payload.averageRespiratoryRate; note = payload.note
-        metadataData = payload.metadata.flatMap { try? JSONEncoder().encode($0) }
+        var nextMetadata = payload.metadata
+        if let savedAIS, nextMetadata?.aisScore == nil {
+            if nextMetadata == nil { nextMetadata = SleepMetadata() }
+            nextMetadata?.aisScore = savedAIS
+        }
+        metadataData = nextMetadata.flatMap { try? JSONEncoder().encode($0) }
     }
 
     var source: SleepDataSource { SleepDataSource(rawValue: sourceRawValue) ?? .manual }
@@ -137,11 +143,12 @@ final class SleepRecord {
     var isVisible: Bool { metadata?.healthSleep?.isRemoved != true }
     var onlyInBed: Bool { source == .healthKit && !hasSleepDuration && (segments.contains { $0.stage == .inBed } || metadata?.healthSleep?.samples.contains { $0.stage == .inBed } == true) }
     var hasCompleteCoverage: Bool { !segments.isEmpty && !segments.contains { [.unobserved, .inBed].contains($0.stage) } }
-    var sleepOnset: Date? { source == .healthKit || metadata?.encryptedBand != nil ? segments.first(where: { $0.stage.isAsleep })?.start : start }
-    var sleepEnd: Date? { source == .healthKit || metadata?.encryptedBand != nil ? segments.last(where: { $0.stage.isAsleep })?.end : end }
+    var sleepOnset: Date? { source == .healthKit || metadata?.encryptedBand != nil || metadata?.bioNight != nil ? segments.first(where: { $0.stage.isAsleep })?.start : start }
+    var sleepEnd: Date? { source == .healthKit || metadata?.encryptedBand != nil || metadata?.bioNight != nil ? segments.last(where: { $0.stage.isAsleep })?.end : end }
     var displayTimeZone: TimeZone {
         metadata?.healthSleep.flatMap { TimeZone(identifier: $0.timeZoneIdentifier) }
-            ?? metadata?.encryptedBand.flatMap { TimeZone(secondsFromGMT: $0.utcOffsetMinutes * 60) } ?? .current
+            ?? metadata?.encryptedBand.flatMap { TimeZone(secondsFromGMT: $0.utcOffsetMinutes * 60) }
+            ?? metadata?.bioNight.flatMap { TimeZone(identifier: $0.timeZoneIdentifier) } ?? .current
     }
     func displayClock(_ date: Date) -> String {
         let formatter = DateFormatter(); formatter.timeZone = displayTimeZone; formatter.dateFormat = "HH:mm"
@@ -149,19 +156,21 @@ final class SleepRecord {
     }
     /// A calendar label, not elapsed time: keep the end date in the sample's original timezone.
     var day: Date {
-        guard let label = metadata?.healthSleep?.endDay ?? metadata?.encryptedBand?.endDay else { return Calendar.current.startOfDay(for: end) }
+        guard let label = metadata?.healthSleep?.endDay ?? metadata?.encryptedBand?.endDay ?? metadata?.bioNight?.endDay else { return Calendar.current.startOfDay(for: end) }
         let formatter = DateFormatter(); formatter.calendar = Calendar(identifier: .gregorian)
         formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.timeZone = .current; formatter.dateFormat = "yyyy-MM-dd"
         return formatter.date(from: label) ?? Calendar.current.startOfDay(for: end)
     }
     var inBedMinutes: Int { max(0, Int(end.timeIntervalSince(start) / 60)) }
     var asleepMinutes: Int {
+        if metadata?.bioNight != nil && segments.isEmpty { return 0 }
         if source == .phone { return metadata?.phone?.estimatedMinutes ?? 0 }
         if source == .healthKit { return Int(segments.filter { $0.stage.isAsleep }.reduce(0) { $0 + $1.end.timeIntervalSince($1.start) } / 60) }
         return segments.isEmpty ? inBedMinutes : segments.filter { $0.stage.isAsleep }.map(\.minutes).reduce(0, +)
     }
     var hasStages: Bool { segments.contains { [.deep, .light, .rem].contains($0.stage) } }
     var hasSleepDuration: Bool {
+        if metadata?.bioNight != nil { return segments.contains { $0.stage.isAsleep } }
         if source == .healthKit { return segments.contains { $0.stage.isAsleep } }
         return source != .phone || metadata?.phone?.estimatedMinutes != nil
     }
@@ -182,7 +191,7 @@ final class SleepRecord {
     }
     var deepShare: Int? { share(.deep) }
     var awakenings: Int? {
-        if source == .healthKit || metadata?.encryptedBand != nil {
+        if source == .healthKit || metadata?.encryptedBand != nil || metadata?.bioNight != nil {
             guard hasSleepDuration, hasCompleteCoverage, hasStages || segments.contains(where: { $0.stage == .awake }) else { return nil }
             return segments.indices.filter { index in
                 index > 0 && segments[index].stage == .awake && segments[index - 1].stage.isAsleep && segments.dropFirst(index + 1).contains { $0.stage.isAsleep }
@@ -191,11 +200,11 @@ final class SleepRecord {
         return hasStages && hasCompleteCoverage ? segments.dropFirst().filter { $0.stage == .awake }.count : nil
     }
     var awakeMinutes: Int? {
-        if (source == .healthKit || metadata?.encryptedBand != nil) && (!hasCompleteCoverage || (!hasStages && !segments.contains { $0.stage == .awake })) { return nil }
+        if (source == .healthKit || metadata?.encryptedBand != nil || metadata?.bioNight != nil) && (!hasCompleteCoverage || (!hasStages && !segments.contains { $0.stage == .awake })) { return nil }
         return hasSleepDuration && !segments.isEmpty ? minutes(.awake) : nil
     }
     var score: Int? {
-        guard source != .healthKit, metadata?.encryptedBand == nil else { return nil }
+        guard source != .healthKit, metadata?.encryptedBand == nil, metadata?.bioNight == nil else { return nil }
         guard let efficiency else { return nil }
         let duration = min(100, Int(Double(asleepMinutes) / 480 * 100))
         return Int((Double(duration) * 0.6 + Double(efficiency) * 0.4).rounded())

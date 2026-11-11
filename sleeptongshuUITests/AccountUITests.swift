@@ -70,19 +70,23 @@ final class AccountUITests: XCTestCase {
         app.alerts.buttons["知道了"].tap()
         XCTAssertFalse(app.tabBars.buttons["健康"].exists)
     }
-    func testUploadReviewUsesCurrentAccountAndPreservesOptionalQuestionnaires() {
+    func testSleepUsesAutomaticSyncInsteadOfManualUploadButton() {
         enterLogin()
         XCTAssertTrue(app.buttons["addSleep"].waitForExistence(timeout: 5))
         app.buttons["addSleep"].tap()
         XCTAssertTrue(app.buttons["saveSleep"].waitForExistence(timeout: 5))
         app.buttons["saveSleep"].tap()
-        let upload = app.buttons["openSleepUpload"]
-        show(upload); upload.tap()
-        XCTAssertTrue(app.textFields["uploadAIS"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["openSleepUpload"].exists)
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "automaticSyncStatus").firstMatch.exists)
         XCTAssertFalse(app.textFields["uploadISI"].exists)
-        XCTAssertTrue(app.buttons["submitSleepUpload"].exists)
-        XCTAssertTrue(app.staticTexts["sleeper@example.com"].exists)
-        capture("64-sleep-upload-review")
+        XCTAssertFalse(app.buttons["上传这晚睡眠"].exists)
+        capture("64-sleep-automatic-sync")
+        let selfReport = app.buttons["openSleepAIS"]
+        show(selfReport); selfReport.tap()
+        XCTAssertTrue(app.textFields["sleepAIS"].waitForExistence(timeout: 5))
+        app.textFields["sleepAIS"].tap(); app.textFields["sleepAIS"].typeText("5")
+        app.buttons["saveSleepAIS"].tap()
+        XCTAssertFalse(app.textFields["sleepAIS"].exists)
     }
     func testInvalidEmailShowsValidationWithoutEnteringApp() {
         app.segmentedControls["accountLoginMethod"].buttons["邮箱"].tap()

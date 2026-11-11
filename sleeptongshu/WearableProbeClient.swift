@@ -130,8 +130,14 @@ final class WearableProbeClient: ObservableObject {
                     fixture.records = (0..<6).compactMap { index in
                         var value = IW_HisData(); value.seq = UInt32(index)
                         var health = IW_HisDataHealth()
-                        health.timeStamp.dateTime.seconds = UInt32(Date.now.timeIntervalSince1970 + 28800 - Double(6 - index) * 600)
+                        let nightTime = StepDates.calendar.date(bySettingHour: 6, minute: 0, second: 0, of: .now)!
+                        let daytime = StepDates.calendar.date(bySettingHour: 14, minute: 0, second: 0, of: StepDates.calendar.date(byAdding: .day, value: -1, to: .now)!)!
+                        let date = ProcessInfo.processInfo.arguments.contains("-ui-testing-bio-night") ? nightTime : daytime
+                        health.timeStamp.dateTime.seconds = UInt32(date.timeIntervalSince1970 + 28800 - Double(6 - index) * 600)
                         health.timeStamp.timeZone = 80
+                        if ProcessInfo.processInfo.arguments.contains("-ui-testing-bio-night") {
+                            health.sleepData.sleepData = [1,2,3,4,5]; health.sleepData.shutDown = false; health.sleepData.charge = false
+                        }
                         health.hrData.minBpm = 60; health.hrData.maxBpm = 80; health.hrData.avgBpm = UInt32(64 + index)
                         health.bxoyData.minOxy = 98; health.bxoyData.maxOxy = 98; health.bxoyData.agvOxy = 98
                         health.bpData.sbp = 110; health.bpData.dbp = 70
@@ -356,6 +362,9 @@ final class WearableProbeClient: ObservableObject {
                     report?.observedModel = value.hasModel ? value.model : nil
                     report?.observedFirmware = value.hasVersion ? value.version : nil
                     report?.observedAlgorithm = value.hasBpVersion ? value.bpVersion : nil
+                    if value.hasMac, value.mac.count == 6 {
+                        report?.algorithmDeviceID = value.mac.map { String(format: "%02X", $0) }.joined()
+                    }
                     answers.insert("info")
                     if let raw = report?.batteryRaw ?? report?.batteryLevel0To9 {
                         battery = WearableHistoryDecoder.battery(raw, model: report?.observedModel, firmware: report?.observedFirmware)

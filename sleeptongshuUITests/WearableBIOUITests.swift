@@ -1,6 +1,28 @@
 import XCTest
 
 final class WearableBIOUITests: XCTestCase {
+    private func verifyNight(largeText: Bool) {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["-ui-testing", "-ui-testing-probe", "-ui-testing-bio", "-ui-testing-bio-night"]
+        if largeText { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
+        app.launch()
+        XCTAssertTrue(app.segmentedControls["sleepDashboardSource"].buttons["设备记录"].waitForExistence(timeout: 8))
+        let title = app.staticTexts["先看已有的真实记录"]
+        for _ in 0..<12 where !title.isHittable { app.swipeUp() }
+        XCTAssertTrue(title.isHittable)
+        XCTAssertFalse(app.buttons["openSleepUpload"].exists)
+        XCTAssertFalse(app.otherElements["sleepStageTimeline"].exists)
+        let chart = app.descendants(matching: .any).matching(identifier: "bioNightChart").firstMatch
+        for _ in 0..<15 where !chart.isHittable { app.swipeUp(velocity: .slow) }
+        XCTAssertTrue(chart.isHittable)
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = largeText ? "bio-night-synthetic-large-text" : "bio-night-synthetic-small-dark"
+        shot.lifetime = .keepAlways; add(shot)
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "bioNightMetric").firstMatch.exists)
+    }
+    func testNightObservationChartWithoutInventedSleep() { verifyNight(largeText: false) }
+    func testNightObservationSupportsAccessibilityText() { verifyNight(largeText: true) }
     func testVitalsOpenOnCurrentBIOInsteadOfAnotherDevicesNewerRecord() {
         continueAfterFailure = false
         let app = XCUIApplication()

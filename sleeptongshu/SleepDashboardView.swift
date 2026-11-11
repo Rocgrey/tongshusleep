@@ -19,6 +19,7 @@ struct SleepDashboardView: View {
     @State private var selectedID: UUID?
     @State private var showsHistory = false
     @State private var showsEditor = false
+    @State private var showsAIS = false
     @State private var help: MetricHelp?
     @AppStorage("sleepGoalHours") private var goal = 8.0
 
@@ -43,19 +44,23 @@ struct SleepDashboardView: View {
                             .font(.subheadline).accessibilityIdentifier("optionalSystemHealth")
                     }
                     DeviceStepsSummaryView()
+                    AutomaticSyncStatusView()
                     if let record = selected {
                         dateNavigation(record)
+                        if let night = record.metadata?.bioNight, !record.hasSleepDuration {
+                            BIONightView(record: record, night: night)
+                        } else {
                         overview(record)
                         if record.source == .healthKit { SystemSleepSourceView(record: record) }
                         if let phone = record.metadata?.phone { PhoneReportView(night: phone) }
                         stages(record)
-                        vitals(record)
+                        if let night = record.metadata?.bioNight { BIONightView(record: record, night: night) }
+                        else { vitals(record) }
                         analysis(record)
+                        }
                         if record.source != .sample {
-                            Button { account.open(.upload(record.id)) } label: {
-                                Label("上传这晚睡眠", systemImage: "icloud.and.arrow.up")
-                                    .frame(maxWidth: .infinity, minHeight: 50).contentShape(Rectangle())
-                            }.buttonStyle(.bordered).tint(SleepPalette.teal).accessibilityIdentifier("openSleepUpload")
+                            Button { showsAIS = true } label: { Label("睡眠自评", systemImage: "list.clipboard") }
+                                .font(.subheadline).accessibilityIdentifier("openSleepAIS")
                         }
                         if record.source == .sample {
                             Label("当前为预览记录，真实睡眠单独保存。可在本地数据中移除预览记录。", systemImage: "info.circle")
@@ -85,6 +90,7 @@ struct SleepDashboardView: View {
             }
             .onChange(of: scenePhase) { _, phase in if phase == .active { Task { await health.refreshSleepIfNeeded(in: context) } } }
             .sheet(isPresented: $showsEditor) { SleepEditorView() }
+            .sheet(isPresented: $showsAIS) { if let record = selected { SleepAISView(record: record) } }
             .sheet(item: $help) { MetricHelpSheet(help: $0) }
             .sheet(isPresented: $showsHistory) {
                 NavigationStack {
@@ -148,7 +154,7 @@ struct SleepDashboardView: View {
                     Text("给身体，一晚好眠").font(.system(size: 19, weight: .bold)).foregroundStyle(SleepPalette.ink)
                     Text(record.source == .phone ? "估算睡眠时长" : "总睡眠时长").font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
                     if !record.hasSleepDuration {
-                        Text(record.onlyInBed ? "仅有卧床记录" : "待估算").font(.title2.weight(.semibold)).foregroundStyle(SleepPalette.ink)
+                        Text(record.onlyInBed ? "仅有卧床记录" : record.metadata?.bioNight != nil ? "夜间观测" : "待估算").font(.title2.weight(.semibold)).foregroundStyle(SleepPalette.ink)
                     } else {
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Text("\(record.asleepMinutes / 60)").font(.system(size: 41, weight: .semibold, design: .rounded)).monospacedDigit()
@@ -161,7 +167,7 @@ struct SleepDashboardView: View {
                     }
                 }
                 Spacer(minLength: 8)
-                if record.source != .healthKit { Button {
+                if record.source != .healthKit && record.metadata?.bioNight == nil { Button {
                     help = SleepMetricGuide.score(record)
                 } label: { scoreRing(record) }.buttonStyle(.plain).accessibilityLabel("睡眠参考分说明") }
             }
@@ -347,7 +353,7 @@ struct RecordRow: View {
                     .font(.system(size: 10)).foregroundStyle(SleepPalette.muted)
             }
             Spacer(minLength: 4)
-            Text(record.hasSleepDuration ? SleepRecord.durationText(record.asleepMinutes) : record.onlyInBed ? "仅有卧床记录" : "待估算").font(.system(size: 13, weight: .semibold, design: .rounded))
+            Text(record.hasSleepDuration ? SleepRecord.durationText(record.asleepMinutes) : record.onlyInBed ? "仅有卧床记录" : record.metadata?.bioNight != nil ? "夜间观测" : "待估算").font(.system(size: 13, weight: .semibold, design: .rounded))
         }.foregroundStyle(SleepPalette.ink).padding(.vertical, 5).contentShape(Rectangle())
     }
 }
@@ -464,6 +470,7 @@ struct RecordDetailView: View {
                 if !record.isVisible { Section { Text("此系统记录已归档，不参与睡眠统计；独立备注仍保留。") } }
                 if record.source == .healthKit { Section("系统记录来源") { SystemSleepSourceView(record: record) } }
                 if let phone = record.metadata?.phone { Section { PhoneReportView(night: phone) } }
+                if let night = record.metadata?.bioNight { Section { BIONightView(record: record, night: night) } }
                 if !record.segments.isEmpty {
                     Section("睡眠阶段") {
                         if record.source != .healthKit || record.hasStages {

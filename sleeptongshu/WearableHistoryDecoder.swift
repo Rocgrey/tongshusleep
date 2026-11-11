@@ -39,6 +39,7 @@ enum WearableHistoryDecoder {
                 skippedTimes += 1; continue
             }
             var row = WearableHealthRow(sequence: record.sequence, date: date)
+            row.hasSleepInput = health.hasSleepData && !health.sleepData.sleepData.isEmpty
             func add(_ kind: VitalKind, _ number: Double?, label: String = "设备历史") {
                 guard let number, kind.accepts(number) else { return }
                 let vital = WearableVital(device: report.deviceKey, deviceLabel: report.deviceName,
@@ -106,6 +107,7 @@ struct WearableHealthRow: Identifiable {
     var respiration: Double?
     var temperature: Double?
     var steps: UInt32?
+    var hasSleepInput = false
     var id: UInt32 { sequence }
 }
 

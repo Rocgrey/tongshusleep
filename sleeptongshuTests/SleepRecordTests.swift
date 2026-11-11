@@ -69,7 +69,7 @@ final class SleepRecordTests: XCTestCase {
         XCTAssertTrue(SleepMetricGuide.stages(SleepRecord(payload)).body.contains("当前选中的是预览记录"))
         payload.source = .band
         let ringHelp = SleepMetricGuide.stages(SleepRecord(payload))
-        XCTAssertTrue(ringHelp.body.contains("本晚来自戒指"))
+        XCTAssertTrue(ringHelp.body.contains("本晚来自设备"))
         XCTAssertFalse(ringHelp.body.contains("预览记录"))
         XCTAssertFalse(ringHelp.references.isEmpty)
         payload.source = .healthKit

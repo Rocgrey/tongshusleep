@@ -31,7 +31,7 @@ enum SleepMetricGuide {
     static func stages(_ record: SleepRecord) -> MetricHelp {
         let source: String
         switch record.source {
-        case .band: source = "本晚来自戒指，色条表示设备记录的各段睡眠。"
+        case .band: source = "本晚来自设备，色条表示设备记录的各段睡眠。"
         case .healthKit: source = "本晚来自系统健康，色条表示所选来源记录的各段睡眠。"
         case .sample: source = "当前选中的是预览记录，可在本地数据中移除；它不会与真实记录合并统计。"
         case .manual: source = "本晚是手动记录，没有设备资料时不区分睡眠阶段。"

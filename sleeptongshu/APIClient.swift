@@ -57,14 +57,14 @@ final class APIClient {
         else {
             let config = URLSessionConfiguration.ephemeral
             config.timeoutIntervalForRequest = 20
-            config.timeoutIntervalForResource = 30
+            config.timeoutIntervalForResource = 60
             config.urlCache = nil
             config.httpCookieAcceptPolicy = .always
             self.session = URLSession(configuration: config, delegate: APIRedirectPolicy(), delegateQueue: nil)
         }
     }
     func request(_ path: String, method: String = "GET", body: Data? = nil,
-                 authenticated: Bool = false, token explicitToken: String? = nil, query: [URLQueryItem] = []) async throws -> Data {
+                 authenticated: Bool = false, token explicitToken: String? = nil, query: [URLQueryItem] = [], requestTimeout: TimeInterval? = nil) async throws -> Data {
         guard let base = configuration.baseURL else { throw APIError.configuration }
         let token = explicitToken ?? (authenticated ? tokenProvider?() : nil)
         if authenticated && token == nil { throw APIError.unauthorized("请先登录，再继续操作。") }
@@ -73,6 +73,7 @@ final class APIClient {
         if !query.isEmpty { components.queryItems = query }
         guard let url = components.url else { throw APIError.configuration }
         var request = URLRequest(url: url)
+        if let requestTimeout { request.timeoutInterval = requestTimeout }
         request.httpMethod = method
         request.cachePolicy = .reloadIgnoringLocalCacheData
         request.setValue("application/json", forHTTPHeaderField: "Accept")

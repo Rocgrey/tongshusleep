@@ -34,7 +34,7 @@ struct SystemSleepImportView: View {
                 Button { showsHelp = true } label: { Image(systemName: "info.circle").frame(width: 36, height: 36) }
                     .accessibilityLabel("系统睡眠读取说明")
             }
-            Text(showsReadButton ? "统一读取最近 90 天的睡眠、活动和可用体征，在本机整理。不写入系统健康，也不会自动上传。" : "睡眠随上方的健康数据一起更新。卧床与睡着时长分别展示，不推算缺失的阶段。")
+            Text(showsReadButton ? "统一读取最近 90 天的睡眠、活动和可用体征，在本机整理，不写入系统健康。已启用自动同步时，睡眠和步数同步到当前账号，可在个人页关闭。" : "睡眠随上方的健康数据一起更新。卧床与睡着时长分别展示，不推算缺失的阶段。")
                 .font(.subheadline).foregroundStyle(SleepPalette.muted).fixedSize(horizontal: false, vertical: true)
             #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("-ui-testing-system-sleep") {

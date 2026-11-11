@@ -131,7 +131,7 @@ struct AccountLoginView: View {
                         Image(systemName: "arrow.right")
                     }.font(.system(size: 14)).frame(maxWidth: .infinity, minHeight: 44).contentShape(Rectangle())
                 }.buttonStyle(.plain).foregroundStyle(SleepPalette.teal).disabled(account.isLoading)
-                Label("账号安全保存。睡眠记录由你选择后上传。", systemImage: "lock.shield")
+                Label("登录后自动同步真实睡眠、步数和设备体征到当前账号，可在个人页关闭。", systemImage: "lock.shield")
                     .font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
             }.padding(.horizontal, 26).padding(.bottom, 32).frame(maxWidth: 460).frame(maxWidth: .infinity)
         }.scrollDismissesKeyboard(.interactively).background(SleepPalette.background).foregroundStyle(SleepPalette.ink)
@@ -182,6 +182,7 @@ struct AccountCenterView: View {
     @EnvironmentObject private var account: AccountStore
     @Environment(\.dismiss) private var dismiss
     @State private var confirmsExit = false
+    @AppStorage("automaticHealthSyncV1") private var autoSync = true
     var body: some View {
         NavigationStack {
             Form {
@@ -193,8 +194,8 @@ struct AccountCenterView: View {
                         LabeledContent("注册日期", value: user.createdAt.formatted(date: .abbreviated, time: .omitted))
                     }
                     Section("记录与账号") {
-                        Label("睡眠与步数由你选择同步", systemImage: "lock.shield")
-                        Text("本机记录不会因切换账号而被清空。上传前请确认当前账号；已上传的记录在对应账号的平台中保存。")
+                        Toggle("自动同步健康记录", isOn: $autoSync).tint(SleepPalette.teal).accessibilityIdentifier("automaticHealthSync")
+                        Text("默认将真实睡眠及已有分期、步数和设备体征同步到当前登录账号，不包含示例。缺失指标不补算。本机记录保留；切换账号前请确认，已上传记录仍属于原账号。断网时保存本机，前台联网后重试。")
                             .font(.system(size: 13)).foregroundStyle(SleepPalette.muted)
                     }
                     Section {

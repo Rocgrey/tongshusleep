@@ -36,4 +36,16 @@ final class SleepUploadTests: XCTestCase {
         XCTAssertFalse(receipts.contains(service: "server1", userID: 2, recordID: id))
         XCTAssertFalse(receipts.contains(service: "server2", userID: 1, recordID: id))
     }
+    func testLocallySavedAISSurvivesDeviceRefreshAndIsIncludedInAutomaticUpload() throws {
+        var payload = try XCTUnwrap(SampleSleepRecords.makeMonth().first?.payload)
+        payload.source = .band; payload.metadata = SleepMetadata(aisScore: 5)
+        let record = SleepRecord(payload)
+        payload.metadata = SleepMetadata(externalSource: "设备")
+        record.replace(with: payload)
+        XCTAssertEqual(record.metadata?.aisScore, 5)
+        XCTAssertEqual(try DeviceSyncRequest.sleep(record).sleep?.ais_score, 5)
+        var metadata = record.metadata!; metadata.aisScore = nil
+        record.metadataData = try JSONEncoder().encode(metadata)
+        XCTAssertNil(try DeviceSyncRequest.sleep(record).sleep?.ais_score)
+    }
 }

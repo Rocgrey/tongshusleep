@@ -53,7 +53,7 @@ struct EncryptedBandPanel: View {
             if band.deviceID != nil {
                 DisclosureGroup("读取详情", isExpanded: $showsDetails) {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("当前为实测适配：支持的历史文件才会导入，不支持的格式保存在本机。没有分期不生成睡眠图。不会删除设备历史，也不会自动上传。")
+                        Text("当前为实测适配：支持的历史文件才会导入，不支持的格式保存在本机。没有分期不生成睡眠图，不删除设备历史。启用自动同步后，已有记录同步到当前账号。")
                         Text(band.diagnostic).font(.caption2.monospaced()).textSelection(.enabled)
                         ShareLink(item: band.diagnostic) { Label("分享读取诊断", systemImage: "square.and.arrow.up") }
                     }.font(.caption).padding(.top, 10)

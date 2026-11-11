@@ -54,6 +54,8 @@ extension SleepStage {
 enum SleepTab: Hashable { case sleep, monitoring, trends, health }
 
 struct RootTabView: View {
+    @EnvironmentObject private var account: AccountStore
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.modelContext) private var context
     @Query private var records: [SleepRecord]
     @AppStorage("hasSeededDemoV1") private var hasSeededDemo = false
@@ -65,6 +67,18 @@ struct RootTabView: View {
     @StateObject private var healthOverview = HealthOverviewStore()
     @StateObject private var accountSteps = AccountStepsStore()
     @StateObject private var deviceSteps = DeviceStepsStore.appStore()
+    @StateObject private var automaticSync = AutomaticSyncStore()
+    @StateObject private var bioAlgorithm = BIOAlgorithmStore()
+    @AppStorage("automaticHealthSyncV1") private var autoSync = true
+    private var syncRequests: [DeviceSyncRequest] {
+        let sleep = records.filter { $0.isVisible && $0.source != .sample }.compactMap { try? DeviceSyncRequest.sleep($0) }
+        return (sleep + deviceSteps.rows.map(DeviceSyncRequest.step)
+            + LocalStepDay.read(healthOverview.snapshot).map(DeviceSyncRequest.healthStep)
+            + DeviceSyncRequest.vitalDays(vitals.visibleSamples)).sorted { $0.record_key < $1.record_key }
+    }
+    private var syncIdentity: String {
+        "\(account.session?.accessToken ?? "")|\(autoSync)|\(scenePhase == .active)|" + syncRequests.map(\.fingerprint).joined()
+    }
 
     var body: some View {
         TabView(selection: $tab) {
@@ -80,7 +94,18 @@ struct RootTabView: View {
         .environmentObject(healthOverview)
         .environmentObject(accountSteps)
         .environmentObject(deviceSteps)
+        .environmentObject(automaticSync)
+        .environmentObject(bioAlgorithm)
         .environmentObject(scanner.encryptedBand)
+        .task(id: syncIdentity) {
+            guard autoSync, scenePhase == .active, !ProcessInfo.processInfo.arguments.contains("-ui-testing") else { return }
+            let requests = syncRequests
+            while !Task.isCancelled {
+                await automaticSync.sync(requests, session: account.session, service: account.client.serviceID, api: AutomaticSyncAPI(client: account.client))
+                await bioAlgorithm.analyze(scanner.wearable.report, account: account, context: context)
+                do { try await Task.sleep(for: .seconds(45)) } catch { return }
+            }
+        }
         .onReceive(scanner.wearable.$report) { report in
             if let report, let day = DeviceStepDay.read(report) { deviceSteps.merge([day]) }
         }
@@ -93,6 +118,10 @@ struct RootTabView: View {
         }
         .onReceive(scanner.wearable.$history) { history in
             guard let history else { return }
+            if let report = scanner.wearable.report {
+                do { try BIONight.save(BIONight.payloads(report: report, history: history), in: context) }
+                catch { errorMessage = "夜间观测未能保存：\(error.localizedDescription)" }
+            }
             do { scanner.wearable.didSaveHistory(count: try vitals.merge(history.vitals), total: history.vitals.count) }
             catch { scanner.wearable.didSaveHistory(count: nil, total: history.vitals.count, error: error.localizedDescription) }
         }
