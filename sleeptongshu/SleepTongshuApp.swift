@@ -99,6 +99,12 @@ struct RootTabView: View {
         .environmentObject(bioAlgorithm)
         .environmentObject(rawSensors)
         .environmentObject(scanner.encryptedBand)
+        .onAppear {
+            scanner.wearable.rawUploadScope = { [weak account] in
+                guard let account, let session = account.session else { return nil }
+                return "\(account.client.serviceID)|\(session.user.id)"
+            }
+        }
         .task(id: syncIdentity) {
             if account.session == nil { rawSensors.reset() }
             guard autoSync, scenePhase == .active, !ProcessInfo.processInfo.arguments.contains("-ui-testing") else { return }
@@ -106,8 +112,16 @@ struct RootTabView: View {
             while !Task.isCancelled {
                 await automaticSync.sync(requests, session: account.session, service: account.client.serviceID, api: AutomaticSyncAPI(client: account.client))
                 await bioAlgorithm.analyze(scanner.wearable.report, account: account, context: context)
-                await rawSensors.sync(scanner.wearable.report, account: account)
                 do { try await Task.sleep(for: .seconds(45)) } catch { return }
+            }
+        }
+        .task(id: "\(account.session?.accessToken ?? "")|\(autoSync)|\(scenePhase == .active)|\(scanner.wearable.report?.rawSensorFinishedAt?.timeIntervalSince1970 ?? 0)|\(scanner.wearable.report?.finishedAt?.timeIntervalSince1970 ?? 0)") {
+            if account.session == nil { rawSensors.reset() }
+            guard autoSync, scenePhase == .active, !ProcessInfo.processInfo.arguments.contains("-ui-testing") else { return }
+            // Independent of cloud algorithms and long historical reads.
+            while !Task.isCancelled {
+                await rawSensors.sync(scanner.wearable.report, account: account)
+                do { try await Task.sleep(for: .seconds(15)) } catch { return }
             }
         }
         .onReceive(scanner.wearable.$report) { report in

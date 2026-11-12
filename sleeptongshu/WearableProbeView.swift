@@ -5,7 +5,6 @@ struct WearableProbePanel: View {
     @ObservedObject var client: WearableProbeClient
     var connected = false
     @State private var showsReport = false
-    @AppStorage("wearableRawCaptureOnceV1") private var rawCaptureOnce = false
     @EnvironmentObject private var rawSync: RawSensorSyncStore
 
     var body: some View {
@@ -17,9 +16,9 @@ struct WearableProbePanel: View {
                 if client.isBusy { ProgressView().controlSize(.small) }
             }
             Text(client.status).font(.system(size: 12)).foregroundStyle(SleepPalette.teal)
-            Toggle("下次连接采集原始信号", isOn: $rawCaptureOnce).font(.subheadline).disabled(client.isBusy)
-                .accessibilityIdentifier("rawSensorCaptureOnce")
-            Text("仅短时采集 10 秒，完成后自动关闭；原始包先保存在本机，开启账号自动同步时上传到你的平台，不直接生成睡眠阶段。")
+            Label("连接后自动采集原始信号", systemImage: "waveform")
+                .font(.subheadline).accessibilityIdentifier("rawSensorAutomatic")
+            Text("识别设备后逐类采集约 20 秒，再读取历史数据。原始包先保存到本机；登录且开启账号自动同步时分批上传，断网后重试。这不是整夜连续采集。")
                 .font(.caption).foregroundStyle(SleepPalette.muted)
             if let report = client.report {
                 DeviceBatteryView(reading: client.battery, isCurrent: connected, isReading: client.isBusy, deviceName: report.deviceName)
@@ -32,6 +31,8 @@ struct WearableProbePanel: View {
                 }
                 Text("\(report.channels.filter { $0.received > 0 }.count) 类历史数据已返回 · 连接后自动读取")
                     .font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
+                Text("原始信号 \(report.rawSensorPackets?.count ?? 0) 包 · 历史原文 \(report.records.count) 包")
+                    .font(.subheadline).monospacedDigit().accessibilityIdentifier("rawSensorCounts")
                 if let message = client.savedVitalsMessage {
                     Text(message).font(.caption).foregroundStyle(SleepPalette.teal)
                 }

@@ -48,4 +48,48 @@ final class RawSensorTests: XCTestCase {
         XCTAssertEqual(stop.sensor.operation, .sensorStopSync)
         XCTAssertThrowsError(try RawSensorPacket(IW_RtSensorData(), notification: Data()))
     }
+    func testAutomaticCaptureRequestsIndividualTypesAndQueuesBeforeHistoryFinishes() throws {
+        XCTAssertEqual(RawCapturePolicy.types, [16, 2, 1, 512])
+        for type in RawCapturePolicy.types {
+            let start = try IW_RtSubscriber(serializedBytes: WearableProbeProtocol.sensorRequest(stop: false, type: type).payload)
+            let stop = try IW_RtSubscriber(serializedBytes: WearableProbeProtocol.sensorRequest(stop: true, type: type).payload)
+            XCTAssertEqual(start.sensor.type, type); XCTAssertEqual(stop.sensor.type, type)
+            XCTAssertEqual(stop.sensor.operation, .sensorStopSync)
+        }
+        var report = WearableProbeReport(deviceName: "BIO synthetic", deviceKey: "synthetic")
+        report.rawSensorPackets = [try packet()]
+        report.rawSensorFinishedAt = .now
+        XCTAssertNil(report.finishedAt)
+        XCTAssertEqual(RawSensorBatchRequest.make(report).count, 1)
+    }
+    func testProbeUploadPreservesCamelCaseHistoryAndSharesCaptureWithRealtime() throws {
+        var report = WearableProbeReport(deviceName: "BIO synthetic", deviceKey: "synthetic")
+        report.observedModel = "BIO9"; report.observedFirmware = "103.0.0.11"
+        report.finishedAt = .now; report.rawSensorPackets = [try packet()]
+        var rri = IW_HisData()
+        rri.seq = 81; rri.rri.timeStamp.dateTime.seconds = 1794390000
+        rri.rri.timeStamp.timeZone = 80
+        rri.rri.rawData = [800, UInt32(bitPattern: -3), 900]
+        report.records = [try WearableProbeProtocol.record(rri, type: 4)]
+        let upload = ProbeReportUpload(report: report)
+        let data = try JSONEncoder().encode(upload)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertNil(json["report"]); XCTAssertNil(json["user_id"])
+        XCTAssertEqual(json["capture_id"] as? String, RawSensorBatchRequest.make(report)[0].capture_id)
+        XCTAssertEqual(json["report_key"] as? String, upload.report_key)
+        let rows = try XCTUnwrap(json["records"] as? [[String: Any]])
+        XCTAssertEqual(rows.first?["protobufBase64"] as? String, report.records.first?.protobufBase64)
+        let restored = try JSONDecoder().decode(ProbeReportUpload.self, from: data)
+        XCTAssertEqual(restored.capture_id, upload.capture_id)
+        XCTAssertEqual(restored.report.records.first?.protobufJSON, report.records.first?.protobufJSON)
+        XCTAssertFalse(String(decoding: data, as: UTF8.self).contains("isi_score"))
+    }
+    func testCaptureOwnerIsIsolatedByServerAndStableUserID() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        XCTAssertTrue(try RawSensorPendingStorage.claim(capture: "capture", scope: "serverA|1", base: directory))
+        XCTAssertTrue(try RawSensorPendingStorage.claim(capture: "capture", scope: "serverA|1", base: directory))
+        XCTAssertFalse(try RawSensorPendingStorage.claim(capture: "capture", scope: "serverA|2", base: directory))
+        XCTAssertFalse(try RawSensorPendingStorage.claim(capture: "capture", scope: "serverB|1", base: directory))
+    }
 }

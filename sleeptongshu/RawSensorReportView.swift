@@ -10,7 +10,12 @@ struct RawSensorReportView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeading(title: "原始传感器信号", subtitle: "原始值单独保存，不作为睡眠或体征结果")
-            Text(report.rawSensorStatus ?? "本次未开启短时原始信号采集").font(.subheadline).foregroundStyle(SleepPalette.muted)
+            Text(report.rawSensorStatus ?? "本次尚未收到原始信号").font(.subheadline).foregroundStyle(SleepPalette.muted)
+            ForEach(report.rawSensorAttempts ?? [], id: \.self) { type in
+                let count = packets.filter { $0.sensorType == type }.count
+                Text("类型 \(type)：\(count > 0 ? "已收到 \(count) 包" : "本次未返回，不代表不支持")")
+                    .font(.caption).foregroundStyle(count > 0 ? SleepPalette.teal : SleepPalette.muted)
+            }
             if !packets.isEmpty {
                 Text("\(packets.count) 个包 · \(packets.reduce(0) { $0 + $1.sensorDataList.count }) 个原始值").font(.headline)
                 Picker("传感器", selection: $selectedType) {

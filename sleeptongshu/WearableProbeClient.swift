@@ -19,10 +19,10 @@ enum WearableProbeProtocol {
         var request = IW_RtSubscriber(); request.time = .onlyOnce
         return WearableFrame(opcode: 0x70, payload: try request.serializedData())
     }
-    static func sensorRequest(stop: Bool) throws -> WearableFrame {
+    static func sensorRequest(stop: Bool, type: UInt32 = 528) throws -> WearableFrame {
         var request = IW_RtSubscriber()
         request.sensor.operation = stop ? .sensorStopSync : .sensorStartSync
-        request.sensor.type = UInt32(IW_SensorType.acc.rawValue | IW_SensorType.bioz.rawValue)
+        request.sensor.type = type
         return WearableFrame(opcode: 0x70, payload: try request.serializedData())
     }
 
@@ -97,6 +97,7 @@ final class WearableProbeClient: ObservableObject {
     @Published private(set) var history: WearableDecodedHistory?
     @Published private(set) var savedVitalsMessage: String?
     var onRealtimeVitals: (([(VitalKind, Double)]) -> Void)?
+    var rawUploadScope: (() -> String?)?
     private var task: Task<Void, Never>?
     private var decoder = WearableFrameDecoder()
     private weak var peripheral: CBPeripheral?
@@ -115,6 +116,8 @@ final class WearableProbeClient: ObservableObject {
     private var rawCaptureActive = false
     private var rawWords = 0
     private var rawPacketKeys: Set<String> = []
+    private var rawSensorType: UInt32 = 528
+    private var rawTypeCounts: [UInt32: Int] = [:]
 
     init() {
         #if DEBUG
@@ -194,11 +197,15 @@ final class WearableProbeClient: ObservableObject {
         generation = UUID()
         decoder = WearableFrameDecoder(); answers = []; indexes = [:]; received = [:]; failedTypes = []
         activeType = nil; activeRange = nil; storedBytes = 0; battery = nil; reportURL = nil
-        rawCaptureActive = false; rawWords = 0; rawPacketKeys = []
+        rawCaptureActive = false; rawWords = 0; rawPacketKeys = []; rawTypeCounts = [:]
         history = nil; savedVitalsMessage = nil; lastHistoryAt = nil
         report = WearableProbeReport(deviceName: name, deviceKey: WearableVital.deviceKey(id.uuidString),
                                      userReportedFirmware: WearableGatt.reportedFirmware(for: name),
                                      services: services, characteristics: characteristics)
+        if let report, let scope = rawUploadScope?() {
+            do { _ = try RawSensorPendingStorage.claim(capture: RawSensorBatchRequest.captureID(report), scope: scope) }
+            catch { event("采集账号绑定未能保存：\(error.localizedDescription)") }
+        }
         status = "已识别数据通道 · 正在开启接收"
         checkpoint()
     }
@@ -219,25 +226,34 @@ final class WearableProbeClient: ObservableObject {
                 _ = try await self.ask(try WearableProbeProtocol.realtimeRequest(battery: false), key: "health")
                 _ = try await self.ask(try WearableProbeProtocol.timeRequest(), key: "time")
                 self.checkpoint()
-                if UserDefaults.standard.bool(forKey: "wearableRawCaptureOnceV1") {
-                    UserDefaults.standard.set(false, forKey: "wearableRawCaptureOnceV1")
-                    if WearableHistoryDecoder.isBIO(model: self.report?.observedModel, firmware: self.report?.observedFirmware) {
-                        self.status = "正在短时采集设备原始信号"
+                if WearableHistoryDecoder.isBIO(model: self.report?.observedModel, firmware: self.report?.observedFirmware) {
+                    // Firmware may only honor one bit in a combined mask. Probe channels
+                    // separately, with a stop between them; do not start diagnostic modes.
+                    for type in RawCapturePolicy.types {
+                        try Task.checkCancellation()
+                        self.rawSensorType = type
+                        self.report?.rawSensorAttempts = (self.report?.rawSensorAttempts ?? []) + [type]
+                        self.status = "自动采集原始信号 · 类型 \(type)"
                         self.rawCaptureActive = true
-                        self.report?.rawSensorStatus = "正在采集，最多 10 秒；不计算睡眠阶段"
+                        self.report?.rawSensorStatus = "正在逐类采集原始信号，约 20 秒；不计算睡眠阶段"
                         do {
-                            try await self.send(try WearableProbeProtocol.sensorRequest(stop: false))
-                            try await Task.sleep(for: .seconds(10))
-                            try await self.send(try WearableProbeProtocol.sensorRequest(stop: true))
+                            try await self.send(try WearableProbeProtocol.sensorRequest(stop: false, type: type))
+                            try await Task.sleep(for: .seconds(5))
+                            try await self.send(try WearableProbeProtocol.sensorRequest(stop: true, type: type))
+                        } catch is CancellationError {
+                            guard self.generation == session else { return }
+                            self.stopRawCapture(); throw CancellationError()
                         } catch {
+                            guard self.generation == session else { return }
                             self.stopRawCapture()
-                            throw error
+                            self.event("原始类型 \(type) 请求中断：\(error.localizedDescription)")
                         }
                         self.rawCaptureActive = false
-                        let count = self.report?.rawSensorPackets?.count ?? 0
-                        self.report?.rawSensorStatus = count == 0 ? "短时请求已结束，未收到原始信号；不代表设备不支持" : "短时采集结束，保留 \(count) 个原始包；不计算睡眠阶段"
-                        self.checkpoint()
-                    } else { self.report?.rawSensorStatus = "本次未确认设备协议，未发送原始信号采集指令" }
+                    }
+                    let count = self.report?.rawSensorPackets?.count ?? 0
+                    self.report?.rawSensorStatus = count == 0 ? "自动采集已结束，未收到原始包；不代表设备不支持" : "自动采集结束，保留 \(count) 个原始包；未返回的类型不补造"
+                    self.report?.rawSensorFinishedAt = .now
+                    self.checkpoint()
                 }
                 for type in self.report?.channels.map(\.type) ?? [] {
                     try Task.checkCancellation()
@@ -328,6 +344,7 @@ final class WearableProbeClient: ObservableObject {
         do {
             reportURL = try WearableProbeStorage.save(report)
             try RawSensorPendingStorage.save(report)
+            try RawSensorPendingStorage.saveHistory(report)
         }
         catch { status = "报告未能保存：\(error.localizedDescription)" }
     }
@@ -337,7 +354,7 @@ final class WearableProbeClient: ObservableObject {
         report?.rawSensorStatus = "采集已中断，已收到的原始包保留；停止指令尽力发送"
         // Cancellation cannot await send(); this small stop frame fits one BLE write.
         if let peripheral, let writer, peripheral.state == .connected,
-           let frame = try? WearableProbeProtocol.sensorRequest(stop: true) {
+           let frame = try? WearableProbeProtocol.sensorRequest(stop: true, type: rawSensorType) {
             let mode: CBCharacteristicWriteType = writer.properties.contains(.write) ? .withResponse : .withoutResponse
             if frame.encoded().count <= peripheral.maximumWriteValueLength(for: mode), mode == .withResponse || peripheral.canSendWriteWithoutResponse {
                 peripheral.writeValue(frame.encoded(), for: writer, type: mode)
@@ -347,11 +364,13 @@ final class WearableProbeClient: ObservableObject {
     private func receiveRawSensor(_ sensor: IW_RtSensorData, notification: Data) throws {
         guard rawCaptureActive else { return }
         let packet = try RawSensorPacket(sensor, notification: notification)
-        guard (report?.rawSensorPackets?.count ?? 0) < 256,
+        guard (rawTypeCounts[packet.sensorType] ?? 0) < RawCapturePolicy.maxPacketsPerType,
+              (report?.rawSensorPackets?.count ?? 0) < 1024,
               rawWords + packet.sensorDataList.count <= 100000 else { return }
         guard rawPacketKeys.insert(packet.packetKey).inserted else { return }
         if report?.rawSensorPackets == nil { report?.rawSensorPackets = [] }
         report?.rawSensorPackets?.append(packet); rawWords += packet.sensorDataList.count
+        rawTypeCounts[packet.sensorType, default: 0] += 1
     }
 
     private func channel(_ type: Int, state: String) {

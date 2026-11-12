@@ -6,7 +6,7 @@ final class WearableBIOUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-ui-testing", "-ui-testing-probe", "-ui-testing-bio", "-ui-testing-raw-sensors", "-preview-monitor", "-preview-wearable"]
         app.launch()
-        XCTAssertTrue(app.switches["rawSensorCaptureOnce"].waitForExistence(timeout: 6))
+        XCTAssertTrue(app.staticTexts["rawSensorAutomatic"].waitForExistence(timeout: 6))
         app.buttons["wearableProbeReport"].tap()
         let chart = app.descendants(matching: .any).matching(identifier: "rawSensorChart").firstMatch
         for _ in 0..<15 where !chart.isHittable { app.swipeUp(velocity: .slow) }
