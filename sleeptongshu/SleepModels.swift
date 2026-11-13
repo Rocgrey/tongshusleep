@@ -91,6 +91,17 @@ enum SleepDataError: LocalizedError {
     }
 }
 
+/// Reference storage is deliberately unobserved: reading a chart must not publish
+/// another model change. Compare the encoded field so every write/refresh invalidates it.
+private final class SleepRecordDecodeCache {
+    var segmentsData: Data?
+    var segments: [SleepSegment] = []
+    var heartData: Data?
+    var hearts: [HeartSample] = []
+    var metadataData: Data?
+    var metadata: SleepMetadata?
+}
+
 @Model
 final class SleepRecord {
     @Attribute(.unique) var id: UUID
@@ -104,6 +115,7 @@ final class SleepRecord {
     var averageRespiratoryRate: Double?
     var note: String
     var metadataData: Data?
+    @Transient private var decoded = SleepRecordDecodeCache()
 
     init(_ payload: SleepPayload) {
         id = payload.id
@@ -137,9 +149,30 @@ final class SleepRecord {
     var source: SleepDataSource { SleepDataSource(rawValue: sourceRawValue) ?? .manual }
     var seriesKey: String { metadata?.externalSource.map { "\(source.rawValue)|\($0)" } ?? source.rawValue }
     var seriesLabel: String { DevicePresentation.name(metadata?.externalSource ?? source.label) }
-    var segments: [SleepSegment] { (try? JSONDecoder().decode([SleepSegment].self, from: segmentsData)) ?? [] }
-    var heartSamples: [HeartSample] { (try? JSONDecoder().decode([HeartSample].self, from: heartSamplesData)) ?? [] }
-    var metadata: SleepMetadata? { metadataData.flatMap { try? JSONDecoder().decode(SleepMetadata.self, from: $0) } }
+    var segments: [SleepSegment] {
+        let data = segmentsData
+        if decoded.segmentsData != data {
+            decoded.segments = (try? JSONDecoder().decode([SleepSegment].self, from: data)) ?? []
+            decoded.segmentsData = data
+        }
+        return decoded.segments
+    }
+    var heartSamples: [HeartSample] {
+        let data = heartSamplesData
+        if decoded.heartData != data {
+            decoded.hearts = (try? JSONDecoder().decode([HeartSample].self, from: data)) ?? []
+            decoded.heartData = data
+        }
+        return decoded.hearts
+    }
+    var metadata: SleepMetadata? {
+        let data = metadataData
+        if decoded.metadataData != data {
+            decoded.metadata = data.flatMap { try? JSONDecoder().decode(SleepMetadata.self, from: $0) }
+            decoded.metadataData = data
+        }
+        return decoded.metadata
+    }
     var isVisible: Bool { metadata?.healthSleep?.isRemoved != true }
     var onlyInBed: Bool { source == .healthKit && !hasSleepDuration && (segments.contains { $0.stage == .inBed } || metadata?.healthSleep?.samples.contains { $0.stage == .inBed } == true) }
     var hasCompleteCoverage: Bool { !segments.isEmpty && !segments.contains { [.unobserved, .inBed].contains($0.stage) } }

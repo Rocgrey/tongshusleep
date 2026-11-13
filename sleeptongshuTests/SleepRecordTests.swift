@@ -126,4 +126,55 @@ final class SleepRecordTests: XCTestCase {
             XCTAssertEqual(try context.fetchCount(FetchDescriptor<SleepRecord>()), 0)
         }
     }
+
+    func testDecodedFieldsRefreshAfterReplacementDirectEditsAndRemoval() throws {
+        var payload = try XCTUnwrap(SampleSleepRecords.makeMonth().first?.payload)
+        payload.metadata = SleepMetadata(externalSource: "first", aisScore: 6)
+        let record = SleepRecord(payload)
+        XCTAssertEqual(record.metadata?.externalSource, "first")
+        XCTAssertEqual(record.segments, payload.segments)
+        XCTAssertEqual(record.heartSamples, payload.heartSamples)
+        payload.metadata = SleepMetadata(externalSource: "updated")
+        payload.segments = [SleepSegment(stage: .deep, start: payload.start, end: payload.end)]
+        payload.heartSamples = []
+        record.replace(with: payload)
+        XCTAssertEqual(record.metadata?.externalSource, "updated")
+        XCTAssertEqual(record.metadata?.aisScore, 6)
+        XCTAssertEqual(record.segments, payload.segments)
+        XCTAssertTrue(record.heartSamples.isEmpty)
+        record.metadataData = nil
+        XCTAssertNil(record.metadata)
+        record.segmentsData = Data("broken".utf8)
+        XCTAssertTrue(record.segments.isEmpty)
+        record.metadataData = Data("broken".utf8)
+        XCTAssertNil(record.metadata)
+        record.metadataData = try JSONEncoder().encode(SleepMetadata(externalSource: "restored"))
+        XCTAssertEqual(record.metadata?.externalSource, "restored")
+        record.segmentsData = try JSONEncoder().encode(payload.segments)
+        XCTAssertEqual(record.segments, payload.segments)
+    }
+
+    func testLargeNightMetadataRepeatedReadsPreserveValues() throws {
+        var payload = try XCTUnwrap(SampleSleepRecords.makeMonth().first?.payload)
+        let values = (0..<4000).map { index in
+            WearableVital(device: "test-bio", deviceLabel: "BIO synthetic", date: payload.start.addingTimeInterval(Double(index)),
+                          kind: .heart, value: 60 + Double(index % 20), origin: "synthetic")
+        }
+        payload.metadata = SleepMetadata(bioNight: BIONight(device: "test-bio", endDay: "2026-11-12", readAt: .now,
+                                                           samples: values, sleepInputMinutes: 480))
+        let record = SleepRecord(payload)
+        let data = try XCTUnwrap(record.metadataData)
+        let baselineStart = Date.now
+        for _ in 0..<40 {
+            XCTAssertEqual(try JSONDecoder().decode(SleepMetadata.self, from: data).bioNight?.samples.count, 4000)
+        }
+        let baseline = Date.now.timeIntervalSince(baselineStart)
+        let cachedStart = Date.now
+        for _ in 0..<40 {
+            XCTAssertEqual(record.metadata?.bioNight?.samples.count, 4000)
+            XCTAssertEqual(record.metadata?.bioNight?.samples.last?.value, values.last?.value)
+        }
+        let cached = Date.now.timeIntervalSince(cachedStart)
+        print("4000-sample night / 40 reads: repeated decoding \(baseline)s; cached model \(cached)s")
+    }
 }

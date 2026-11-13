@@ -92,4 +92,68 @@ final class RawSensorTests: XCTestCase {
         XCTAssertFalse(try RawSensorPendingStorage.claim(capture: "capture", scope: "serverA|2", base: directory))
         XCTAssertFalse(try RawSensorPendingStorage.claim(capture: "capture", scope: "serverB|1", base: directory))
     }
+
+    func testBackgroundQueueSkipsReceiptedFilesAndKeepsAccountIsolation() async throws {
+        let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let suite = "raw-queue-test-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { try? FileManager.default.removeItem(at: base); defaults.removePersistentDomain(forName: suite) }
+        let folder = base.appendingPathComponent("raw-pending")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        var report = WearableProbeReport(deviceName: "BIO synthetic", deviceKey: "synthetic")
+        report.finishedAt = .now; report.rawSensorPackets = [try packet()]
+        let file = folder.appendingPathComponent("batch.json")
+        try JSONEncoder().encode(RawSensorBatchRequest.make(report)[0]).write(to: file)
+        let worker = WearableProbeWorker()
+        let first = try await worker.pendingUploads(owner: "server|1", defaults: defaults, base: base)
+        let item = try XCTUnwrap(first.uploads.first)
+        XCTAssertEqual(first.uploads.count, 1); XCTAssertFalse(first.otherAccount)
+        let body = try await worker.uploadBody(item)
+        XCTAssertEqual(try JSONDecoder().decode(RawSensorBatchRequest.self, from: body).packets, report.rawSensorPackets)
+        // Confirmed immutable files are skipped using metadata, without decoding
+        // their contents again. A failed upload (no receipt) remains queued.
+        let retry = try await worker.pendingUploads(owner: "server|1", defaults: defaults, base: base)
+        XCTAssertEqual(retry.uploads.map(\.uploadID), first.uploads.map(\.uploadID))
+        defaults.set(true, forKey: item.receiptKey(owner: "server|1"))
+        try Data("must not be decoded again".utf8).write(to: file)
+        let confirmed = try await worker.pendingUploads(owner: "server|1", defaults: defaults, base: base)
+        XCTAssertTrue(confirmed.uploads.isEmpty)
+        let switched = try await worker.pendingUploads(owner: "server|2", defaults: defaults, base: base)
+        XCTAssertTrue(switched.uploads.isEmpty); XCTAssertTrue(switched.otherAccount)
+        let otherServer = try await worker.pendingUploads(owner: "other|1", defaults: defaults, base: base)
+        XCTAssertTrue(otherServer.uploads.isEmpty); XCTAssertTrue(otherServer.otherAccount)
+    }
+
+    func testLargeHistoryBackgroundQueuePreservesEveryRecordAndWireField() async throws {
+        let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let suite = "raw-history-test-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { try? FileManager.default.removeItem(at: base); defaults.removePersistentDomain(forName: suite) }
+        let folder = base.appendingPathComponent("probe-pending")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        var report = WearableProbeReport(deviceName: "BIO synthetic", deviceKey: "synthetic")
+        report.finishedAt = .now
+        report.records = try (0..<3011).map { index in
+            var value = IW_HisData(); value.seq = UInt32(index)
+            value.rri.timeStamp.dateTime.seconds = 1794390000; value.rri.timeStamp.timeZone = 80
+            value.rri.rawData = Array(repeating: 0x03200384, count: 120)
+            return try WearableProbeProtocol.record(value, type: 4)
+        }
+        let upload = ProbeReportUpload(report: report)
+        try JSONEncoder().encode(upload).write(to: folder.appendingPathComponent("history.json"))
+        let worker = WearableProbeWorker()
+        let start = Date.now
+        let pending = try await worker.pendingUploads(owner: "server|1", defaults: defaults, base: base)
+        let item = try XCTUnwrap(pending.uploads.first)
+        XCTAssertEqual(item.count, 3011); XCTAssertTrue(item.history)
+        let body = try await worker.uploadBody(item)
+        let restored = try JSONDecoder().decode(ProbeReportUpload.self, from: body)
+        XCTAssertEqual(restored.report.records.map(\.protobufBase64), report.records.map(\.protobufBase64))
+        XCTAssertEqual(restored.report.records.map(\.sequence), Array(0..<3011).map(UInt32.init))
+        XCTAssertEqual(restored.report_key, upload.report_key)
+        defaults.set(true, forKey: item.receiptKey(owner: "server|1"))
+        let confirmed = try await worker.pendingUploads(owner: "server|1", defaults: defaults, base: base)
+        XCTAssertTrue(confirmed.uploads.isEmpty)
+        print("Background history queue: \(body.count) bytes / 3011 records, verified in \(Date.now.timeIntervalSince(start))s")
+    }
 }

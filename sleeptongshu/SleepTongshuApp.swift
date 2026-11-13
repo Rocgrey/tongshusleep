@@ -124,8 +124,8 @@ struct RootTabView: View {
                 do { try await Task.sleep(for: .seconds(15)) } catch { return }
             }
         }
-        .onReceive(scanner.wearable.$report) { report in
-            if let report, let day = DeviceStepDay.read(report) { deviceSteps.merge([day]) }
+        .onReceive(scanner.wearable.$report.compactMap { $0.flatMap(DeviceStepDay.read) }.removeDuplicates()) { day in
+            deviceSteps.merge([day])
         }
         .onReceive(scanner.encryptedBand.$activityDays) { days in
             deviceSteps.merge(days.map { day in

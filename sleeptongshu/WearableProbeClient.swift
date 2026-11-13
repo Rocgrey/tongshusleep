@@ -118,6 +118,9 @@ final class WearableProbeClient: ObservableObject {
     private var rawPacketKeys: Set<String> = []
     private var rawSensorType: UInt32 = 528
     private var rawTypeCounts: [UInt32: Int] = [:]
+    private var pendingRecords: [WearableProbeRecord] = []
+    private var pendingPackets: [RawSensorPacket] = []
+    private var publishTask: Task<Void, Never>?
 
     init() {
         #if DEBUG
@@ -181,12 +184,15 @@ final class WearableProbeClient: ObservableObject {
             return
         }
         #endif
-        if let (report, url) = WearableProbeStorage.latest() {
-            self.report = report; reportURL = url
+        let session = generation
+        Task { [weak self] in
+            let restored = await WearableProbeWorker.shared.restore()
+            guard let self, self.generation == session, self.report == nil,
+                  let (report, url, history) = restored else { return }
+            self.report = report; self.reportURL = url; self.history = history
             if let finished = report.finishedAt {
-                history = WearableHistoryDecoder.decode(report)
                 if let raw = report.batteryRaw ?? report.batteryLevel0To9 {
-                    battery = WearableHistoryDecoder.battery(raw, model: report.observedModel, firmware: report.observedFirmware, at: finished)
+                    self.battery = WearableHistoryDecoder.battery(raw, model: report.observedModel, firmware: report.observedFirmware, at: finished)
                 }
             }
         }
@@ -202,10 +208,6 @@ final class WearableProbeClient: ObservableObject {
         report = WearableProbeReport(deviceName: name, deviceKey: WearableVital.deviceKey(id.uuidString),
                                      userReportedFirmware: WearableGatt.reportedFirmware(for: name),
                                      services: services, characteristics: characteristics)
-        if let report, let scope = rawUploadScope?() {
-            do { _ = try RawSensorPendingStorage.claim(capture: RawSensorBatchRequest.captureID(report), scope: scope) }
-            catch { event("采集账号绑定未能保存：\(error.localizedDescription)") }
-        }
         status = "已识别数据通道 · 正在开启接收"
         checkpoint()
     }
@@ -250,6 +252,7 @@ final class WearableProbeClient: ObservableObject {
                         }
                         self.rawCaptureActive = false
                     }
+                    self.flushPackets()
                     let count = self.report?.rawSensorPackets?.count ?? 0
                     self.report?.rawSensorStatus = count == 0 ? "自动采集已结束，未收到原始包；不代表设备不支持" : "自动采集结束，保留 \(count) 个原始包；未返回的类型不补造"
                     self.report?.rawSensorFinishedAt = .now
@@ -323,6 +326,7 @@ final class WearableProbeClient: ObservableObject {
     }
 
     private func finish() {
+        flushPackets()
         stopRawCapture()
         for index in report?.channels.indices ?? 0..<0 where report?.channels[index].state.hasPrefix("正在") == true {
             report?.channels[index].state = "读取已结束，本项未完成"
@@ -330,7 +334,15 @@ final class WearableProbeClient: ObservableObject {
         report?.finishedAt = .now
         report?.rejectedFrames = decoder.rejected
         isBusy = false
-        if let report { history = WearableHistoryDecoder.decode(report) }
+        if let report {
+            let capture = RawSensorBatchRequest.captureID(report)
+            Task { [weak self] in
+                let decoded = await WearableProbeWorker.shared.decode(report)
+                guard let self, let current = self.report,
+                      RawSensorBatchRequest.captureID(current) == capture else { return }
+                self.history = decoded
+            }
+        }
         checkpoint()
     }
 
@@ -340,13 +352,45 @@ final class WearableProbeClient: ObservableObject {
     }
 
     private func checkpoint() {
+        flushPackets()
         guard let report else { return }
-        do {
-            reportURL = try WearableProbeStorage.save(report)
-            try RawSensorPendingStorage.save(report)
-            try RawSensorPendingStorage.saveHistory(report)
+        let scope = rawUploadScope?()
+        let session = generation
+        Task { [weak self] in
+            do {
+                let url = try await WearableProbeWorker.shared.save(report, scope: scope)
+                guard let self, self.generation == session else { return }
+                self.reportURL = url
+            } catch {
+                guard let self, self.generation == session else { return }
+                self.status = "报告未能保存：\(error.localizedDescription)"
+            }
         }
-        catch { status = "报告未能保存：\(error.localizedDescription)" }
+    }
+
+    /// Preserve every accepted packet; publish a single snapshot at most four times
+    /// a second so BLE bursts do not rebuild charts or copy growing arrays per packet.
+    private func schedulePublish() {
+        guard publishTask == nil else { return }
+        publishTask = Task { [weak self] in
+            do { try await Task.sleep(for: .milliseconds(250)) } catch { return }
+            self?.flushPackets()
+        }
+    }
+
+    private func flushPackets() {
+        publishTask?.cancel(); publishTask = nil
+        guard !pendingRecords.isEmpty || !pendingPackets.isEmpty, var next = report else { return }
+        next.records.append(contentsOf: pendingRecords)
+        if !pendingPackets.isEmpty {
+            if next.rawSensorPackets == nil { next.rawSensorPackets = [] }
+            next.rawSensorPackets?.append(contentsOf: pendingPackets)
+        }
+        for index in next.channels.indices {
+            if let count = received[next.channels[index].type]?.count { next.channels[index].received = count }
+        }
+        pendingRecords.removeAll(keepingCapacity: true); pendingPackets.removeAll(keepingCapacity: true)
+        report = next
     }
     private func stopRawCapture() {
         guard rawCaptureActive else { return }
@@ -365,12 +409,12 @@ final class WearableProbeClient: ObservableObject {
         guard rawCaptureActive else { return }
         let packet = try RawSensorPacket(sensor, notification: notification)
         guard (rawTypeCounts[packet.sensorType] ?? 0) < RawCapturePolicy.maxPacketsPerType,
-              (report?.rawSensorPackets?.count ?? 0) < 1024,
+              (report?.rawSensorPackets?.count ?? 0) + pendingPackets.count < 1024,
               rawWords + packet.sensorDataList.count <= 100000 else { return }
         guard rawPacketKeys.insert(packet.packetKey).inserted else { return }
-        if report?.rawSensorPackets == nil { report?.rawSensorPackets = [] }
-        report?.rawSensorPackets?.append(packet); rawWords += packet.sensorDataList.count
+        pendingPackets.append(packet); rawWords += packet.sensorDataList.count
         rawTypeCounts[packet.sensorType, default: 0] += 1
+        schedulePublish()
     }
 
     private func channel(_ type: Int, state: String) {
@@ -527,13 +571,13 @@ final class WearableProbeClient: ObservableObject {
             guard value.data != nil || !value.unknownFields.data.isEmpty, received[type]?.contains(value.seq) != true else { return }
             let record = try WearableProbeProtocol.record(value, type: type)
             let bytes = record.protobufJSON.utf8.count + (record.protobufBase64?.utf8.count ?? 0)
-            guard storedBytes + bytes <= 8_000_000, (report?.records.count ?? 0) < 4096 else {
+            guard storedBytes + bytes <= 8_000_000, (report?.records.count ?? 0) + pendingRecords.count < 4096 else {
                 storedBytes = 8_000_000; event("已达到本次记录上限"); return
             }
             lastHistoryAt = .now
             received[type, default: []].insert(value.seq)
-            report?.records.append(record); storedBytes += bytes
-            report?.channels[index].received = received[type]?.count ?? 0
+            pendingRecords.append(record); storedBytes += bytes
+            schedulePublish()
         default: break
         }
     }

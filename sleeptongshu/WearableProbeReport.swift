@@ -82,3 +82,28 @@ enum WearableProbeStorage {
         return nil
     }
 }
+
+/// Serialize disk work away from the UI, including checkpoints from successive reads.
+actor WearableProbeWorker {
+    static let shared = WearableProbeWorker()
+    var pendingMetadata: [URL: RawPendingUpload] = [:]
+
+    func save(_ report: WearableProbeReport, scope: String? = nil) throws -> URL {
+        if let scope {
+            _ = try RawSensorPendingStorage.claim(capture: RawSensorBatchRequest.captureID(report), scope: scope)
+        }
+        let url = try WearableProbeStorage.save(report)
+        try RawSensorPendingStorage.save(report)
+        try RawSensorPendingStorage.saveHistory(report)
+        return url
+    }
+
+    func restore() -> (WearableProbeReport, URL, WearableDecodedHistory?)? {
+        guard let (report, url) = WearableProbeStorage.latest() else { return nil }
+        return (report, url, report.finishedAt == nil ? nil : WearableHistoryDecoder.decode(report))
+    }
+
+    func decode(_ report: WearableProbeReport) -> WearableDecodedHistory {
+        WearableHistoryDecoder.decode(report)
+    }
+}
