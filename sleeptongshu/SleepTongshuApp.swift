@@ -51,7 +51,7 @@ extension SleepStage {
     }
 }
 
-enum SleepTab: Hashable { case sleep, monitoring, trends, health }
+enum SleepTab: Hashable { case sleep, monitoring, trends, health, classroom }
 
 struct RootTabView: View {
     @EnvironmentObject private var account: AccountStore
@@ -87,6 +87,7 @@ struct RootTabView: View {
             MonitoringView().tabItem { Label("监测与设备", systemImage: "waveform.path") }.tag(SleepTab.monitoring)
             TrendsView().tabItem { Label("趋势", systemImage: "chart.bar.xaxis") }.tag(SleepTab.trends)
             NavigationStack { HealthOverviewView() }.tabItem { Label("健康", systemImage: "heart.text.clipboard") }.tag(SleepTab.health)
+            SleepClassroomView().tabItem { Label("睡眠课堂", systemImage: "book.closed.fill") }.tag(SleepTab.classroom)
         }
         .toolbarBackground(.visible, for: .tabBar)
         .environmentObject(phone)
