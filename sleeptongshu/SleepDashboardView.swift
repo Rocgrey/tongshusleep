@@ -14,8 +14,6 @@ struct SleepDashboardView: View {
     private var source: SleepDashboardSource {
         sourceOverride ?? SleepDashboardSource.preferred(records: storedRecords, hasDeviceData: !deviceSteps.rows.isEmpty || !deviceVitals.visibleSamples.isEmpty, hasReadHealth: health.snapshot?.sleepReadAt != nil)
     }
-    private var records: [SleepRecord] { storedRecords.filter { source.includes($0) } }
-    private var systemSleepSelected: Bool { source == .health }
     @State private var selectedID: UUID?
     @State private var showsHistory = false
     @State private var showsEditor = false
@@ -23,17 +21,21 @@ struct SleepDashboardView: View {
     @State private var help: MetricHelp?
     @AppStorage("sleepGoalHours") private var goal = 8.0
 
-    private var selected: SleepRecord? {
+    private func selectedRecord(in records: [SleepRecord], source: SleepDashboardSource) -> SleepRecord? {
         records.first { $0.id == selectedID }
-            ?? (systemSleepSelected ? records.first(where: \.hasSleepDuration) : nil)
+            ?? (source == .health ? records.first(where: \.hasSleepDuration) : nil)
             ?? records.first { $0.source != .sample } ?? records.first
     }
-    private var selectedIndex: Int { records.firstIndex { $0.id == selected?.id } ?? 0 }
 
     var body: some View {
+        let source = self.source
+        let records = storedRecords.filter { source.includes($0) }
+        let selected = selectedRecord(in: records, source: source)
+        let selectedIndex = records.firstIndex { $0.id == selected?.id } ?? 0
+        let systemSleepSelected = source == .health
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 25) {
+                LazyVStack(alignment: .leading, spacing: 25) {
                     brandHeader
                     Picker("睡眠来源", selection: Binding(get: { source }, set: { sourceOverride = $0; selectedID = nil })) {
                         ForEach(SleepDashboardSource.allCases, id: \.self) { Text($0.label).tag($0) }
@@ -46,15 +48,15 @@ struct SleepDashboardView: View {
                     DeviceStepsSummaryView()
                     AutomaticSyncStatusView()
                     if let record = selected {
-                        dateNavigation(record)
+                        dateNavigation(record, records: records, selectedIndex: selectedIndex)
                         if let night = record.metadata?.bioNight, !record.hasSleepDuration {
-                            BIONightView(record: record, night: night)
+                            BIONightView(record: record, night: night).id(record.id)
                         } else {
                         overview(record)
                         if record.source == .healthKit { SystemSleepSourceView(record: record) }
                         if let phone = record.metadata?.phone { PhoneReportView(night: phone) }
                         stages(record)
-                        if let night = record.metadata?.bioNight { BIONightView(record: record, night: night) }
+                        if let night = record.metadata?.bioNight { BIONightView(record: record, night: night).id(record.id) }
                         else { vitals(record) }
                         analysis(record)
                         }
@@ -120,7 +122,7 @@ struct SleepDashboardView: View {
         }
     }
 
-    private func dateNavigation(_ record: SleepRecord) -> some View {
+    private func dateNavigation(_ record: SleepRecord, records: [SleepRecord], selectedIndex: Int) -> some View {
         HStack {
             Button { selectedID = records[selectedIndex + 1].id } label: {
                 Image(systemName: "chevron.left").font(.system(size: 13, weight: .semibold)).frame(width: 36, height: 36)
@@ -135,7 +137,7 @@ struct SleepDashboardView: View {
                             .font(.caption).foregroundStyle(SleepPalette.muted)
                     }
                 }
-            }.accessibilityLabel("选择睡眠日期")
+            }.accessibilityLabel("选择睡眠日期").accessibilityValue(record.day.formatted(.dateTime.month().day()))
             Spacer(minLength: 0)
             Button { selectedID = records[selectedIndex - 1].id } label: {
                 Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).frame(width: 36, height: 36)
@@ -230,8 +232,8 @@ struct SleepDashboardView: View {
                 Text(record.onlyInBed ? "仅有卧床记录，不能据此生成睡眠时长或分期。" : "未分期睡眠 · 只展示来源实际记录的睡眠时长，不推算深睡、浅睡或 REM。")
                     .font(.subheadline).foregroundStyle(SleepPalette.muted).fixedSize(horizontal: false, vertical: true)
             } else if !record.segments.isEmpty {
-                StageTimeline(record: record)
-                SleepStageBalance(record: record)
+                StageTimeline(record: record).id(record.id)
+                SleepStageBalance(record: record).id(record.id)
                 if record.segments.contains(where: { [.unobserved, .unspecified].contains($0.stage) }) {
                     Text("未分期睡眠 \(record.minutes(.unspecified)) 分 · 未记录 \(record.minutes(.unobserved)) 分。缺口不会计作清醒或深睡；分期比例可能不可用。")
                         .font(.system(size: 11)).foregroundStyle(SleepPalette.muted)

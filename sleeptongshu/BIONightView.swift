@@ -8,20 +8,11 @@ struct BIONightView: View {
     @EnvironmentObject private var algorithm: BIOAlgorithmStore
     @State private var kind = VitalKind.heart
     private var observation: Bool { !record.hasSleepDuration }
-    private var measured: [WearableVital] {
-        observation ? night.samples : night.samples.filter { sample in
-            record.segments.contains { $0.stage.isAsleep && sample.date >= $0.start && sample.date < $0.end }
-        }
-    }
-    private func count(_ kind: VitalKind) -> Int { measured.filter { $0.kind == kind }.count }
-    private func mean(_ kind: VitalKind) -> Double? {
-        let values = measured.filter { $0.kind == kind }.map(\.value)
-        return values.isEmpty ? nil : values.reduce(0,+)/Double(values.count)
-    }
-    private var available: [VitalKind] { VitalKind.allCases.filter { $0.isVisible && count($0) > 0 } }
-    private var selectedKind: VitalKind { available.contains(kind) ? kind : available.first ?? .heart }
-    private var samples: [WearableVital] { measured.filter { $0.kind == selectedKind }.sorted { $0.date < $1.date } }
     var body: some View {
+        let summary = record.nightPresentation
+        let available = summary.available
+        let selectedKind = available.contains(kind) ? kind : available.first ?? .heart
+        let samples = summary.series[selectedKind]?.samples ?? []
         VStack(alignment: .leading, spacing: 24) {
             if observation { VStack(alignment: .leading, spacing: 12) {
                 HStack {
@@ -44,10 +35,10 @@ struct BIONightView: View {
                     ForEach(available) { metric in
                         VStack(alignment: .leading, spacing: 7) {
                             Text("平均\(metric.title)").font(.caption).foregroundStyle(SleepPalette.muted)
-                            Text((mean(metric)?.formatted(.number.precision(.fractionLength(0...1))) ?? "--") + " " + (measured.first { $0.kind == metric }?.displayUnit ?? metric.unit))
+                            Text((summary.series[metric]?.mean.formatted(.number.precision(.fractionLength(0...1))) ?? "--") + " " + (summary.series[metric]?.unit ?? metric.unit))
                                 .font(.title3.weight(.semibold)).foregroundStyle(metric == .oxygen ? SleepPalette.deep : metric == .heart ? SleepPalette.rose : SleepPalette.teal)
                                 .fixedSize(horizontal: false, vertical: true)
-                            Text("\(count(metric)) 次采样").font(.caption2).foregroundStyle(SleepPalette.muted)
+                            Text("\(summary.series[metric]?.count ?? 0) 次采样").font(.caption2).foregroundStyle(SleepPalette.muted)
                         }
                     }
                 }

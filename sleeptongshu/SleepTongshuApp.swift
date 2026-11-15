@@ -181,9 +181,13 @@ struct RootTabView: View {
             #if DEBUG
             if testing, ProcessInfo.processInfo.arguments.contains("-ui-testing-device-sleep"),
                let sample = SampleSleepRecords.makeMonth().first {
+                if ProcessInfo.processInfo.arguments.contains("-ui-testing-dense-bio") {
+                    BIONightPerformanceFixture.make().forEach { context.insert(SleepRecord($0)) }
+                } else {
                 var payload = sample.payload
                 payload.source = .band; payload.metadata = SleepMetadata(externalSource: "设备界面测试示例 · 非真实数据")
                 context.insert(SleepRecord(payload))
+                }
                 try? context.save()
             }
             #endif

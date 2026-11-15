@@ -73,6 +73,17 @@ import XCTest
         XCTAssertEqual(old.observations.count, 2)
         XCTAssertNil(old.stepsTimeZone)
     }
+    func testRepeatedDateFormattingPreservesUploadDayAndStrictParsing() throws {
+        let midnight = try XCTUnwrap(StepDates.date("2026-11-09"))
+        for _ in 0..<100 {
+            XCTAssertEqual(StepDates.format(midnight, time: true), "2026-11-09 00:00:00")
+            XCTAssertEqual(StepDates.format(midnight.addingTimeInterval(-1)), "2026-11-08")
+            XCTAssertEqual(StepDates.date("2026-11-09"), midnight)
+        }
+        for invalid in ["2026-02-30", "2026-11-9", "2026-11-09 00:00:00", ""] {
+            XCTAssertNil(StepDates.date(invalid))
+        }
+    }
     func testRetainedStepsKeepOriginalReadTimeWhenOtherMetricsRefresh() {
         var value = snapshot()
         let original = value.readAt

@@ -5,19 +5,22 @@ import Foundation
 enum StepDates {
     static let timeZone = TimeZone(identifier: "Asia/Shanghai")!
     static var calendar: Calendar { var value = Calendar(identifier: .gregorian); value.timeZone = timeZone; return value }
-    static func format(_ date: Date, time: Bool = false) -> String {
+    // Fixed, private formatters are reused without changing their configuration.
+    // Building one for each historical vital stalls UI-driven sync preparation.
+    private static let dayFormatter = formatter("yyyy-MM-dd")
+    private static let timeFormatter = formatter("yyyy-MM-dd HH:mm:ss")
+    private static func formatter(_ pattern: String) -> DateFormatter {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.calendar = calendar; formatter.timeZone = timeZone
-        formatter.dateFormat = time ? "yyyy-MM-dd HH:mm:ss" : "yyyy-MM-dd"
-        return formatter.string(from: date)
+        formatter.dateFormat = pattern; formatter.isLenient = false
+        return formatter
+    }
+    static func format(_ date: Date, time: Bool = false) -> String {
+        (time ? timeFormatter : dayFormatter).string(from: date)
     }
     static func date(_ value: String) -> Date? {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.calendar = calendar; formatter.timeZone = timeZone
-        formatter.dateFormat = "yyyy-MM-dd"; formatter.isLenient = false
-        guard let result = formatter.date(from: value), format(result) == value else { return nil }
+        guard let result = dayFormatter.date(from: value), format(result) == value else { return nil }
         return result
     }
 }

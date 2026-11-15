@@ -47,12 +47,11 @@ struct DeviceRecentVitalsView: View {
     @EnvironmentObject private var store: WearableVitalsStore
     @EnvironmentObject private var steps: DeviceStepsStore
     @Environment(\.dynamicTypeSize) private var dynamicType
-    private var device: String? { steps.latest?.device ?? store.visibleSamples.last?.device }
-    private var latest: [WearableVital] {
-        let rows = store.visibleSamples.filter { $0.device == device }
-        return VitalKind.allCases.filter(\.isVisible).compactMap { kind in rows.last { $0.kind == kind } }
-    }
     var body: some View {
+        let visible = store.visibleSamples
+        let device = steps.latest?.device ?? visible.last?.device
+        let rows = visible.filter { $0.device == device }
+        let latest = VitalKind.allCases.filter(\.isVisible).compactMap { kind in rows.last { $0.kind == kind } }
         if !latest.isEmpty {
             VStack(alignment: .leading, spacing: 14) {
                 SectionHeading(title: "设备最近体征", subtitle: latest.first?.deviceLabel)

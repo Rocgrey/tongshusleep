@@ -100,6 +100,14 @@ private final class SleepRecordDecodeCache {
     var hearts: [HeartSample] = []
     var metadataData: Data?
     var metadata: SleepMetadata?
+    var nightMetadataData: Data?
+    var nightSegmentsData: Data?
+    var nightPresentation: BIONightPresentation?
+    var clockZone: String?
+    var clockFormatter: DateFormatter?
+    var calendarLabel: String?
+    var calendarZone: String?
+    var calendarDay: Date?
 }
 
 @Model
@@ -173,6 +181,14 @@ final class SleepRecord {
         }
         return decoded.metadata
     }
+    var nightPresentation: BIONightPresentation {
+        let metadataBytes = metadataData, segmentBytes = segmentsData
+        if decoded.nightPresentation == nil || decoded.nightMetadataData != metadataBytes || decoded.nightSegmentsData != segmentBytes {
+            decoded.nightPresentation = BIONightPresentation(samples: metadata?.bioNight?.samples ?? [], segments: segments)
+            decoded.nightMetadataData = metadataBytes; decoded.nightSegmentsData = segmentBytes
+        }
+        return decoded.nightPresentation!
+    }
     var isVisible: Bool { metadata?.healthSleep?.isRemoved != true }
     var onlyInBed: Bool { source == .healthKit && !hasSleepDuration && (segments.contains { $0.stage == .inBed } || metadata?.healthSleep?.samples.contains { $0.stage == .inBed } == true) }
     var hasCompleteCoverage: Bool { !segments.isEmpty && !segments.contains { [.unobserved, .inBed].contains($0.stage) } }
@@ -184,15 +200,24 @@ final class SleepRecord {
             ?? metadata?.bioNight.flatMap { TimeZone(identifier: $0.timeZoneIdentifier) } ?? .current
     }
     func displayClock(_ date: Date) -> String {
-        let formatter = DateFormatter(); formatter.timeZone = displayTimeZone; formatter.dateFormat = "HH:mm"
-        return formatter.string(from: date)
+        let zone = displayTimeZone
+        if decoded.clockFormatter == nil || decoded.clockZone != zone.identifier {
+            let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.calendar = Calendar(identifier: .gregorian); formatter.timeZone = zone; formatter.dateFormat = "HH:mm"
+            decoded.clockFormatter = formatter; decoded.clockZone = zone.identifier
+        }
+        return decoded.clockFormatter!.string(from: date)
     }
     /// A calendar label, not elapsed time: keep the end date in the sample's original timezone.
     var day: Date {
         guard let label = metadata?.healthSleep?.endDay ?? metadata?.encryptedBand?.endDay ?? metadata?.bioNight?.endDay else { return Calendar.current.startOfDay(for: end) }
+        let zone = TimeZone.current
+        if decoded.calendarLabel == label, decoded.calendarZone == zone.identifier, let date = decoded.calendarDay { return date }
         let formatter = DateFormatter(); formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.timeZone = .current; formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.date(from: label) ?? Calendar.current.startOfDay(for: end)
+        formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.timeZone = zone; formatter.dateFormat = "yyyy-MM-dd"
+        let parsed = formatter.date(from: label)
+        decoded.calendarLabel = label; decoded.calendarZone = zone.identifier; decoded.calendarDay = parsed
+        return parsed ?? Calendar.current.startOfDay(for: end)
     }
     var inBedMinutes: Int { max(0, Int(end.timeIntervalSince(start) / 60)) }
     var asleepMinutes: Int {

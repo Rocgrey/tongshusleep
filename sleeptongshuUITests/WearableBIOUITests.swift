@@ -1,6 +1,31 @@
 import XCTest
 
 final class WearableBIOUITests: XCTestCase {
+    func testDenseBIONightsSwitchDatesAndReuseStageCharts() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["-ui-testing", "-ui-testing-device-sleep", "-ui-testing-dense-bio", "-AppleInterfaceStyle", "Dark"]
+        app.launch()
+        let date = app.buttons["选择睡眠日期"]
+        XCTAssertTrue(date.waitForExistence(timeout: 8))
+        let first = date.value as? String
+        let before = Date.now
+        for _ in 0..<3 {
+            let previous = date.value as? String ?? ""
+            app.buttons["上一晚"].tap()
+            let changed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value != %@", previous), object: date)
+            XCTAssertEqual(XCTWaiter.wait(for: [changed], timeout: 5), .completed)
+        }
+        print("Synthetic dense BIO / three date taps including UI automation: \(Date.now.timeIntervalSince(before))s")
+        for _ in 0..<3 { app.buttons["下一晚"].tap() }
+        XCTAssertEqual(date.value as? String, first)
+        let chart = app.descendants(matching: .any).matching(identifier: "sleepStageTimeline").firstMatch
+        for _ in 0..<8 where !chart.isHittable { app.swipeUp(velocity: .slow) }
+        XCTAssertTrue(chart.isHittable)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "bio-date-switch-synthetic-1000-readings-96-stages"
+        screenshot.lifetime = .keepAlways; add(screenshot)
+    }
     func testRawSensorsAreSeparateAndCorrectlyNamed() {
         continueAfterFailure = false
         let app = XCUIApplication()
