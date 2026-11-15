@@ -217,7 +217,7 @@ final class SleepRecord {
         return Int(Double(asleepMinutes) / Double(inBedMinutes) * 100)
     }
     func share(_ stage: SleepStage) -> Int? {
-        if source == .healthKit && !segments.contains(where: { $0.stage == stage }) { return nil }
+        if (source == .healthKit || metadata?.bioNight != nil) && !segments.contains(where: { $0.stage == stage }) { return nil }
         guard [.deep, .light, .rem].contains(stage), hasStages,
               !segments.contains(where: { [.unobserved, .unspecified, .inBed].contains($0.stage) }), asleepMinutes > 0 else { return nil }
         return Int(Double(minutes(stage)) / Double(asleepMinutes) * 100)

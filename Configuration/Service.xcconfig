@@ -2,3 +2,4 @@
 SLEEP_API_BASE_URL = https:/$()/tongshusleep-backend.app.workbuddy.host/api/v1
 SLEEP_GATEWAY_SHARE_CODE =
 #include? "ServiceLocal.xcconfig"
+#include "IwownSleep.xcconfig"

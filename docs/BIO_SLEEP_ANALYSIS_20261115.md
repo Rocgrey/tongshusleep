@@ -1,5 +1,7 @@
 # BIO 睡眠分期接入核对
 
+> 后续更新：新厂家包包含本地 `IVSleep.a`，现已接入并在 iPhone 用真实历史取得有效睡眠分期。本页保留此前云端 503 的核对记录；当前本机优先路径见 [BIO 本机睡眠计算](BIO_LOCAL_SLEEP.md)，不再依赖以下云算法配置。
+
 ## 当前真实结果
 
 2026-11-15 使用已登录的测试 iPhone，通过现有 `POST /api/v1/health/bio-sleep-analysis` 发起分析，实际返回：

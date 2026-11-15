@@ -116,8 +116,9 @@ struct RootTabView: View {
             }
         }
         .task(id: "bio|\(account.session?.accessToken ?? "")|\(autoSync)|\(scenePhase == .active)|\(scanner.wearable.report?.finishedAt?.timeIntervalSince1970 ?? 0)") {
-            if account.session == nil || !autoSync { bioAlgorithm.reset() }
-            guard autoSync, scenePhase == .active, !ProcessInfo.processInfo.arguments.contains("-ui-testing") else { return }
+            if account.session == nil || (!autoSync && !BIOLocalSleep.available) { bioAlgorithm.reset() }
+            guard BIOLocalSleep.available || autoSync else { return }
+            guard scenePhase == .active, !ProcessInfo.processInfo.arguments.contains("-ui-testing") else { return }
             // Sleep analysis must not wait for a backlog of ordinary health uploads.
             while !Task.isCancelled {
                 await bioAlgorithm.analyze(scanner.wearable.report, account: account, context: context)

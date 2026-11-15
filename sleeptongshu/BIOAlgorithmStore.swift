@@ -13,19 +13,22 @@ import SwiftData
     private var operation: UUID?
     private let worker: WearableProbeWorker
     private let directory: URL
+    private let localCalculation: ((BIOSleepAlgorithmRequest) async throws -> BIOSleepAlgorithmResult)?
     @Published private var serviceIssue: String?
     private var serviceRetryAfter: Date?
     @Published private(set) var statusByNight: [String: String] = [:]
 
-    init(worker: WearableProbeWorker = .shared, directory: URL = WearableProbeStorage.directory) {
+    init(worker: WearableProbeWorker = .shared, directory: URL = WearableProbeStorage.directory,
+         localCalculation: ((BIOSleepAlgorithmRequest) async throws -> BIOSleepAlgorithmResult)? = nil) {
         self.worker = worker; self.directory = directory
+        self.localCalculation = localCalculation ?? (BIOLocalSleep.available ? { request in try await worker.localSleep(request) } : nil)
     }
 
     func reset() {
         scope = ""; generation = UUID(); operation = nil
         prepared = nil; preparedKey = ""; lastAttempt = [:]; completedInputs = []
         serviceIssue = nil; serviceRetryAfter = nil
-        statusByNight = [:]; message = "登录并开启自动同步后检查睡眠分析"
+        statusByNight = [:]; message = BIOLocalSleep.available ? "登录后检查设备睡眠计算" : "登录并开启自动同步后检查睡眠分析"
     }
     func status(for night: BIONight) -> String? {
         if prepared?.report.deviceKey == night.device, let serviceIssue { return serviceIssue }
@@ -62,7 +65,7 @@ import SwiftData
                 return
             }
             for (request, body) in zip(prepared.requests, prepared.bodies) {
-                let fingerprint = WearableVital.deviceKey(body.base64EncodedString())
+                let fingerprint = WearableVital.deviceKey((localCalculation == nil ? "cloud|" : BIOLocalSleep.version + "|") + body.base64EncodedString())
                 let key = "\(binding)|\(fingerprint)"
                 if completedInputs.contains(key) { continue }
                 guard lastAttempt[key].map({ Date.now.timeIntervalSince($0) > 300 }) ?? true else { continue }
@@ -72,28 +75,64 @@ import SwiftData
                 diagnostic.recordDate = request.recordDate
                 diagnostic.previousDayRRI = request.prevDayRri.count; diagnostic.nextDayRRI = request.nextDayRri.count
                 diagnostic.returnCode = nil; diagnostic.httpStatus = nil; diagnostic.stageCount = 0
-                message = "正在计算设备睡眠；原始输入经平台发送到厂家算法服务"
+                let isLocal = localCalculation != nil
+                diagnostic.engine = isLocal ? BIOLocalSleep.version : "vendor-cloud-sleep-v1"
+                message = isLocal ? "正在手机上计算设备睡眠" : "正在计算设备睡眠；原始输入经平台发送到厂家算法服务"
                 let day = String(format: "%08d", request.recordDate)
                 let label = "\(day.prefix(4))-\(day.dropFirst(4).prefix(2))-\(day.suffix(2))"
                 let nightKey = "\(report.deviceKey)|\(label)"
                 statusByNight[nightKey] = message
-                let bytes = try await account.client.request("health/bio-sleep-analysis", method: "POST", body: body, authenticated: true, token: session.accessToken, requestTimeout: 40)
+                let response: BIOSleepAlgorithmEnvelope
+                if let localCalculation {
+                    do {
+                        let result = try await localCalculation(request)
+                        response = BIOSleepAlgorithmEnvelope(return_code: 0, message: "本机计算完成", result: result)
+                    } catch {
+                        guard version == generation, account.session?.accessToken == session.accessToken, !Task.isCancelled else { return }
+                        message = "该日期的睡眠输入暂时无法计算，已保留夜间观测。"
+                        statusByNight[nightKey] = message; diagnostic.message = message
+                        completedInputs.insert(key)
+                        await worker.saveSleepDiagnostic(diagnostic, base: directory)
+                        continue
+                    }
+                } else {
+                    let bytes = try await account.client.request("health/bio-sleep-analysis", method: "POST", body: body, authenticated: true, token: session.accessToken, requestTimeout: 40)
+                    response = try APIJSON.decode(BIOSleepAlgorithmEnvelope.self, from: bytes)
+                    diagnostic.httpStatus = 200
+                }
                 guard version == generation, account.session?.accessToken == session.accessToken, !Task.isCancelled else { return }
-                let response = try APIJSON.decode(BIOSleepAlgorithmEnvelope.self, from: bytes)
                 serviceIssue = nil; serviceRetryAfter = nil
-                diagnostic.httpStatus = 200; diagnostic.returnCode = response.return_code
+                diagnostic.returnCode = response.return_code
                 guard response.return_code == 0, let result = response.result else {
                     message = response.message; statusByNight[nightKey] = message
                     diagnostic.message = message
                     await worker.saveSleepDiagnostic(diagnostic, base: directory)
                     continue
                 }
+                if isLocal && result.sections.isEmpty {
+                    message = "本机已计算，当前输入暂未识别到有效睡眠阶段；已保留夜间观测，补充过夜记录后会再更新。"
+                    statusByNight[nightKey] = message; diagnostic.message = message
+                    completedInputs.insert(key)
+                    await worker.saveSleepDiagnostic(diagnostic, base: directory)
+                    continue
+                }
                 let all = try context.fetch(FetchDescriptor<SleepRecord>())
                 if let record = all.first(where: { $0.metadata?.bioNight?.device == report.deviceKey && $0.metadata?.bioNight?.endDay == label }) {
-                    let payload = try BIOSleepResultAdapter.payload(result, observation: record.payload)
+                    let payload: SleepPayload
+                    do {
+                        payload = try BIOSleepResultAdapter.payload(result, observation: record.payload,
+                            algorithm: isLocal ? BIOLocalSleep.version : "vendor-cloud-sleep-v1")
+                    } catch {
+                        if !isLocal { throw error }
+                        message = "该日期的计算结果未通过时间和阶段检查，已保留原有记录。"
+                        statusByNight[nightKey] = message; diagnostic.message = message
+                        completedInputs.insert(key)
+                        await worker.saveSleepDiagnostic(diagnostic, base: directory)
+                        continue
+                    }
                     record.replace(with: payload); try context.save()
-                    message = result.completed == 1 ? "设备睡眠结果已更新" : "已取得阶段性睡眠结果，之后同步时继续更新"
-                    if result.completed == 1 { completedInputs.insert(key) }
+                    message = isLocal ? "设备睡眠已在本机计算并更新；有新记录时继续更新" : (result.completed == 1 ? "设备睡眠结果已更新" : "已取得阶段性睡眠结果，之后同步时继续更新")
+                    if isLocal || result.completed == 1 { completedInputs.insert(key) }
                     statusByNight[nightKey] = message
                     diagnostic.stageCount = result.sections.count
                 } else {

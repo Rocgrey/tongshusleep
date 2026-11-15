@@ -10,4 +10,5 @@ outputs/
 *.xcresult
 .build/
 Vendor/Veepoo/
+Vendor/IwownSleep/
 Configuration/ServiceLocal.xcconfig

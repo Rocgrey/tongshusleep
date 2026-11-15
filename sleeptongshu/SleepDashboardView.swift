@@ -240,7 +240,7 @@ struct SleepDashboardView: View {
                     ForEach([SleepStage.deep, .light, .rem, .awake]) { stage in
                         Button { help = SleepMetricGuide.stage(stage, record: record) } label: { VStack(alignment: .leading, spacing: 7) {
                             HStack(spacing: 4) { Circle().fill(stage.color).frame(width: 5, height: 5); Text(stage.label).font(.system(size: 10)) }
-                            Text(stage == .awake && record.awakeMinutes == nil || record.source == .healthKit && stage != .awake && !record.segments.contains(where: { $0.stage == stage }) ? "--" : "\(record.minutes(stage))").font(.title3.weight(.semibold)) + Text(" 分").font(.caption)
+                            Text(stage == .awake && record.awakeMinutes == nil || (record.source == .healthKit || record.metadata?.bioNight != nil) && stage != .awake && !record.segments.contains(where: { $0.stage == stage }) ? "--" : "\(record.minutes(stage))").font(.title3.weight(.semibold)) + Text(" 分").font(.caption)
                             Text(stage == .awake ? "清醒时段" : record.share(stage).map { "\($0)%" } ?? "--")
                                 .font(.system(size: 12, weight: .medium)).foregroundStyle(SleepPalette.muted)
                         }.foregroundStyle(SleepPalette.ink).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle()) }

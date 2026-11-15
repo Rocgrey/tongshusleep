@@ -164,4 +164,60 @@ private final class BIOAnalysisSessionStorage: AccountSessionStorage {
         XCTAssertTrue(prepared.observations.allSatisfy { $0.segments.isEmpty })
         print("Private local replay: \(prepared.report.records.count) input records; November 5 and 11 ready; no vendor request made")
     }
+
+    func testLocalCalculationReusesChartsPersistsOriginAndNeverCallsCloudAnalysis() async throws {
+        let report = try report(day: "2026-11-11", previous: "2026-11-10")
+        let account = await account { _ in XCTFail("Local calculation must not call the analysis service"); return (503, Data()) }
+        let db = try container(), context = db.mainContext
+        var calls = 0
+        let store = BIOAlgorithmStore(worker: WearableProbeWorker(), directory: directory, localCalculation: { request in
+            calls += 1
+            XCTAssertEqual(request.recordDate, 20261111)
+            return BIOSleepAlgorithmResult(completed: 0, start_time: "2026-11-10 23:00", end_time: "2026-11-11 07:01", sections: [
+                .init(start: "2026-11-10 23:00", end: "2026-11-11 01:00", type: 3),
+                .init(start: "2026-11-11 01:00", end: "2026-11-11 03:00", type: 4),
+                .init(start: "2026-11-11 03:00", end: "2026-11-11 03:10", type: 6),
+                .init(start: "2026-11-11 03:10", end: "2026-11-11 07:01", type: 7)])
+        })
+        await store.analyze(report, account: account, context: context)
+        let saved = try XCTUnwrap(context.fetch(FetchDescriptor<SleepRecord>()).first)
+        XCTAssertEqual(saved.metadata?.bioNight?.algorithm, BIOLocalSleep.version)
+        XCTAssertEqual(saved.minutes(.deep), 120); XCTAssertEqual(saved.minutes(.rem), 231)
+        XCTAssertEqual(saved.averageSpO2, 98); XCTAssertEqual(saved.awakenings, 1)
+        let sync = try DeviceSyncRequest.sleep(saved)
+        XCTAssertEqual(sync.kind, "sleep"); XCTAssertEqual(sync.sleep?.deep_sleep_minutes, 120)
+        XCTAssertEqual(sync.sleep?.rem_minutes, 231); XCTAssertEqual(sync.details.average_spo2, 98)
+        XCTAssertEqual(sync.details.stages.count, 4); XCTAssertEqual(sync.record_date, "2026-11-11")
+        saved.note = "保留笔记"; try context.save()
+        await store.analyze(report, account: account, context: context)
+        XCTAssertEqual(calls, 1)
+        try BIONight.save(BIONight.payloads(report: report, history: WearableHistoryDecoder.decode(report)), in: context)
+        XCTAssertEqual(saved.metadata?.bioNight?.algorithm, BIOLocalSleep.version)
+        XCTAssertEqual(saved.note, "保留笔记"); XCTAssertEqual(saved.minutes(.rem), 231)
+        let status = try JSONDecoder().decode(BIOAnalysisDiagnostic.self, from: Data(contentsOf: directory.appendingPathComponent("bio-sleep-status.json")))
+        XCTAssertEqual(status.engine, BIOLocalSleep.version); XCTAssertNil(status.httpStatus)
+    }
+
+    func testLocalFailureForOneDateDoesNotBlockLaterDatesOrGenerateStages() async throws {
+        var report = try report(day: "2026-11-11", previous: "2026-11-10")
+        report.records += try self.report(day: "2026-11-05", previous: "2026-11-04").records
+        let account = await account { _ in XCTFail("No network needed"); return (503, Data()) }
+        let db = try container()
+        var dates: [Int] = []
+        let store = BIOAlgorithmStore(worker: WearableProbeWorker(), directory: directory, localCalculation: { request in
+            dates.append(request.recordDate)
+            if request.recordDate == 20261105 { throw SleepDataError.invalidRecord }
+            return BIOSleepAlgorithmResult(completed: 0, start_time: "", end_time: "", sections: [])
+        })
+        await store.analyze(report, account: account, context: db.mainContext)
+        await store.analyze(report, account: account, context: db.mainContext)
+        XCTAssertEqual(dates, [20261105,20261111])
+        XCTAssertTrue(try db.mainContext.fetch(FetchDescriptor<SleepRecord>()).allSatisfy { !$0.hasSleepDuration && $0.segments.isEmpty })
+    }
+
+    func testLocalRRIKeepsDayOrderAndSignedControlsWithoutFillingGaps() {
+        let input = BIOSleepAlgorithmRequest(recordDate: 20261111, device_id: "", prevDay: "[]", nextDay: "[]",
+            prevDayRri: [-3,2300,-1,-1,800], nextDayRri: [-3,5,900,-2])
+        XCTAssertEqual(BIOLocalSleep.rri(input).map(\.intValue), [-3,2300,-1,800,-1000,-3,5,900,-2])
+    }
 }

@@ -2,7 +2,7 @@ import Foundation
 import SwiftProtobuf
 import SwiftData
 
-/// Matches the manufacturer's SleepPreprocessor, not an on-device sleep algorithm.
+/// Matches the manufacturer's input format for local and cloud sleep algorithms.
 struct BIOSleepAlgorithmRequest: Codable {
     var recordDate: Int
     var device_id: String
@@ -139,6 +139,10 @@ extension WearableProbeWorker {
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         try? data.write(to: base.appendingPathComponent("bio-sleep-status.json"),
                         options: [.atomic, .completeFileProtectionUnlessOpen])
+        if let day = status.recordDate, (20000101...21001231).contains(day) {
+            try? data.write(to: base.appendingPathComponent("bio-sleep-status-\(day).json"),
+                            options: [.atomic, .completeFileProtectionUnlessOpen])
+        }
     }
 }
 
@@ -152,11 +156,13 @@ struct BIOAnalysisDiagnostic: Codable {
     var httpStatus: Int?
     var stageCount: Int
     var message: String
+    var engine: String? = nil
 }
 
 enum BIOSleepResultAdapter {
     /// Reject overlaps/unknown codes. Uncovered intervals stay unknown, not awake.
-    static func payload(_ result: BIOSleepAlgorithmResult, observation: SleepPayload) throws -> SleepPayload {
+    static func payload(_ result: BIOSleepAlgorithmResult, observation: SleepPayload,
+                        algorithm: String = "vendor-cloud-sleep-v1") throws -> SleepPayload {
         guard observation.metadata?.bioNight != nil, (0...1).contains(result.completed), !result.sections.isEmpty else { throw SleepDataError.invalidRecord }
         let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.calendar = StepDates.calendar; formatter.timeZone = StepDates.timeZone; formatter.dateFormat = "yyyy-MM-dd HH:mm"; formatter.isLenient = false
@@ -173,7 +179,7 @@ enum BIOSleepResultAdapter {
         if cursor < end { segments.append(.init(stage: .unobserved, start: cursor, end: end)) }
         guard segments.contains(where: { $0.stage.isAsleep }) else { throw SleepDataError.invalidRecord }
         var payload = observation; payload.start = start; payload.end = end; payload.segments = segments
-        payload.metadata?.bioNight?.algorithm = "vendor-cloud-sleep-v1"
+        payload.metadata?.bioNight?.algorithm = algorithm
         payload.metadata?.bioNight?.algorithmResult = result
         let samples = observation.metadata!.bioNight!.samples.filter { sample in segments.contains { $0.stage.isAsleep && sample.date >= $0.start && sample.date < $0.end } }
         func mean(_ kind: VitalKind) -> Double? { let values = samples.filter { $0.kind == kind }.map(\.value); return values.isEmpty ? nil : values.reduce(0,+)/Double(values.count) }

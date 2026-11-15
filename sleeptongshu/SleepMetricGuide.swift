@@ -79,7 +79,7 @@ enum SleepMetricGuide {
         var summary = isSleepStage
             ? "本晚 \(record.minutes(stage)) 分钟，\(record.share(stage).map { "占睡眠的 \($0)%" } ?? "资料不完整，暂不计算占比")。\n计算：这个阶段的时间 ÷ 睡着的总时间 × 100%，显示整数，小数不计。"
             : "本晚\(stage.label) \(record.minutes(stage)) 分钟。"
-        if record.source == .healthKit {
+        if record.source == .healthKit || record.metadata?.bioNight != nil {
             if stage == .awake && record.awakeMinutes == nil { summary = "本次未汇总清醒时长：覆盖不完整，或来源未提供清醒分期。" }
             else if isSleepStage && !record.segments.contains(where: { $0.stage == stage }) {
                 summary = "本次来源未提供\(stage.label)记录，不推算时长或占比。"

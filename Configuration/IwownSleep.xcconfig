@@ -1,0 +1,4 @@
+// The supplied archive contains an iPhone arm64 slice, not an arm64 simulator slice.
+SWIFT_OBJC_BRIDGING_HEADER = sleeptongshu/AppBridge.h
+GCC_PREPROCESSOR_DEFINITIONS[sdk=iphoneos*] = $(inherited) SLEEP_IWOWN_LOCAL=1
+OTHER_LDFLAGS[sdk=iphoneos*] = $(inherited) -force_load "$(SRCROOT)/Vendor/IwownSleep/IVSleep.a" -lc++

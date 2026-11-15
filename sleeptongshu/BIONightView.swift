@@ -31,7 +31,7 @@ struct BIONightView: View {
                 }
                 Text(record.metadata?.externalSource ?? "蓝牙设备").font(.subheadline).foregroundStyle(SleepPalette.muted)
                 Text("先看已有的真实记录").font(.title2.weight(.semibold)).foregroundStyle(SleepPalette.ink)
-                Text("深睡、浅睡、快速眼动和清醒次数尚未返回。以下为夜间实际采样，不能据此判断睡着时长。")
+                Text("尚未取得有效的睡眠阶段。以下为夜间实际采样，不能据此判断睡着时长。")
                     .font(.subheadline).foregroundStyle(SleepPalette.muted).fixedSize(horizontal: false, vertical: true)
                 Label("观测 \(record.displayClock(record.start))–\(record.displayClock(record.end))", systemImage: "clock")
                     .font(.subheadline.weight(.medium)).foregroundStyle(SleepPalette.ink)
@@ -70,13 +70,17 @@ struct BIONightView: View {
             }
             VStack(alignment: .leading, spacing: 8) {
                 Label("睡眠分析进度", systemImage: "waveform.path").font(.subheadline.weight(.semibold))
-                Text(observation ? "已收到设备的夜间记录，正在检查睡眠分析所需的数据和服务。" : (night.algorithmResult?.completed == 1 ? "已取得设备睡眠结果。" : "当前为阶段性结果，下次同步时继续更新。"))
+                Text(observation ? "已收到设备的夜间记录，正在检查睡眠分析所需的数据。" : (night.algorithm.hasPrefix("vendor-local-") ? "已在手机上计算睡眠阶段，新记录同步后会继续更新。" : (night.algorithmResult?.completed == 1 ? "已取得设备睡眠结果。" : "当前为阶段性结果，下次同步时继续更新。")))
                     .font(.caption).foregroundStyle(SleepPalette.muted)
                 Text("同步读取 \(night.readAt.formatted(date: .abbreviated, time: .shortened))")
                     .font(.caption2).foregroundStyle(SleepPalette.muted)
                 Text(algorithm.status(for: night) ?? (observation ? "该日期尚无已确认的睡眠分期结果。" : "此记录的阶段来自设备睡眠分析。"))
                     .font(.caption).foregroundStyle(SleepPalette.muted).accessibilityIdentifier("bioSleepAnalysisStatus")
-                Text("启用自动同步后，睡眠原始输入经你的平台提交厂家云算法；有效分期返回后自动更新，不发送原始录音。")
+                if !observation && !record.segments.contains(where: { $0.stage == .rem }) {
+                    Text("本晚未返回快速眼动阶段，暂不显示其时长和占比，也不据此判断为零。")
+                        .font(.caption).foregroundStyle(SleepPalette.muted)
+                }
+                Text(BIOLocalSleep.available ? "使用设备的睡眠原始记录和心跳间隔，在手机本地计算睡眠阶段；缺失阶段不按比例补齐。账号数据上传仍由自动同步设置控制。" : "此运行环境未启用本地算法。启用自动同步后，睡眠原始输入经平台提交厂家算法服务，有效结果返回后更新。")
                     .font(.caption2).foregroundStyle(SleepPalette.muted)
             }
         }

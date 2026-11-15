@@ -54,7 +54,7 @@ struct BIONight: Codable {
                     payload.start = min(old.start, incoming.start); payload.end = max(old.end, incoming.end)
                     payload.note = old.note
                     if let result = previous.algorithmResult {
-                        payload = (try? BIOSleepResultAdapter.payload(result, observation: payload)) ?? old.payload
+                        payload = (try? BIOSleepResultAdapter.payload(result, observation: payload, algorithm: previous.algorithm)) ?? old.payload
                     }
                     try payload.validate(); old.replace(with: payload)
                 } else { context.insert(SleepRecord(incoming)) }

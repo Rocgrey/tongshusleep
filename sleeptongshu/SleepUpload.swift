@@ -36,7 +36,8 @@ struct SleepUploadRequest: Codable {
         sleep_score = record.score
         let stagesComplete = record.hasStages && !record.segments.contains { [.unspecified, .unobserved, .inBed].contains($0.stage) }
         func stageMinutes(_ stage: SleepStage) -> Int? {
-            guard stagesComplete, record.source != .healthKit || record.segments.contains(where: { $0.stage == stage }) else { return nil }
+            guard stagesComplete,
+                  (record.source != .healthKit && record.metadata?.bioNight == nil) || record.segments.contains(where: { $0.stage == stage }) else { return nil }
             return record.minutes(stage)
         }
         deep_sleep_minutes = stageMinutes(.deep)

@@ -71,6 +71,13 @@ import SwiftProtobuf
         var partial = result; partial.sections[1].start = "2026-11-11 01:10"
         let incomplete = SleepRecord(try BIOSleepResultAdapter.payload(partial, observation: observation))
         XCTAssertNil(incomplete.awakeMinutes); XCTAssertNil(incomplete.awakenings); XCTAssertNil(incomplete.efficiency)
+        var noREM = result
+        noREM.sections[3].type = 4
+        let missingREM = SleepRecord(try BIOSleepResultAdapter.payload(noREM, observation: observation, algorithm: BIOLocalSleep.version))
+        XCTAssertNil(missingREM.share(.rem))
+        let upload = try SleepUploadRequest(record: missingREM).encoded()
+        let fields = try XCTUnwrap(JSONSerialization.jsonObject(with: upload) as? [String: Any])
+        XCTAssertNil(fields["rem_minutes"]); XCTAssertNil(fields["isi_score"])
     }
     func testAlgorithmPreprocessorPreservesSignedRRIAndRequiresRealDeviceID() throws {
         var report = WearableProbeReport(deviceName: "测试", deviceKey: "test")
