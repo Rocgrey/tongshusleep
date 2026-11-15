@@ -112,6 +112,14 @@ struct RootTabView: View {
             let requests = syncRequests
             while !Task.isCancelled {
                 await automaticSync.sync(requests, session: account.session, service: account.client.serviceID, api: AutomaticSyncAPI(client: account.client))
+                do { try await Task.sleep(for: .seconds(45)) } catch { return }
+            }
+        }
+        .task(id: "bio|\(account.session?.accessToken ?? "")|\(autoSync)|\(scenePhase == .active)|\(scanner.wearable.report?.finishedAt?.timeIntervalSince1970 ?? 0)") {
+            if account.session == nil || !autoSync { bioAlgorithm.reset() }
+            guard autoSync, scenePhase == .active, !ProcessInfo.processInfo.arguments.contains("-ui-testing") else { return }
+            // Sleep analysis must not wait for a backlog of ordinary health uploads.
+            while !Task.isCancelled {
                 await bioAlgorithm.analyze(scanner.wearable.report, account: account, context: context)
                 do { try await Task.sleep(for: .seconds(45)) } catch { return }
             }

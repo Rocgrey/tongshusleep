@@ -70,11 +70,12 @@ struct BIONightView: View {
             }
             VStack(alignment: .leading, spacing: 8) {
                 Label("睡眠分析进度", systemImage: "waveform.path").font(.subheadline.weight(.semibold))
-                Text(observation ? "已收到设备的夜间记录。睡眠阶段尚未生成，结果返回后会自动更新。" : (night.algorithmResult?.completed == 1 ? "已取得设备睡眠结果。" : "当前为阶段性结果，下次同步时继续更新。"))
+                Text(observation ? "已收到设备的夜间记录，正在检查睡眠分析所需的数据和服务。" : (night.algorithmResult?.completed == 1 ? "已取得设备睡眠结果。" : "当前为阶段性结果，下次同步时继续更新。"))
                     .font(.caption).foregroundStyle(SleepPalette.muted)
                 Text("同步读取 \(night.readAt.formatted(date: .abbreviated, time: .shortened))")
                     .font(.caption2).foregroundStyle(SleepPalette.muted)
-                Text(algorithm.message).font(.caption).foregroundStyle(SleepPalette.muted)
+                Text(algorithm.status(for: night) ?? (observation ? "该日期尚无已确认的睡眠分期结果。" : "此记录的阶段来自设备睡眠分析。"))
+                    .font(.caption).foregroundStyle(SleepPalette.muted).accessibilityIdentifier("bioSleepAnalysisStatus")
                 Text("启用自动同步后，睡眠原始输入经你的平台提交厂家云算法；有效分期返回后自动更新，不发送原始录音。")
                     .font(.caption2).foregroundStyle(SleepPalette.muted)
             }

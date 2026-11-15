@@ -55,7 +55,7 @@ struct BIOSleepAlgorithmRequest: Codable {
             return String(decoding: try JSONSerialization.data(withJSONObject: values, options: [.sortedKeys]), as: UTF8.self)
         }
         func rri(_ day: String) -> [Int] { (rris[day] ?? [:]).sorted { $0.key < $1.key }.flatMap(\.value) }
-        return try days.keys.sorted().suffix(3).compactMap { day in
+        return try days.keys.sorted().suffix(14).compactMap { day in
             guard let date = StepDates.date(day), let recordDate = Int(day.replacingOccurrences(of: "-", with: "")) else { return nil }
             let previous = StepDates.format(StepDates.calendar.date(byAdding: .day, value: -1, to: date)!)
             guard days[previous] != nil else { return nil }
@@ -75,6 +75,85 @@ struct BIOSleepAlgorithmEnvelope: Decodable {
     var message: String
     var result: BIOSleepAlgorithmResult?
 }
+
+struct BIOPreparedSleep {
+    var report: WearableProbeReport
+    var observations: [SleepPayload]
+    var requests: [BIOSleepAlgorithmRequest]
+    var bodies: [Data]
+}
+
+enum BIOArchiveSleepInput {
+    /// Only the same verified physical device may contribute. Sequence numbers can
+    /// wrap, so dedupe by complete wire record here and by measurement time in make().
+    static func merge(_ reports: [WearableProbeReport], current: WearableProbeReport) -> WearableProbeReport {
+        var merged = current
+        merged.records = []
+        var seen: Set<String> = []
+        for report in (reports + [current]).sorted(by: { $0.startedAt < $1.startedAt }) {
+            guard report.finishedAt != nil, report.deviceKey == current.deviceKey,
+                  report.algorithmDeviceID == current.algorithmDeviceID,
+                  WearableHistoryDecoder.isBIO(model: report.observedModel, firmware: report.observedFirmware) else { continue }
+            for row in report.records where row.type == 0 || row.type == 4 {
+                let key = "\(row.type)|\(row.protobufBase64 ?? row.protobufJSON)"
+                if seen.insert(key).inserted { merged.records.append(row) }
+            }
+        }
+        return merged
+    }
+}
+
+extension WearableProbeWorker {
+    func prepareSleep(_ current: WearableProbeReport, owner: String,
+                      base: URL = WearableProbeStorage.directory) throws -> BIOPreparedSleep {
+        guard try RawSensorPendingStorage.claim(capture: RawSensorBatchRequest.captureID(current), scope: owner, base: base) else {
+            throw APIError.validation("本次设备采集属于其他账号，请使用当前账号重新连接设备。")
+        }
+        var reports: [WearableProbeReport] = []
+        let files = (try? FileManager.default.contentsOfDirectory(at: base, includingPropertiesForKeys: [.fileSizeKey])) ?? []
+        var bytesRead = 0
+        for file in files.filter({ $0.lastPathComponent.hasPrefix("probe-") && $0.pathExtension == "json" })
+            .sorted(by: { $0.lastPathComponent > $1.lastPathComponent }).prefix(12) {
+            let size = try file.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+            guard bytesRead + size <= 64_000_000 else { break }
+            bytesRead += size
+            guard let data = try? Data(contentsOf: file),
+                  let report = try? JSONDecoder().decode(WearableProbeReport.self, from: data),
+                  report.finishedAt != nil, !report.records.isEmpty,
+                  report.deviceKey == current.deviceKey,
+                  report.algorithmDeviceID == current.algorithmDeviceID else { continue }
+            guard try RawSensorPendingStorage.claim(capture: RawSensorBatchRequest.captureID(report), scope: owner, base: base) else { continue }
+            reports.append(report)
+        }
+        let report = BIOArchiveSleepInput.merge(reports, current: current)
+        let requests = try BIOSleepAlgorithmRequest.make(report)
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
+        return BIOPreparedSleep(report: report,
+            observations: BIONight.payloads(report: report, history: WearableHistoryDecoder.decode(report)),
+            requests: requests, bodies: try requests.map { try encoder.encode($0) })
+    }
+
+    /// Status only: no tokens, device address, raw arrays or vendor credentials.
+    func saveSleepDiagnostic(_ status: BIOAnalysisDiagnostic, base: URL = WearableProbeStorage.directory) {
+        guard let data = try? JSONEncoder().encode(status) else { return }
+        try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+        try? data.write(to: base.appendingPathComponent("bio-sleep-status.json"),
+                        options: [.atomic, .completeFileProtectionUnlessOpen])
+    }
+}
+
+struct BIOAnalysisDiagnostic: Codable {
+    var updatedAt = Date.now
+    var recordDate: Int?
+    var inputRecordCount: Int
+    var previousDayRRI: Int
+    var nextDayRRI: Int
+    var returnCode: Int?
+    var httpStatus: Int?
+    var stageCount: Int
+    var message: String
+}
+
 enum BIOSleepResultAdapter {
     /// Reject overlaps/unknown codes. Uncovered intervals stay unknown, not awake.
     static func payload(_ result: BIOSleepAlgorithmResult, observation: SleepPayload) throws -> SleepPayload {
