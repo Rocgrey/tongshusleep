@@ -117,6 +117,45 @@ final class WearableHistoryTests: XCTestCase {
         XCTAssertEqual(WearableHistoryDecoder.battery(try XCTUnwrap(decoded.batteryLevel0To9), model: decoded.observedModel, firmware: decoded.observedFirmware)?.text, "100%")
     }
 
+    func testDirectoryTimePrioritizesNewLowSequencesAfterCircularBufferWrap() {
+        func block(_ start: UInt32, _ end: UInt32, _ day: String) -> IW_HisIndex {
+            var value = IW_HisIndex(); value.startSeq = start; value.endSeq = end
+            value.time.seconds = UInt32(StepDates.date(day)!.timeIntervalSince1970 + 28800)
+            return value
+        }
+        let old = block(3000, 4000, "2026-11-13")
+        let recent = block(0, 799, "2026-11-16")
+        let today = block(800, 999, "2026-11-17")
+        let ranges = WearableProbeProtocol.sampleRanges([old, today, recent], limit: 1200)
+        XCTAssertEqual(ranges.first, 800...999)
+        let values = Set(ranges.flatMap(Array.init))
+        XCTAssertEqual(values, Set(UInt32(0)...999).union(UInt32(3801)...4000))
+        XCTAssertEqual(values.count, 1200)
+        XCTAssertTrue(ranges.allSatisfy { $0.count <= 240 })
+        XCTAssertEqual(WearableProbeProtocol.sampleRanges([old, recent], limit: 200), [600...799])
+    }
+
+    func testOverlappingDirectoriesNeverSpendBudgetTwiceOrDiscardUncoveredTail() {
+        var a = IW_HisIndex(); a.startSeq = 10; a.endSeq = 20
+        a.time.seconds = 1_790_000_000
+        var b = IW_HisIndex(); b.startSeq = 0; b.endSeq = 30
+        b.time.seconds = 1_789_000_000
+        let ranges = WearableProbeProtocol.sampleRanges([b, a, a], limit: 31, chunk: 7)
+        XCTAssertEqual(Set(ranges.flatMap(Array.init)), Set(UInt32(0)...30))
+        XCTAssertEqual(ranges.first, 10...16)
+        XCTAssertEqual(WearableProbeProtocol.sampleRanges([a, b], limit: 12).last, 30...30)
+    }
+
+    func testDirectoryDiagnosticsAreOptionalForOldReportsAndRoundTripWireClock() throws {
+        let old = Data(#"{"type":0,"name":"健康","state":"完成","available":3,"received":3}"#.utf8)
+        var channel = try JSONDecoder().decode(WearableProbeChannel.self, from: old)
+        XCTAssertNil(channel.directoryEntries)
+        channel.directoryEntries = [.init(start: 0, end: 2, deviceSeconds: 1_790_000_000)]
+        let restored = try JSONDecoder().decode(WearableProbeChannel.self, from: JSONEncoder().encode(channel))
+        XCTAssertEqual(restored.directoryEntries?.first?.deviceSeconds, 1_790_000_000)
+        XCTAssertEqual(restored.directoryEntries?.first?.start, 0)
+    }
+
     func testLocalPrivateReportWhenAvailable() throws {
         // Optional local replay: no personal report or raw samples are committed to the repo.
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()

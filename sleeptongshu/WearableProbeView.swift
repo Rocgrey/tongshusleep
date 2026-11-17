@@ -40,6 +40,10 @@ struct WearableProbePanel: View {
                     Text(rawSync.message).font(.caption).foregroundStyle(SleepPalette.muted)
                 }
                 if let history = client.history, !history.vitals.isEmpty {
+                    if let first = history.rows.first, let last = history.rows.last {
+                        Text("实际历史日期：\(StepDates.format(first.date)) 至 \(StepDates.format(last.date))")
+                            .font(.caption).foregroundStyle(SleepPalette.muted)
+                    }
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 85), alignment: .leading)], alignment: .leading, spacing: 12) {
                         preview("最近心率", value: history.rows.reversed().compactMap(\.heart).first, unit: "次/分")
                         preview("最近血氧", value: history.rows.reversed().compactMap(\.oxygen).first, unit: "%")

@@ -26,27 +26,50 @@ enum WearableProbeProtocol {
         return WearableFrame(opcode: 0x70, payload: try request.serializedData())
     }
 
-    /// Bound unique sequences across directory blocks. Adjacent transport chunks overlap
+    /// Directory time, not sequence magnitude, orders history after the device's ring
+    /// buffer wraps. Adjacent transport chunks overlap
     /// one endpoint so both observed exclusive-end firmware and older firmware can respond.
     /// Received packets are deduplicated by type/sequence; the final boundary stays explicit.
     static func sampleRanges(_ indexes: [IW_HisIndex], limit: UInt32, chunk: UInt32 = 240) -> [ClosedRange<UInt32>] {
         guard limit > 0, chunk > 1 else { return [] }
-        let ordered = indexes.filter { $0.startSeq <= $0.endSeq }.sorted { $0.endSeq > $1.endSeq }
-        var remaining = UInt64(limit), ceiling = UInt64(UInt32.max) + 1
+        let ordered = indexes.enumerated().filter { $0.element.startSeq <= $0.element.endSeq }.sorted { a, b in
+            let x = a.element, y = b.element
+            let tx = x.hasTime && x.time.hasSeconds && x.time.seconds >= 946684800 ? x.time.seconds : nil
+            let ty = y.hasTime && y.time.hasSeconds && y.time.seconds >= 946684800 ? y.time.seconds : nil
+            if tx != ty { return (tx ?? 0) > (ty ?? 0) }
+            if x.endSeq != y.endSeq { return x.endSeq > y.endSeq }
+            return a.offset < b.offset
+        }.map(\.element)
+        var remaining = UInt64(limit)
+        var covered: [ClosedRange<UInt64>] = []
         var result: [ClosedRange<UInt32>] = []
         for index in ordered {
-            let low = UInt64(index.startSeq), high = min(UInt64(index.endSeq), ceiling - 1)
-            guard ceiling > 0, high >= low, remaining > 0 else { continue }
-            let take = min(remaining, high - low + 1), start = high - (take - 1)
-            var cursor = start
-            while cursor <= high {
-                let end = min(high, cursor + UInt64(chunk) - 1)
-                result.append(UInt32(cursor)...UInt32(end))
-                if end == high { break }
-                cursor = end
+            guard remaining > 0 else { break }
+            // Subtract intervals already requested. A single numeric ceiling would
+            // discard older high-sequence blocks after a newer low-sequence block.
+            var fragments = [UInt64(index.startSeq)...UInt64(index.endSeq)]
+            for previous in covered {
+                fragments = fragments.flatMap { range -> [ClosedRange<UInt64>] in
+                    guard range.overlaps(previous) else { return [range] }
+                    var parts: [ClosedRange<UInt64>] = []
+                    if range.lowerBound < previous.lowerBound { parts.append(range.lowerBound...(previous.lowerBound - 1)) }
+                    if previous.upperBound < range.upperBound { parts.append((previous.upperBound + 1)...range.upperBound) }
+                    return parts
+                }
             }
-            remaining -= take; ceiling = start
-            if remaining == 0 || ceiling == 0 { break }
+            for range in fragments.reversed() where remaining > 0 {
+                let high = range.upperBound
+                let take = min(remaining, high - range.lowerBound + 1), start = high - (take - 1)
+                var cursor = start
+                while cursor <= high {
+                    let end = min(high, cursor + UInt64(chunk) - 1)
+                    result.append(UInt32(cursor)...UInt32(end))
+                    if end == high { break }
+                    cursor = end
+                }
+                covered.append(start...high)
+                remaining -= take
+            }
         }
         return result
     }
@@ -553,6 +576,10 @@ final class WearableProbeClient: ObservableObject {
         switch notification.data {
         case .indexTable(let table):
             indexes[type] = Array(table.index.prefix(128))
+            report?.channels[index].directoryEntries = indexes[type]?.map {
+                WearableProbeIndex(start: $0.startSeq, end: $0.endSeq,
+                    deviceSeconds: $0.hasTime && $0.time.hasSeconds ? $0.time.seconds : nil)
+            }
             report?.channels[index].available = table.index.reduce(UInt64(0)) {
                 $0 + ($1.endSeq >= $1.startSeq ? UInt64($1.endSeq) - UInt64($1.startSeq) + 1 : 0)
             }

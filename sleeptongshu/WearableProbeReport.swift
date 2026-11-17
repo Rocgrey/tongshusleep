@@ -9,7 +9,15 @@ struct WearableProbeChannel: Codable, Identifiable {
     var requestedStart: UInt32? = nil
     var requestedEnd: UInt32? = nil
     var requestedRanges: [WearableProbeRange]? = nil
+    var directoryEntries: [WearableProbeIndex]? = nil
     var id: Int { type }
+}
+
+struct WearableProbeIndex: Codable {
+    var start: UInt32
+    var end: UInt32
+    /// Preserve the wire clock; this is not a UTC instant or a sleep timestamp.
+    var deviceSeconds: UInt32?
 }
 
 struct WearableProbeRange: Codable {
