@@ -34,6 +34,18 @@ final class AccountUITests: XCTestCase {
         show(app.buttons["accountSubmit"])
         app.buttons["accountSubmit"].tap()
     }
+    func testForgotPasswordExplainsBoundEmailAndUnavailableServiceWithoutFakeSuccess() {
+        let forgot = app.buttons["accountForgotPassword"]
+        show(forgot); forgot.tap()
+        XCTAssertTrue(app.navigationBars["忘记密码"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["recoveryUnavailable"].exists)
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "已绑定并验证")).firstMatch.exists)
+        XCTAssertFalse(app.buttons["recoverySubmit"].exists)
+        let back = app.buttons["recoveryBackToLogin"]
+        show(back); capture("76-email-recovery-pending"); back.tap()
+        XCTAssertTrue(app.segmentedControls["accountMode"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.tabBars.buttons["健康"].exists)
+    }
     func testRegisterReturnsToEmailLoginThenProfileAndLogoutWork() {
         capture("60-email-login")
         XCTAssertTrue(app.switches["accountRemember"].exists)

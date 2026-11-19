@@ -44,6 +44,7 @@ struct AccountLoginView: View {
     @State private var registrationNotice: String?
     @AppStorage("accountRememberLogin") private var remember = true
     @State private var showsError = false
+    @State private var showsRecovery = false
     @FocusState private var focused: Field?
     private enum Field { case username, phone, email, password, confirmation }
     private var passwordContentType: UITextContentType {
@@ -107,6 +108,10 @@ struct AccountLoginView: View {
                     } else {
                         Toggle("记住登录", isOn: $remember).font(.system(size: 14)).tint(SleepPalette.teal)
                             .accessibilityIdentifier("accountRemember")
+                        Button("忘记密码") {
+                            focused = nil; password = ""; showsRecovery = true
+                        }.font(.system(size: 14)).foregroundStyle(SleepPalette.teal)
+                            .frame(minHeight: 44).accessibilityIdentifier("accountForgotPassword")
                     }
                 }.disabled(account.isLoading)
                 if let message = account.message ?? registrationNotice {
@@ -135,6 +140,10 @@ struct AccountLoginView: View {
                     .font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
             }.padding(.horizontal, 26).padding(.bottom, 32).frame(maxWidth: 460).frame(maxWidth: .infinity)
         }.scrollDismissesKeyboard(.interactively).background(SleepPalette.background).foregroundStyle(SleepPalette.ink)
+            .navigationDestination(isPresented: $showsRecovery) {
+                PasswordRecoveryView(client: account.client, method: method, phone: phone, email: email)
+                    .toolbar(.visible, for: .navigationBar)
+            }
             .submitLabel(.done).onSubmit { focused = nil }
             .onChange(of: register) { _, _ in password = ""; confirmation = ""; account.message = nil; focused = nil }
             .toolbar {

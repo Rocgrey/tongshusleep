@@ -29,10 +29,13 @@ enum AccountInput {
         return value
     }
     static func email(_ input: String) -> String { input.trimmingCharacters(in: .whitespacesAndNewlines) }
-    static func validate(email: String, password: String, username: String? = nil, confirmation: String? = nil) throws {
+    static func validateEmail(_ email: String) throws {
         guard email.count <= 254, email.range(of: "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$", options: .regularExpression) != nil else {
             throw APIError.validation("请填写完整的邮箱地址。")
         }
+    }
+    static func validate(email: String, password: String, username: String? = nil, confirmation: String? = nil) throws {
+        try validateEmail(email)
         if let username {
             guard username.range(of: "^[a-zA-Z0-9_\\u4e00-\\u9fa5]{3,32}$", options: .regularExpression) != nil else {
                 throw APIError.validation("用户名用 3～32 位中文、字母、数字或下划线。")
