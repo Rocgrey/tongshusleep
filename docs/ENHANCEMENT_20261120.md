@@ -2,7 +2,7 @@
 
 ## 版本保护与项目
 
-本次不修改主分支，不部署线上服务，不迁移生产数据库，不覆盖安装现有 iPhone App。
+本文记录增强功能的隔离开发过程。用户随后确认作为原 sleeptongshu 的 0.4.0（21）升级，已整合回 main 与原工作区，使用原 Bundle ID 原位安装；不是独立 App。当前交付与 WorkBuddy 部署步骤以 `RELEASE_V040.md` 为准。仍不部署线上服务、不操作生产数据库。
 
 | 项目 | 本地绝对路径 | 分支 | 增强前基线 / 稳定标签 |
 |---|---|---|---|
@@ -10,8 +10,8 @@
 | FastAPI / Web | `/Users/ts/Documents/Codex/2026-10-23/sleep-tongshu-web-enhanced` | `codex/native-content-enhancement-20261120` | `891aef31` / `stable/pre-content-enhancement-20261120` |
 | 原工作区 | `/Users/ts/Documents/Codex/2026-10-23/app-10pro-app-ios-app-app` | 原分支保持不变 | 两个工程文件的原有未提交改动及原截图均未覆盖 |
 
-原工作区的跟踪文件补丁另存于其忽略目录 `work/pre-enhancement-user-project-edits-20261120.patch`。
-增强版工作区不继承或覆盖这两个尚未提交的工程设置。最终提交以各分支 `git log -1` 为准。
+上表为最初隔离开发的工作区与基线，不是不同产品。当前 iOS 主工作区为 `/Users/ts/Documents/Codex/2026-10-23/app-10pro-app-ios-app-app`，两个仓库均以 main 交付。
+原工作区的跟踪文件补丁另存于忽略目录 `work/pre-enhancement-user-project-edits-20261120.patch`，原有两个工程设置与截图保持未提交，不混入版本提交。最终提交以各仓库 `git log -1` 为准。
 
 ## 页面映射
 
@@ -123,7 +123,7 @@ xcodebuild -project sleeptongshu-Ring.xcodeproj -scheme sleeptongshu-Ring \
 
 模拟器测试使用现有显式 `-ui-testing` 测试记录，不宣称采到真实睡眠。
 普通模拟器构建、戒指真机目标无签名构建、单元与新增界面测试见 `VALIDATION_ENHANCED.md`。
-手机没有覆盖安装。安装前请先审查本分支变更、签名配置与数据保留方案。
+初始隔离验收没有覆盖安装手机；后续用户已要求原位升级，版本号、签名与安装核对见 `RELEASE_V040.md`。
 
 ## 后端部署前必须审查
 
