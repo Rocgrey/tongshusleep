@@ -2,7 +2,8 @@ import XCTest
 
 final class SleepClassroomUITests: XCTestCase {
     private func capture(_ app: XCUIApplication, _ name: String) {
-        let image = XCTAttachment(screenshot: app.screenshot())
+        // App screenshots can crop a programmatically rotated scene to portrait bounds.
+        let image = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         image.name = "enhanced-test-" + name; image.lifetime = .keepAlways; add(image)
     }
     func testNativeClassroomReadingBreathingAndThemes() {
@@ -50,6 +51,7 @@ final class SleepClassroomUITests: XCTestCase {
     }
 
     func testFullCourseLabelsProductAndFastTabNavigation() {
+        continueAfterFailure = false
         let app = XCUIApplication()
         app.launchArguments = ["-ui-testing", "-ui-testing-reset-theme", "-ui-testing-light"]
         app.launch()
@@ -60,10 +62,34 @@ final class SleepClassroomUITests: XCTestCase {
         }
         let course = app.descendants(matching: .any).matching(identifier: "classroomItem-insomnia-course").firstMatch
         XCTAssertTrue(course.waitForExistence(timeout: 5)); course.tap()
-        XCTAssertTrue(app.staticTexts["完整播放"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["课程播放"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["横屏播放"].exists)
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "试看")).firstMatch.exists)
-        capture(app, "full-course-chapters")
-        app.navigationBars.buttons.firstMatch.tap()
+        capture(app, "full-course-player")
+        let nextChapter = app.buttons["playLesson-course-l2"]
+        if !nextChapter.isHittable { app.swipeUp() }
+        XCTAssertTrue(nextChapter.waitForExistence(timeout: 5)); nextChapter.tap()
+        let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", "当前播放"), object: nextChapter)
+        XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: 5), .completed)
+        capture(app, "selected-second-chapter")
+        app.buttons["横屏播放"].tap()
+        let landscape = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            app.frame.width > app.frame.height
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [landscape], timeout: 8), .completed)
+        XCTAssertTrue(app.descendants(matching: .any)["classroomLandscapeSurface"].waitForExistence(timeout: 5))
+        // Geometry changes before UIKit's rotation animation has finished.
+        let rotationFinished = expectation(description: "Landscape animation settled")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { rotationFinished.fulfill() }
+        wait(for: [rotationFinished], timeout: 3)
+        capture(app, "landscape-player")
+        app.buttons["退出横屏"].tap()
+        let portrait = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            app.frame.height > app.frame.width
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [portrait], timeout: 8), .completed)
+        app.buttons["完成"].tap()
+        XCTAssertGreaterThan(app.frame.height, app.frame.width)
         app.segmentedControls["classroomSections"].buttons["产品"].tap()
         XCTAssertTrue(app.buttons["productImage-jd-sleep-device"].exists)
         capture(app, "verified-jd-product")

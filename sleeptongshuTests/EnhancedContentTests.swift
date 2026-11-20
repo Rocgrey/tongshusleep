@@ -124,6 +124,43 @@ private final class ContentTransport: URLProtocol {
             product.external_url = url; XCTAssertNil(product.purchaseURL)
         }
     }
+    func testPublishedNewCourseChaptersAndProductsRefreshWithoutAppRelease() async throws {
+        let store = ContentStore(directory: directory)
+        var course = item("new-course"); course.kind = "course"
+        var later = item("new-lesson-2"); later.kind = "chapter"; later.parent_id = course.id
+        later.sort_order = 2; later.media_url = "https://vid.sleep.phoenixtreeai.com/video/synthetic-new-2.mp4"
+        var first = item("new-lesson-1"); first.kind = "chapter"; first.parent_id = course.id
+        first.sort_order = 1; first.media_url = "https://vid.sleep.phoenixtreeai.com/video/synthetic-new-1.mp4"
+        var product = item("new-product"); product.kind = "product"
+        product.external_url = "https://item.m.jd.com/product/123.html"
+        ContentTransport.handler = { [self] _ in (200, try page([course, later, first, product])) }
+        await store.refresh(client: client)
+        XCTAssertEqual(store.courses.map(\.id), [course.id])
+        XCTAssertEqual(store.playableLessons(for: course).map(\.id), [first.id, later.id])
+        XCTAssertEqual(store.playableLessons(for: later).map(\.id), [first.id, later.id])
+        XCTAssertEqual(store.items.first(where: { $0.kind == "product" })?.purchaseURL?.absoluteString, product.external_url)
+        later.media_url = "https://vid.sleep.phoenixtreeai.com/video/synthetic-replacement.mp4"
+        product.external_url = "https://item.m.jd.com/product/456.html"
+        ContentTransport.handler = { [self] request in
+            if request.url!.path.hasSuffix("/" + later.id) { return (200, try JSONEncoder().encode(later)) }
+            return (200, try page([course, later, product]))
+        }
+        let updated = try await store.freshItem(later.id, client: client)
+        XCTAssertEqual(updated.mediaURL?.absoluteString, later.media_url)
+        await store.refresh(client: client, force: true)
+        XCTAssertEqual(store.playableLessons(for: course).map(\.id), [later.id])
+        XCTAssertEqual(store.items.first(where: { $0.kind == "product" })?.purchaseURL?.absoluteString, product.external_url)
+    }
+    func testStandaloneVideoStartsWithoutInventingMissingChapters() async throws {
+        let store = ContentStore(directory: directory)
+        var direct = item("standalone"); direct.kind = "course"
+        direct.media_url = "https://vid.sleep.phoenixtreeai.com/video/synthetic-standalone.mp4"
+        ContentTransport.handler = { [self] _ in (200, try page([direct])) }
+        await store.refresh(client: client)
+        XCTAssertEqual(store.playableLessons(for: direct).map(\.id), [direct.id])
+        direct.media_url = nil
+        XCTAssertTrue(store.playableLessons(for: direct).isEmpty)
+    }
     func testLearningProgressIsScopedToServiceAndStableUserID() {
         let a = LearningProgress.key(service: "one", user: 1, item: "lesson")
         let b = LearningProgress.key(service: "one", user: 2, item: "lesson")

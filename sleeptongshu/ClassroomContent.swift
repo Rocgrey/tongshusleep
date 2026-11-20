@@ -51,7 +51,13 @@ struct ContentPage: Decodable { let items: [ClassroomItem]; let total: Int; let 
     }
     var courses: [ClassroomItem] { items.filter { $0.kind == "course" } }
     var articles: [ClassroomItem] { items.filter { $0.kind == "article" } }
-    func children(_ id: String) -> [ClassroomItem] { items.filter { $0.parent_id == id }.sorted { $0.sort_order < $1.sort_order } }
+    func children(_ id: String) -> [ClassroomItem] {
+        items.filter { $0.parent_id == id }.sorted { $0.sort_order == $1.sort_order ? $0.id < $1.id : $0.sort_order < $1.sort_order }
+    }
+    func playableLessons(for item: ClassroomItem) -> [ClassroomItem] {
+        let chapters = children(item.parent_id ?? item.id).filter { $0.mediaURL != nil }
+        return chapters.isEmpty ? (item.mediaURL == nil ? [] : [item]) : chapters
+    }
     func daily(on date: Date = .now) -> ClassroomItem? {
         let list = articles.sorted { $0.id < $1.id }
         guard !list.isEmpty else { return nil }
