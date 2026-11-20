@@ -282,7 +282,7 @@ final class AccountTests: XCTestCase {
                 XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
                 return (200, Data())
             }
-            XCTAssertNil(request.url!.query)
+            XCTAssertEqual(URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems, [URLQueryItem(name: "sharecode", value: "test-only")])
             XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test")
             XCTAssertEqual(request.value(forHTTPHeaderField: "X-Auth-Token"), "Bearer test")
             return (200, userJSON)

@@ -23,6 +23,8 @@ struct MonitoringView: View {
     @State private var showsDiagnostics = false
     @State private var showsValidation = false
     @State private var showsWearableReport = false
+    @AppStorage("saveCandidateVoice") private var saveVoice = false
+    @State private var confirmsVoice = false
 
     var body: some View {
         NavigationStack {
@@ -49,7 +51,11 @@ struct MonitoringView: View {
                         Label("手机监测", systemImage: "iphone").tag(0)
                         Label("设备检测", systemImage: "sensor.fill").tag(1)
                     }.pickerStyle(.segmented).accessibilityIdentifier("monitorMode")
-                    if mode == 0 { phonePanel; phoneGuide; differences }
+                    if mode == 0 {
+                        Toggle("保存候选语音片段", isOn: Binding(get: { saveVoice }, set: { if $0 { confirmsVoice = true } else { saveVoice = false } })).disabled(phone.isRecording)
+                        NavigationLink { NightAudioLibraryView() } label: { Label("候选语音与存储", systemImage: "waveform") }
+                        phonePanel; phoneGuide; differences
+                    }
                     else { wearablePanel; differences }
                 }.padding(22).frame(maxWidth: 680).frame(maxWidth: .infinity)
             }
@@ -77,6 +83,9 @@ struct MonitoringView: View {
                 Button("舍弃采集", role: .destructive) { phone.discard() }
             }
             .onDisappear { scanner.stopScan() }
+            .confirmationDialog("同意本机保存候选语音？", isPresented: $confirmsVoice, titleVisibility: .visible) {
+                Button("同意保存") { saveVoice = true }
+            } message: { Text("仅在主动开始手机监测后分段录音。候选语音可能来自他人或环境，不保证是梦话；默认保留7天、上限200MB，不自动上传。可随时结束监测并删除音频。") }
             .onChange(of: scanner.veepooChannelDetected) { _, detected in
                 autoSyncIfReady()
             }

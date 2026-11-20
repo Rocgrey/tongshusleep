@@ -34,15 +34,18 @@ final class AccountUITests: XCTestCase {
         show(app.buttons["accountSubmit"])
         app.buttons["accountSubmit"].tap()
     }
-    func testForgotPasswordExplainsBoundEmailAndUnavailableServiceWithoutFakeSuccess() {
+    func testForgotPasswordOffersSMSOrEmailWithoutFakeSuccess() {
         let forgot = app.buttons["accountForgotPassword"]
         show(forgot); forgot.tap()
         XCTAssertTrue(app.navigationBars["忘记密码"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["recoveryUnavailable"].exists)
-        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "已绑定并验证")).firstMatch.exists)
-        XCTAssertFalse(app.buttons["recoverySubmit"].exists)
+        XCTAssertTrue(app.textFields["recoveryPhone"].exists)
+        XCTAssertFalse(app.textFields["recoveryEmail"].exists)
+        app.segmentedControls.buttons["邮箱账号"].tap()
+        XCTAssertTrue(app.textFields["recoveryEmail"].exists)
+        XCTAssertFalse(app.textFields["recoveryPhone"].exists)
+        XCTAssertTrue(app.buttons["recoverySubmit"].exists)
         let back = app.buttons["recoveryBackToLogin"]
-        show(back); capture("76-email-recovery-pending"); back.tap()
+        show(back); capture("76-sms-email-recovery"); back.tap()
         XCTAssertTrue(app.segmentedControls["accountMode"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.tabBars.buttons["健康"].exists)
     }

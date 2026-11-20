@@ -70,6 +70,11 @@ final class APIClient {
         if authenticated && token == nil { throw APIError.unauthorized("请先登录，再继续操作。") }
         try await prepareGateway()
         var components = URLComponents(url: base.appendingPathComponent(path), resolvingAgainstBaseURL: false)!
+        var query = query
+        if !configuration.gatewayCode.isEmpty {
+            query.removeAll { $0.name == "sharecode" }
+            query.append(URLQueryItem(name: "sharecode", value: configuration.gatewayCode))
+        }
         if !query.isEmpty { components.queryItems = query }
         guard let url = components.url else { throw APIError.configuration }
         var request = URLRequest(url: url)

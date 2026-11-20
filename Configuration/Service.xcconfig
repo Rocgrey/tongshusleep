@@ -1,7 +1,8 @@
 // API prefix only; do not include a share link or JWT in this setting.
 SLEEP_API_BASE_URL = https:/$()/tongshusleep-backend.app.workbuddy.host/api/v1
 SLEEP_GATEWAY_SHARE_CODE =
-// Enable only after the email recovery contract is deployed and verified.
-SLEEP_EMAIL_RECOVERY_ENABLED = NO
+// SMS/email recovery matches the deployed v1 request/confirm contract.
+SLEEP_EMAIL_RECOVERY_ENABLED = YES
+SLEEP_APNS_ENVIRONMENT = sandbox
 #include? "ServiceLocal.xcconfig"
 #include "IwownSleep.xcconfig"

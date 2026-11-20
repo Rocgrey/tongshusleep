@@ -37,6 +37,7 @@ struct SleepDashboardView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 25) {
                     brandHeader
+                    HomeContentView()
                     Picker("睡眠来源", selection: Binding(get: { source }, set: { sourceOverride = $0; selectedID = nil })) {
                         ForEach(SleepDashboardSource.allCases, id: \.self) { Text($0.label).tag($0) }
                     }.pickerStyle(.segmented).accessibilityIdentifier("sleepDashboardSource")

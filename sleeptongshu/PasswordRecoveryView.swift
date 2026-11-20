@@ -19,9 +19,9 @@ struct PasswordRecoveryView: View {
     var body: some View {
         Form {
             Section {
-                Label(store.isComplete ? "密码已更新" : "通过邮箱找回", systemImage: store.isComplete ? "checkmark.shield" : "envelope.badge.shield.half.filled")
+                Label(store.isComplete ? "密码已更新" : "找回你的账号", systemImage: store.isComplete ? "checkmark.shield" : "lock.rotation")
                     .font(.title3.weight(.semibold)).foregroundStyle(SleepPalette.teal)
-                Text(store.isComplete ? "请返回登录，使用新密码进入原账号。原有睡眠和健康记录会保留。" : "手机号账号使用已绑定并验证的邮箱找回；邮箱账号使用注册邮箱找回。")
+                Text(store.isComplete ? "请返回登录，使用新密码进入原账号。原有睡眠和健康记录会保留。" : "手机号接收短信验证码，邮箱接收邮件验证码。验证后即可设置新密码。")
                     .font(.subheadline).foregroundStyle(SleepPalette.muted)
             }
             if !store.isComplete {
@@ -39,14 +39,14 @@ struct PasswordRecoveryView: View {
                             TextField("注册手机号", text: $phone).keyboardType(.phonePad).textContentType(.telephoneNumber)
                                 .focused($focused, equals: .phone).accessibilityIdentifier("recoveryPhone")
                         }
-                        TextField(method == .phone ? "已绑定的邮箱" : "注册邮箱", text: $email)
+                        if method == .email { TextField("注册邮箱", text: $email)
                             .keyboardType(.emailAddress).textContentType(.emailAddress)
                             .textInputAutocapitalization(.never).autocorrectionDisabled()
-                            .focused($focused, equals: .email).accessibilityIdentifier("recoveryEmail")
+                            .focused($focused, equals: .email).accessibilityIdentifier("recoveryEmail") }
                     }
                 } else {
-                    Section("邮箱验证") {
-                        LabeledContent("邮箱", value: AccountInput.email(email))
+                    Section("验证码") {
+                        LabeledContent(method.title, value: method == .phone ? AccountInput.phone(phone) : AccountInput.email(email))
                         TextField("6 位数字验证码", text: $code).keyboardType(.numberPad).textContentType(.oneTimeCode)
                             .focused($focused, equals: .code).accessibilityIdentifier("recoveryCode")
                         SecureField("新密码（至少 6 个字符）", text: $password).textContentType(.newPassword)
@@ -73,7 +73,7 @@ struct PasswordRecoveryView: View {
                             HStack {
                                 Spacer()
                                 if store.isLoading { ProgressView() }
-                                Label(store.challenge == nil ? "获取邮箱验证码" : "确认重置密码", systemImage: store.challenge == nil ? "envelope" : "lock.rotation")
+                                Label(store.challenge == nil ? "获取验证码" : "确认重置密码", systemImage: store.challenge == nil ? "paperplane" : "lock.rotation")
                                 Spacer()
                             }.padding(.vertical, 8)
                         }.buttonStyle(.borderedProminent).tint(SleepPalette.teal)
@@ -90,7 +90,7 @@ struct PasswordRecoveryView: View {
                     }
                 }
                 Section {
-                    Text("还没有绑定邮箱？若仍记得密码，可先登录，在邮箱验证功能开通后完成绑定。已经忘记密码且没有绑定邮箱时，需要联系平台管理员核实身份后处理。")
+                    Text("请使用注册时的手机号或邮箱。若未收到，请检查短信拦截或垃圾邮件；无法使用原联系方式时，请联系平台管理员核实身份。")
                         .font(.footnote).foregroundStyle(SleepPalette.muted)
                 }
             }

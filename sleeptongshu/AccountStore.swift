@@ -190,10 +190,16 @@ final class AccountStore: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         let token = session?.accessToken
+        let pushToken = ReminderService.shared.deviceToken
         pendingDestination = nil
         presentedDestination = nil
         invalidate(message: "已退出登录。")
         pendingDestination = nil
+        AppRoutes.shared.target = nil
+        if let token, let pushToken {
+            struct Device: Encodable { var token: String }
+            _ = try? await client.request("notifications/devices/unregister", method: "POST", body: JSONEncoder().encode(Device(token: pushToken)), authenticated: true, token: token)
+        }
         if let token {
             do { try await api.logout(token: token) }
             catch { message = "本机已退出。服务暂时无法确认退出，请稍后重试登录。" }

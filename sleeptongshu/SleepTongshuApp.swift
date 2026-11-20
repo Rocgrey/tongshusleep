@@ -3,6 +3,10 @@ import SwiftData
 
 @main
 struct SleepTongshuApp: App {
+    @UIApplicationDelegateAdaptor(SleepAppDelegate.self) private var appDelegate
+    @AppStorage("appAppearance") private var appearance = AppAppearance.fresh.rawValue
+    @StateObject private var content = ContentStore()
+    @StateObject private var routes = AppRoutes.shared
     @StateObject private var account = AccountStore.appStore()
     private let container: ModelContainer?
     private let startupError: String?
@@ -10,6 +14,11 @@ struct SleepTongshuApp: App {
     init() {
         do {
             let testing = ProcessInfo.processInfo.arguments.contains("-ui-testing")
+            #if DEBUG
+            if testing, ProcessInfo.processInfo.arguments.contains("-ui-testing-reset-theme") {
+                UserDefaults.standard.set(AppAppearance.fresh.rawValue, forKey: "appAppearance")
+            }
+            #endif
             container = try ModelContainer(for: SleepRecord.self, configurations: ModelConfiguration(isStoredInMemoryOnly: testing, cloudKitDatabase: .none))
             startupError = nil
         } catch {
@@ -21,13 +30,25 @@ struct SleepTongshuApp: App {
     var body: some Scene {
         WindowGroup {
             if let container {
-                AppEntryView().environmentObject(account).modelContainer(container).tint(SleepPalette.teal)
+                AppEntryView().environmentObject(account).environmentObject(content).environmentObject(routes)
+                    .modelContainer(container).tint(Color(uiColor: (AppAppearance(rawValue: appearance) ?? .fresh).accent))
+                    .onOpenURL { routes.open($0) }
+                    .onAppear { ReminderService.shared.install() }
+                    .preferredColorScheme(testAppearance)
                     .environment(\.locale, Locale(identifier: "zh_CN"))
             } else {
                 ContentUnavailableView("无法打开本地记录", systemImage: "externaldrive.badge.exclamationmark",
                                        description: Text(startupError ?? "请重新启动 App。原有记录不会被自动删除。"))
             }
         }
+    }
+    private var testAppearance: ColorScheme? {
+        #if DEBUG
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("-ui-testing-light") { return .light }
+        if args.contains("-ui-testing-dark") { return .dark }
+        #endif
+        return nil
     }
 }
 
@@ -36,7 +57,10 @@ enum SleepPalette {
     static let surface = Color(uiColor: .secondarySystemGroupedBackground)
     static let ink = Color(uiColor: .label)
     static let muted = Color(uiColor: .secondaryLabel)
-    static let teal = Color(red: 0.03, green: 0.46, blue: 0.42)
+    static var teal: Color { Color(uiColor: UIColor { traits in
+        let color = AppAppearance.current.accent
+        return traits.userInterfaceStyle == .dark ? color.withAlphaComponent(1).lighter : color
+    }) }
     static let rose = Color(red: 0.80, green: 0.28, blue: 0.40)
     static let mint = Color(red: 0.37, green: 0.73, blue: 0.67)
     static let deep = Color(red: 0.30, green: 0.37, blue: 0.77)
@@ -54,6 +78,9 @@ extension SleepStage {
 enum SleepTab: Hashable { case sleep, monitoring, trends, health, classroom }
 
 struct RootTabView: View {
+    @EnvironmentObject private var routes: AppRoutes
+    @EnvironmentObject private var content: ContentStore
+    @AppStorage("appAppearance") private var appearance = AppAppearance.fresh.rawValue
     @EnvironmentObject private var account: AccountStore
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.modelContext) private var context
@@ -90,6 +117,14 @@ struct RootTabView: View {
             SleepClassroomView().tabItem { Label("睡眠课堂", systemImage: "book.closed.fill") }.tag(SleepTab.classroom)
         }
         .toolbarBackground(.visible, for: .tabBar)
+        .onChange(of: routes.target) { _, target in
+            if target == "monitoring" { tab = .monitoring }
+            else if target != nil { tab = .classroom }
+        }
+        .onAppear { if routes.target != nil { tab = routes.target == "monitoring" ? .monitoring : .classroom } }
+        .task(id: account.session?.user.id) {
+            if account.session != nil { await ReminderService.shared.sync(account: account); await ReminderService.shared.apply(items: content.items) }
+        }
         .environmentObject(phone)
         .environmentObject(scanner)
         .environmentObject(vitals)

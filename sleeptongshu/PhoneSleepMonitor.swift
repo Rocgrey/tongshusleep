@@ -27,6 +27,8 @@ enum PhoneMonitoringPolicy {
 
 // SoundAnalysis uses Apple's on-device classifier. Audio buffers are discarded after analysis.
 private final class NightSoundAnalyzer: NSObject, SNResultsObserving {
+    var voiceWriter: NightVoiceWriter?
+    private let startedAt = Date.now
     let analyzer: SNAudioStreamAnalyzer
     let queue = DispatchQueue(label: "sleeptongshu.sound", qos: .utility)
     var onLevel: ((Double, Double) -> Void)?
@@ -36,6 +38,7 @@ private final class NightSoundAnalyzer: NSObject, SNResultsObserving {
     private let inFlight = DispatchSemaphore(value: 8)
     private var samples = 0.0
     private var squareSum = 0.0
+    private var firstPosition: AVAudioFramePosition?
     private let sampleRate: Double
 
     init(format: AVAudioFormat) throws {
@@ -61,7 +64,10 @@ private final class NightSoundAnalyzer: NSObject, SNResultsObserving {
         let count = Double(buffer.frameLength)
         queue.async { [self] in
             defer { inFlight.signal() }
-            analyzer.analyze(copy, atAudioFramePosition: position)
+            if firstPosition == nil { firstPosition = position }
+            let relative = max(0, position - (firstPosition ?? position))
+            voiceWriter?.accept(copy, start: startedAt.addingTimeInterval(Double(relative) / sampleRate))
+            analyzer.analyze(copy, atAudioFramePosition: relative)
             squareSum += sum
             samples += count
             if samples >= sampleRate {
@@ -76,11 +82,22 @@ private final class NightSoundAnalyzer: NSObject, SNResultsObserving {
         guard let result = result as? SNClassificationResult else { return }
         for label in ["snoring", "speech"] {
             if let classification = result.classification(forIdentifier: label), classification.confidence >= 0.75 {
+                if label == "speech" {
+                    let start = startedAt.addingTimeInterval(result.timeRange.start.seconds)
+                    let end = startedAt.addingTimeInterval(CMTimeRangeGetEnd(result.timeRange).seconds)
+                    queue.async { [self] in voiceWriter?.speech(start: start, end: end, confidence: classification.confidence) }
+                }
                 onClassification?(label, 0.75)
             }
         }
     }
-    func finish() { queue.async { [self] in analyzer.completeAnalysis(); analyzer.removeAllRequests() } }
+    func finish() {
+        queue.async { [self] in
+            analyzer.completeAnalysis(); analyzer.removeAllRequests()
+            // Drain speech callbacks enqueued by completeAnalysis before closing segments.
+            queue.async { [self] in voiceWriter?.finish(); voiceWriter = nil }
+        }
+    }
     func request(_ request: SNRequest, didFailWithError error: Error) { onFailure?() }
     func requestDidComplete(_ request: SNRequest) {}
 }
@@ -162,6 +179,7 @@ final class PhoneSleepMonitor: ObservableObject {
             return
         }
         do {
+            AudioCoordinator.shared.beginRecording()
             try await activateAudioSession()
             let session = AVAudioSession.sharedInstance()
             let engine = AVAudioEngine()
@@ -169,6 +187,13 @@ final class PhoneSleepMonitor: ObservableObject {
             let format = input.outputFormat(forBus: 0)
             guard format.sampleRate > 0, format.channelCount > 0 else { throw CaptureError.noInput }
             let sound = try NightSoundAnalyzer(format: format)
+            if UserDefaults.standard.bool(forKey: "saveCandidateVoice") {
+                do {
+                    let writer = try NightVoiceWriter()
+                    writer.failure = { [weak self] in Task { @MainActor in self?.error = "候选语音保存已停止，请检查剩余空间。声音与体动监测仍继续。" } }
+                    sound.voiceWriter = writer
+                } catch { self.error = "候选语音暂时无法保存，声音与体动监测仍继续。" }
+            }
             let captureID = UUID()
             activeID = captureID
             sound.onLevel = { [weak self] db, seconds in
@@ -355,6 +380,7 @@ final class PhoneSleepMonitor: ObservableObject {
     }
 
     private func deactivateAudioSession() {
+        AudioCoordinator.shared.endRecording()
         guard audioSessionActive else { return }
         audioSessionActive = false
         sessionQueue.async {

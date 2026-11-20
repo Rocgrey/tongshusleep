@@ -1,14 +1,13 @@
 import Foundation
 import Combine
 
-/// Proposed contract in docs/WORKBUDDY_EMAIL_RECOVERY.md. Keep disabled until
-/// the deployed backend implements and verifies it; never probe guessed routes.
+/// Confirmed SMS/email contract from backend 891aef3. Exactly one channel per request.
 @MainActor
 final class PasswordRecoveryAPI {
     static var enabledInApp: Bool {
         (Bundle.main.object(forInfoDictionaryKey: "SleepEmailRecoveryEnabled") as? String)?.uppercased() == "YES"
     }
-    static let unavailableMessage = "邮箱找回暂未开放。若已忘记密码，请联系平台管理员核实账号后处理。"
+    static let unavailableMessage = "找回密码暂未开放，请联系平台管理员核实账号后处理。"
     let enabled: Bool
     private let client: APIClient
     init(client: APIClient, enabled: Bool? = nil) {
@@ -22,8 +21,9 @@ final class PasswordRecoveryAPI {
     }
     func request(method: AccountInput.Method, phone: String, email: String) async throws -> Challenge {
         guard enabled else { throw APIError.validation(Self.unavailableMessage) }
-        struct Body: Encodable { let phone: String?; let email: String }
-        let body = Body(phone: method == .phone ? AccountInput.phone(phone) : nil, email: AccountInput.email(email))
+        struct Body: Encodable { let phone: String?; let email: String? }
+        let body = Body(phone: method == .phone ? AccountInput.phone(phone) : nil,
+                        email: method == .email ? AccountInput.email(email) : nil)
         let data = try await client.request("auth/password-reset/request", method: "POST", body: JSONEncoder().encode(body))
         let result = try APIJSON.decode(Challenge.self, from: data)
         guard !result.request_id.isEmpty, result.expires_at.isFinite,
@@ -58,7 +58,7 @@ final class PasswordRecoveryStore: ObservableObject {
         do {
             guard api.enabled else { throw APIError.validation(PasswordRecoveryAPI.unavailableMessage) }
             if method == .phone { try AccountInput.validatePhone(phone) }
-            try AccountInput.validateEmail(AccountInput.email(email))
+            else { try AccountInput.validateEmail(AccountInput.email(email)) }
             if let retryAt, retryAt > .now { throw APIError.validation("请稍等片刻，再获取验证码。") }
             isLoading = true
             defer { isLoading = false }
@@ -72,14 +72,14 @@ final class PasswordRecoveryStore: ObservableObject {
         guard !isLoading, !isComplete else { return }
         message = nil
         do {
-            guard let challenge else { throw APIError.validation("请先获取邮箱验证码。") }
+            guard let challenge else { throw APIError.validation("请先获取验证码。") }
             guard challenge.expires_at > Date.now.timeIntervalSince1970 else {
                 self.challenge = nil
                 throw APIError.validation("验证码已过期，请重新获取。")
             }
             let code = code.trimmingCharacters(in: .whitespacesAndNewlines)
             guard code.range(of: "^[0-9]{6}$", options: .regularExpression) != nil else {
-                throw APIError.validation("请输入邮件中的 6 位数字验证码。")
+                throw APIError.validation("请输入收到的 6 位数字验证码。")
             }
             guard (6...72).contains(password.count), password.utf8.count <= 72 else {
                 throw APIError.validation("新密码至少 6 个字符，且不能超过 72 字节。")

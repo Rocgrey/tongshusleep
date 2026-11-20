@@ -55,20 +55,20 @@ private final class RecoveryTransport: URLProtocol {
         do { _ = try await disabled.confirm(requestID: "test", code: "123456", password: "test-pass"); XCTFail() }
         catch { XCTAssertEqual(error.localizedDescription, PasswordRecoveryAPI.unavailableMessage) }
     }
-    func testPhoneRecoveryRequiresPhoneAndExistingEmailAndUsesNoBearerToken() async throws {
+    func testPhoneRecoveryNeedsNoEmailAndUsesNoBearerToken() async throws {
         client.tokenProvider = { "must-not-be-sent" }
         RecoveryTransport.handler = { [self] request in
             XCTAssertEqual(request.url?.path, "/api/v1/auth/password-reset/request")
             XCTAssertEqual(request.httpMethod, "POST")
             XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
             let json = try body(request)
-            XCTAssertEqual(Set(json.keys), ["phone", "email"])
+            XCTAssertEqual(Set(json.keys), ["phone"])
             XCTAssertEqual(json["phone"] as? String, "13800001234")
-            XCTAssertEqual(json["email"] as? String, "test@example.com")
+            XCTAssertNil(json["email"])
             return (200, challenge)
         }
         let store = PasswordRecoveryStore(api: api)
-        await store.request(method: .phone, phone: "+86 138-0000-1234", email: " test@example.com ")
+        await store.request(method: .phone, phone: "+86 138-0000-1234", email: "")
         XCTAssertEqual(store.challenge?.request_id, "synthetic-request")
         XCTAssertNotNil(store.retryAt); XCTAssertFalse(store.isComplete)
     }
@@ -98,7 +98,7 @@ private final class RecoveryTransport: URLProtocol {
         RecoveryTransport.handler = { [self] _ in calls += 1; return (200, challenge) }
         let store = PasswordRecoveryStore(api: api)
         await store.request(method: .phone, phone: "123", email: "test@example.com")
-        await store.request(method: .phone, phone: "13800001234", email: "invalid")
+        await store.request(method: .email, phone: "", email: "invalid")
         XCTAssertEqual(calls, 0)
         async let first: Void = store.request(method: .phone, phone: "13800001234", email: "test@example.com")
         async let second: Void = store.request(method: .phone, phone: "13800001234", email: "test@example.com")

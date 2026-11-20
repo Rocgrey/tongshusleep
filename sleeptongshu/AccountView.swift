@@ -203,6 +203,7 @@ struct AccountCenterView: View {
                         LabeledContent("注册日期", value: user.createdAt.formatted(date: .abbreviated, time: .omitted))
                     }
                     Section("记录与账号") {
+                        NavigationLink { AppSettingsView() } label: { Label("设置", systemImage: "gearshape") }
                         Toggle("自动同步健康记录", isOn: $autoSync).tint(SleepPalette.teal).accessibilityIdentifier("automaticHealthSync")
                         Text("默认将真实睡眠及已有分期、步数和设备体征同步到当前登录账号，不包含示例。缺失指标不补算。本机记录保留；切换账号前请确认，已上传记录仍属于原账号。断网时保存本机，前台联网后重试。")
                             .font(.system(size: 13)).foregroundStyle(SleepPalette.muted)
