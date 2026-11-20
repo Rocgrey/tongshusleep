@@ -4,6 +4,8 @@
 
 ## iOS
 
+- `docs/ENHANCED_CHANGED_FILES.md`
+
 - `Configuration/APNs.example.entitlements`
 - `Configuration/AppInfo.plist`
 - `Configuration/Service.xcconfig`
@@ -73,6 +75,7 @@
 - `app/api/v1/notifications.py`
 - `app/api/v1/router.py`
 - `app/core/config.py`
+- `app/core/logging_config.py`
 - `app/main.py`
 - `app/models/content.py`
 - `app/models/models.py`
