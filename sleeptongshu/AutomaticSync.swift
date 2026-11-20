@@ -118,7 +118,8 @@ struct SyncCapabilities: Decodable { var device_sync_version: Int; var idempoten
         return result.device_sync_version == 1 && result.idempotent
     }
     func upload(_ request: DeviceSyncRequest, token: String) async throws -> DeviceSyncReceipt {
-        let data = try await client.request("health/device-sync", method: "POST", body: request.encoded(), authenticated: true, token: token)
+        let body = try await SyncPreparationWorker.shared.encode(request)
+        let data = try await client.request("health/device-sync", method: "POST", body: body, authenticated: true, token: token)
         return try APIJSON.decode(DeviceSyncReceipt.self, from: data)
     }
 }
@@ -150,12 +151,13 @@ struct SyncStamp: Codable { var fingerprint: String; var revision: Double; var c
         try JSONEncoder().encode(stamps).write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
     }
     func reset() { bind(""); stamps = [:]; message = "登录后继续自动同步" }
-    func sync(_ requests: [DeviceSyncRequest], session: AccountSession?, service: String, api: any AutomaticSyncServing, force: Bool = false) async {
+    func sync(_ requests: [DeviceSyncRequest], session: AccountSession?, service: String, api: any AutomaticSyncServing, force: Bool = false, fingerprints: [String: String]? = nil) async {
         guard let session else { reset(); return }
         bind("\(service)|\(session.user.id)", token: session.accessToken)
         guard !isBusy, force || changedAt.map({ Date.now.timeIntervalSince($0) > 30 }) ?? true else { return }
         let operation = generation
-        let pending = requests.filter { stamps[$0.record_key]?.fingerprint != $0.fingerprint || stamps[$0.record_key]?.confirmed != true }
+        func fingerprint(_ request: DeviceSyncRequest) -> String { fingerprints?[request.record_key] ?? request.fingerprint }
+        let pending = requests.filter { stamps[$0.record_key]?.fingerprint != fingerprint($0) || stamps[$0.record_key]?.confirmed != true }
         guard !pending.isEmpty else { message = requests.isEmpty ? "暂无需要同步的真实记录" : "已自动同步到当前账号"; return }
         isBusy = true; message = "正在自动同步 \(pending.count) 份记录"
         defer { if operation == generation { isBusy = false } }
@@ -163,7 +165,7 @@ struct SyncStamp: Codable { var fingerprint: String; var revision: Double; var c
             guard try await api.available(token: session.accessToken) else { throw APIError.validation("平台同步功能尚未启用，本机记录已保留。") }
             for var request in pending {
                 guard operation == generation, !Task.isCancelled else { return }
-                let fingerprint = request.fingerprint
+                let fingerprint = fingerprint(request)
                 if stamps[request.record_key]?.fingerprint != fingerprint {
                     let previous = stamps[request.record_key]?.revision ?? 0
                     stamps[request.record_key] = SyncStamp(fingerprint: fingerprint, revision: max(Date.now.timeIntervalSince1970, previous + 0.001))

@@ -15,11 +15,17 @@ enum AppAppearance: String, CaseIterable, Identifiable {
     var accent: UIColor {
         switch self {
         case .business: UIColor(red: 0.12, green: 0.36, blue: 0.44, alpha: 1)
-        case .fresh: UIColor(red: 0.03, green: 0.46, blue: 0.42, alpha: 1)
+        case .fresh: UIColor(red: 10 / 255, green: 117 / 255, blue: 107 / 255, alpha: 1)
         case .cute: UIColor(red: 0.67, green: 0.21, blue: 0.39, alpha: 1)
         }
     }
     static var current: Self { Self(rawValue: UserDefaults.standard.string(forKey: "appAppearance") ?? "fresh") ?? .fresh }
+    static func adaptive(_ light: UInt32, _ dark: UInt32) -> UIColor {
+        UIColor { traits in
+            let value = traits.userInterfaceStyle == .dark ? dark : light
+            return UIColor(red: Double((value >> 16) & 255) / 255, green: Double((value >> 8) & 255) / 255, blue: Double(value & 255) / 255, alpha: 1)
+        }
+    }
 }
 
 struct AppSettingsView: View {

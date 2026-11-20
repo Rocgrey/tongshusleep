@@ -15,8 +15,8 @@ struct SleepClassroomView: View {
                 LazyVStack(alignment: .leading, spacing: 22) {
                     HStack(alignment: .top) {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("睡眠课堂").font(.largeTitle.bold())
-                            Text("了解睡眠，也练习好好休息").font(.subheadline).foregroundStyle(.secondary)
+                            Text("睡眠课堂").font(.title2.bold())
+                            Text("了解睡眠，也练习好好休息").font(.caption).foregroundStyle(SleepPalette.muted)
                         }
                         Spacer()
                         NavigationLink { AppSettingsView() } label: { Image(systemName: "gearshape").font(.title2) }
@@ -24,11 +24,18 @@ struct SleepClassroomView: View {
                     }
                     Picker("课堂栏目", selection: $selection) { ForEach(["课程", "阅读", "助眠", "产品"], id: \.self) { Text($0) } }
                         .pickerStyle(.segmented).accessibilityIdentifier("classroomSections")
-                    if let message = content.message { Label(message, systemImage: "wifi.exclamationmark").font(.caption).foregroundStyle(.secondary) }
-                    if !content.hasRemoteCatalog { Text("随 App 提供的课堂内容").font(.caption).foregroundStyle(.secondary) }
+                    if let message = content.message { Label(message, systemImage: content.hasRemoteCatalog ? "wifi.exclamationmark" : "info.circle").font(.caption).foregroundStyle(.secondary) }
+                    if !content.hasRemoteCatalog, content.message == nil { Text("随 App 提供的课堂内容").font(.caption).foregroundStyle(.secondary) }
+                    if content.canOpenBundledLibrary {
+                        Button { content.openBundledLibrary() } label: { Label("查看随 App 课堂", systemImage: "books.vertical") }
+                            .buttonStyle(.borderedProminent)
+                    }
                     if selection == "课程" {
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: typeSize.isAccessibilitySize ? 300 : 145), spacing: 14, alignment: .top)], spacing: 18) {
-                            ForEach(content.courses) { item in NavigationLink { ClassroomDetailView(item: item) } label: { ContentTile(item: item) }.buttonStyle(.plain) }
+                            ForEach(content.courses) { item in
+                                NavigationLink { ClassroomDetailView(item: item) } label: { ContentTile(item: item) }
+                                    .buttonStyle(.plain).accessibilityIdentifier("classroomItem-" + item.id)
+                            }
                         }
                         if content.courses.isEmpty { empty("课程正在准备中") }
                     } else if selection == "阅读" {
@@ -42,10 +49,10 @@ struct SleepClassroomView: View {
                             NavigationLink { ClassroomDetailView(item: item) } label: { ContentTile(item: item) }.buttonStyle(.plain)
                         }
                     } else {
-                        ForEach(content.items.filter { $0.kind == "product" }) { item in NavigationLink { ClassroomDetailView(item: item) } label: { ContentTile(item: item) }.buttonStyle(.plain) }
+                        ForEach(content.items.filter { $0.kind == "product" }) { item in ProductTile(item: item) }
                         if !content.items.contains(where: { $0.kind == "product" }) { empty("商品信息核实后会在这里展示") }
                     }
-                }.padding(20).frame(maxWidth: 760).frame(maxWidth: .infinity)
+                }.padding(16).frame(maxWidth: 760).frame(maxWidth: .infinity)
             }.background(SleepPalette.background).toolbar(.hidden, for: .navigationBar)
                 .refreshable { await content.refresh(client: account.client, force: true) }
                 .task { await content.refresh(client: account.client); resolveRoute() }
@@ -76,8 +83,9 @@ struct SleepClassroomView: View {
 }
 struct ContentCover: View {
     let name: String
+    var ratio: CGFloat = 1.6
     var body: some View {
-        Rectangle().fill(SleepPalette.mint.opacity(0.15)).aspectRatio(1.6, contentMode: .fit)
+        Rectangle().fill(SleepPalette.mint.opacity(0.15)).aspectRatio(ratio, contentMode: .fit)
             .overlay {
                 GeometryReader { size in
                     Group {
@@ -98,10 +106,45 @@ struct ContentTile: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             ContentCover(name: item.cover)
+                .overlay(alignment: .bottomTrailing) {
+                    if item.kind == "course" {
+                        Image(systemName: "play.fill").font(.caption.weight(.bold)).foregroundStyle(SleepPalette.teal)
+                            .frame(width: 30, height: 30).background(SleepPalette.surface, in: Circle()).padding(8)
+                    }
+                }
             Text(item.title).font(.headline).foregroundStyle(.primary).fixedSize(horizontal: false, vertical: true)
             Text(item.summary).font(.caption).foregroundStyle(.secondary).lineLimit(3)
             Label(item.category, systemImage: item.kind == "course" ? "play.circle" : "book").font(.caption).foregroundStyle(SleepPalette.teal)
         }.padding(10).background(SleepPalette.surface, in: RoundedRectangle(cornerRadius: 8))
+            .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(SleepPalette.line.opacity(0.5)) }
+    }
+}
+struct ProductTile: View {
+    let item: ClassroomItem
+    @Environment(\.openURL) private var openURL
+    @Environment(\.dynamicTypeSize) private var typeSize
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            AnyLayout(typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12)) : AnyLayout(HStackLayout(alignment: .top, spacing: 12))) {
+                Button { if let url = item.purchaseURL { openURL(url) } } label: {
+                    ContentCover(name: item.cover, ratio: 1).frame(width: typeSize.isAccessibilitySize ? 180 : 108)
+                }.buttonStyle(.plain).accessibilityLabel("查看京东商品：" + item.title)
+                    .accessibilityIdentifier("productImage-" + item.id).disabled(item.purchaseURL == nil)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(item.title).font(.headline).fixedSize(horizontal: false, vertical: true)
+                    Text(item.summary).font(.caption).foregroundStyle(SleepPalette.muted).fixedSize(horizontal: false, vertical: true)
+                }.frame(maxWidth: .infinity, alignment: .leading)
+            }
+            Text("前往京东查看商品详情并完成购买").font(.caption).foregroundStyle(SleepPalette.muted)
+            HStack {
+                Button { if let url = item.purchaseURL { openURL(url) } } label: { Label("前往京东购买", systemImage: "arrow.up.right.square") }
+                    .buttonStyle(.borderedProminent).foregroundStyle(.white).disabled(item.purchaseURL == nil)
+                Spacer(minLength: 8)
+                Button { UIPasteboard.general.url = item.purchaseURL } label: { Image(systemName: "doc.on.doc").frame(width: 44, height: 44) }
+                    .accessibilityLabel("复制商品链接").disabled(item.purchaseURL == nil)
+            }
+        }.padding(12).background(SleepPalette.surface, in: RoundedRectangle(cornerRadius: 8))
+            .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(SleepPalette.line) }
     }
 }
 struct ClassroomDetailView: View {
@@ -120,7 +163,9 @@ struct ClassroomDetailView: View {
             VStack(alignment: .leading, spacing: 20) {
                 if unavailable { ContentUnavailableView("内容暂不可用", systemImage: "book.closed", description: Text("内容可能已下架，返回课堂刷新后再试。")) }
                 else {
-                    ContentCover(name: item.cover)
+                    if item.kind == "product" {
+                        Button { if let url = item.purchaseURL { openURL(url) } } label: { ContentCover(name: item.cover) }.buttonStyle(.plain)
+                    } else { ContentCover(name: item.cover) }
                     Text(item.title).font(.title2.bold())
                     Text(item.summary).foregroundStyle(.secondary)
                     Text(item.body).font(.body).lineSpacing(7).textSelection(.enabled)
@@ -128,13 +173,13 @@ struct ClassroomDetailView: View {
                         Button { lesson = chapter } label: {
                             HStack {
                                 Image(systemName: "play.circle.fill").font(.title2)
-                                VStack(alignment: .leading, spacing: 5) { Text(chapter.title).font(.headline); Text(chapter.preview_seconds == nil ? "完整播放" : "试看 \(Int(chapter.preview_seconds!)) 秒").font(.caption) }
+                                VStack(alignment: .leading, spacing: 5) { Text(chapter.title).font(.headline); Text("完整播放").font(.caption) }
                                 Spacer()
                                 if let key = progressKey(chapter), let progress = LearningProgress.read(key), progress.duration > 0 { ProgressView(value: min(1, progress.seconds / progress.duration)).frame(width: 45) }
                             }.padding(.vertical, 12)
                         }.buttonStyle(.plain).foregroundStyle(SleepPalette.teal)
                     }
-                    if item.kind == "product", let url = ClassroomItem.https(item.external_url) {
+                    if item.kind == "product", let url = item.purchaseURL {
                         Button { external = url } label: { Label("前往京东购买", systemImage: "arrow.up.right.square") }.buttonStyle(.borderedProminent)
                         Button { UIPasteboard.general.url = url } label: { Label("复制链接", systemImage: "doc.on.doc") }
                     }
@@ -165,15 +210,20 @@ struct ClassroomVideoView: View {
     @State private var player: AVPlayer?
     @State private var observer: Any?
     @State private var message: String?
-    @State private var limited = false
+    @State private var loadedDuration: Double = 0
+    @State private var lastSavedSeconds: Double = -10
     @State private var active = true
     @State private var audioOwner = UUID()
     var body: some View {
         VStack(spacing: 20) {
-            if let player { VideoPlayer(player: player).aspectRatio(16 / 9, contentMode: .fit) } else { ContentCover(name: item.cover) }
+            if let player {
+                VideoPlayer(player: player).aspectRatio(16 / 9, contentMode: .fit)
+                    .onReceive(player.publisher(for: \.status)) { status in
+                        if status == .failed { message = "视频暂时无法播放，请检查网络或稍后重试。" }
+                    }
+            } else { ContentCover(name: item.cover) }
             Text(item.title).font(.title3.bold()).padding(.horizontal)
             if let message { Text(message).foregroundStyle(.secondary).padding() }
-            if limited { Label("试看已结束，完整内容需原平台授权。", systemImage: "lock").padding() }
             Spacer()
         }.navigationTitle("课程播放").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } } }
@@ -187,20 +237,32 @@ struct ClassroomVideoView: View {
             guard AudioCoordinator.shared.beginPlayback(owner: audioOwner) else { message = "手机正在监测，请结束监测后播放课程。"; return }
             let p = AVPlayer(url: url); player = p
             AudioCoordinator.shared.stopPlayback = { stop() }
-            if let key = progressKey, let saved = LearningProgress.read(key), fresh.preview_seconds.map({ saved.seconds < $0 }) ?? true { await p.seek(to: CMTime(seconds: saved.seconds, preferredTimescale: 600)) }
+            // Play the supplied full resource. Transport authentication stays with the media server.
+            let measured = (try? await p.currentItem?.asset.load(.duration).seconds) ?? 0
+            loadedDuration = measured.isFinite && measured > 0 ? measured : fresh.duration ?? 0
+            guard active, !Task.isCancelled, AudioCoordinator.shared.ownsPlayback(audioOwner) else { stop(); return }
+            if let key = progressKey, let saved = LearningProgress.read(key), saved.seconds < max(0, loadedDuration - 2) {
+                await p.seek(to: CMTime(seconds: saved.seconds, preferredTimescale: 600))
+            }
+            guard active, !Task.isCancelled, AudioCoordinator.shared.ownsPlayback(audioOwner) else { stop(); return }
             observer = p.addPeriodicTimeObserver(forInterval: CMTime(seconds: 1, preferredTimescale: 600), queue: .main) { time in
                 Task { @MainActor in
                 guard active, player === p else { return }
                 let seconds = time.seconds
-                if let limit = fresh.preview_seconds, seconds >= limit { p.pause(); limited = true; await p.seek(to: CMTime(seconds: limit, preferredTimescale: 600)) }
-                if let key = progressKey, seconds.isFinite { LearningProgress.save(LessonProgress(seconds: min(seconds, fresh.preview_seconds ?? seconds), duration: fresh.duration ?? 0, updatedAt: .now), key: key) }
+                if seconds.isFinite, abs(seconds - lastSavedSeconds) >= 5 { saveProgress(seconds) }
                 }
             }
             if active, !Task.isCancelled, AudioCoordinator.shared.ownsPlayback(audioOwner) { p.play() } else { stop() }
         } catch { message = "课程暂时无法加载，请联网刷新后重试。" }
     }
     private func stop() {
+        if let seconds = player?.currentTime().seconds, seconds.isFinite { saveProgress(seconds) }
         player?.pause(); if let observer { player?.removeTimeObserver(observer); self.observer = nil }
         player = nil; AudioCoordinator.shared.endPlayback(owner: audioOwner)
+    }
+    private func saveProgress(_ seconds: Double) {
+        guard let key = progressKey else { return }
+        lastSavedSeconds = seconds
+        LearningProgress.save(LessonProgress(seconds: seconds, duration: loadedDuration, updatedAt: .now), key: key)
     }
 }

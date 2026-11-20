@@ -34,7 +34,7 @@ final class SleepClassroomUITests: XCTestCase {
         }
     }
 
-    func testDarkLargeTypeNativeClassroomAndUnavailableProducts() {
+    func testDarkLargeTypeNativeClassroomAndVerifiedProduct() {
         continueAfterFailure = false
         let app = XCUIApplication()
         app.launchArguments = ["-ui-testing", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityL", "-ui-testing-dark"]
@@ -44,7 +44,28 @@ final class SleepClassroomUITests: XCTestCase {
         XCTAssertTrue(app.segmentedControls["classroomSections"].waitForExistence(timeout: 5))
         capture(app, "dark-large-type")
         app.segmentedControls["classroomSections"].buttons["产品"].tap()
-        XCTAssertTrue(app.staticTexts["商品信息核实后会在这里展示"].exists)
+        XCTAssertTrue(app.buttons["productImage-jd-sleep-device"].exists)
+        capture(app, "verified-jd-product-dark")
         XCTAssertFalse(app.webViews.firstMatch.exists)
+    }
+
+    func testFullCourseLabelsProductAndFastTabNavigation() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-ui-testing", "-ui-testing-reset-theme", "-ui-testing-light"]
+        app.launch()
+        XCTAssertTrue(app.tabBars.buttons["睡眠课堂"].waitForExistence(timeout: 10))
+        for (index, tab) in ["睡眠课堂", "健康", "趋势", "监测与设备", "睡眠", "睡眠课堂"].enumerated() {
+            app.tabBars.buttons[tab].tap()
+            capture(app, "preview-style-tab-\(index)")
+        }
+        let course = app.descendants(matching: .any).matching(identifier: "classroomItem-insomnia-course").firstMatch
+        XCTAssertTrue(course.waitForExistence(timeout: 5)); course.tap()
+        XCTAssertTrue(app.staticTexts["完整播放"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "试看")).firstMatch.exists)
+        capture(app, "full-course-chapters")
+        app.navigationBars.buttons.firstMatch.tap()
+        app.segmentedControls["classroomSections"].buttons["产品"].tap()
+        XCTAssertTrue(app.buttons["productImage-jd-sleep-device"].exists)
+        capture(app, "verified-jd-product")
     }
 }

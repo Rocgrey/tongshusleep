@@ -32,6 +32,8 @@ struct SleepTongshuApp: App {
             if let container {
                 AppEntryView().environmentObject(account).environmentObject(content).environmentObject(routes)
                     .modelContainer(container).tint(Color(uiColor: (AppAppearance(rawValue: appearance) ?? .fresh).accent))
+                    .scrollContentBackground(.hidden)
+                    .background(SleepPalette.background)
                     .onOpenURL { routes.open($0) }
                     .onAppear { ReminderService.shared.install() }
                     .preferredColorScheme(testAppearance)
@@ -53,10 +55,10 @@ struct SleepTongshuApp: App {
 }
 
 enum SleepPalette {
-    static let background = Color(uiColor: .systemGroupedBackground)
-    static let surface = Color(uiColor: .secondarySystemGroupedBackground)
-    static let ink = Color(uiColor: .label)
-    static let muted = Color(uiColor: .secondaryLabel)
+    static let background = Color(uiColor: AppAppearance.adaptive(0xF2F5F4, 0x121A19))
+    static let surface = Color(uiColor: AppAppearance.adaptive(0xFFFFFF, 0x1D2826))
+    static let ink = Color(uiColor: AppAppearance.adaptive(0x1A2B29, 0xEDF4F2))
+    static let muted = Color(uiColor: AppAppearance.adaptive(0x596F6B, 0xA7BDB7))
     static var teal: Color { Color(uiColor: UIColor { traits in
         let color = AppAppearance.current.accent
         return traits.userInterfaceStyle == .dark ? color.withAlphaComponent(1).lighter : color
@@ -66,7 +68,7 @@ enum SleepPalette {
     static let deep = Color(red: 0.30, green: 0.37, blue: 0.77)
     static let rem = Color(red: 0.66, green: 0.57, blue: 0.88)
     static let awake = Color(red: 0.91, green: 0.59, blue: 0.36)
-    static let line = Color(uiColor: .separator)
+    static let line = Color(uiColor: AppAppearance.adaptive(0xDFE7E5, 0x374A45))
 }
 
 extension SleepStage {
@@ -98,14 +100,10 @@ struct RootTabView: View {
     @StateObject private var bioAlgorithm = BIOAlgorithmStore()
     @StateObject private var rawSensors = RawSensorSyncStore()
     @AppStorage("automaticHealthSyncV1") private var autoSync = true
-    private var syncRequests: [DeviceSyncRequest] {
-        let sleep = records.filter { $0.isVisible && $0.source != .sample }.compactMap { try? DeviceSyncRequest.sleep($0) }
-        return (sleep + deviceSteps.rows.map(DeviceSyncRequest.step)
-            + LocalStepDay.read(healthOverview.snapshot).map(DeviceSyncRequest.healthStep)
-            + DeviceSyncRequest.vitalDays(vitals.visibleSamples)).sorted { $0.record_key < $1.record_key }
-    }
+    @State private var syncRevision = 0
+    @State private var reportMilestone = DeviceReportMilestone(nil)
     private var syncIdentity: String {
-        "\(account.session?.accessToken ?? "")|\(autoSync)|\(scenePhase == .active)|\(scanner.wearable.report?.finishedAt?.timeIntervalSince1970 ?? 0)|" + syncRequests.map(\.fingerprint).joined()
+        "\(account.session?.accessToken ?? "")|\(autoSync)|\(scenePhase == .active)|\(syncRevision)"
     }
 
     var body: some View {
@@ -142,15 +140,28 @@ struct RootTabView: View {
             }
         }
         .task(id: syncIdentity) {
-            if account.session == nil { rawSensors.reset() }
+            if account.session == nil { rawSensors.reset(); automaticSync.reset(); await SyncPreparationWorker.shared.clear() }
             guard autoSync, scenePhase == .active, !ProcessInfo.processInfo.arguments.contains("-ui-testing") else { return }
-            let requests = syncRequests
+            do { try await Task.sleep(for: .milliseconds(400)) } catch { return }
             while !Task.isCancelled {
-                await automaticSync.sync(requests, session: account.session, service: account.client.serviceID, api: AutomaticSyncAPI(client: account.client))
+                let session = account.session
+                let input = SyncPreparationInput(sleep: records.map(SleepSyncSnapshot.init), steps: deviceSteps.rows,
+                    healthSteps: LocalStepDay.read(healthOverview.snapshot), vitals: vitals.samples)
+                let batch = await SyncPreparationWorker.shared.prepare(input)
+                guard !Task.isCancelled, session?.accessToken == account.session?.accessToken else { return }
+                await automaticSync.sync(batch.requests, session: session, service: account.client.serviceID,
+                    api: AutomaticSyncAPI(client: account.client), fingerprints: batch.fingerprints)
                 do { try await Task.sleep(for: .seconds(45)) } catch { return }
             }
         }
-        .task(id: "bio|\(account.session?.accessToken ?? "")|\(autoSync)|\(scenePhase == .active)|\(scanner.wearable.report?.finishedAt?.timeIntervalSince1970 ?? 0)") {
+        .onReceive(NotificationCenter.default.publisher(for: ModelContext.didSave)) { _ in syncRevision += 1 }
+        .onReceive(vitals.$samples.dropFirst()) { _ in syncRevision += 1 }
+        .onReceive(deviceSteps.$rows.dropFirst()) { _ in syncRevision += 1 }
+        .onReceive(healthOverview.$snapshot.dropFirst()) { _ in syncRevision += 1 }
+        .onReceive(scanner.wearable.$report.map(DeviceReportMilestone.init).removeDuplicates()) { value in
+            reportMilestone = value
+        }
+        .task(id: "bio|\(account.session?.accessToken ?? "")|\(autoSync)|\(scenePhase == .active)|\(reportMilestone.finished?.timeIntervalSince1970 ?? 0)") {
             if account.session == nil || (!autoSync && !BIOLocalSleep.available) { bioAlgorithm.reset() }
             guard BIOLocalSleep.available || autoSync else { return }
             guard scenePhase == .active, !ProcessInfo.processInfo.arguments.contains("-ui-testing") else { return }
@@ -160,7 +171,7 @@ struct RootTabView: View {
                 do { try await Task.sleep(for: .seconds(45)) } catch { return }
             }
         }
-        .task(id: "\(account.session?.accessToken ?? "")|\(autoSync)|\(scenePhase == .active)|\(scanner.wearable.report?.rawSensorFinishedAt?.timeIntervalSince1970 ?? 0)|\(scanner.wearable.report?.finishedAt?.timeIntervalSince1970 ?? 0)") {
+        .task(id: "\(account.session?.accessToken ?? "")|\(autoSync)|\(scenePhase == .active)|\(reportMilestone.rawFinished?.timeIntervalSince1970 ?? 0)|\(reportMilestone.finished?.timeIntervalSince1970 ?? 0)") {
             if account.session == nil { rawSensors.reset() }
             guard autoSync, scenePhase == .active, !ProcessInfo.processInfo.arguments.contains("-ui-testing") else { return }
             // Independent of cloud algorithms and long historical reads.

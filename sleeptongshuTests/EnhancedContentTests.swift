@@ -71,16 +71,58 @@ private final class ContentTransport: URLProtocol {
         do { _ = try await store.freshItem("test-article", client: client); XCTFail() } catch { }
         XCTAssertTrue(store.items.isEmpty)
     }
+    func testUnconfiguredCatalogIsDifferentFromAnUnpublishedCatalog() async {
+        let store = ContentStore(directory: directory)
+        ContentTransport.handler = { _ in (200, Data(#"{"items":[],"total":0,"catalog_initialized":false}"#.utf8)) }
+        await store.refresh(client: client)
+        XCTAssertFalse(store.courses.isEmpty)
+        XCTAssertFalse(store.hasRemoteCatalog)
+        ContentTransport.handler = { _ in (200, Data(#"{"items":[],"total":0,"catalog_initialized":true}"#.utf8)) }
+        await store.refresh(client: client, force: true)
+        XCTAssertTrue(store.items.isEmpty)
+        XCTAssertTrue(store.hasRemoteCatalog)
+    }
+    func testLegacyEmptyCatalogOffersExplicitLibraryButNeverRestoresKnownTakedowns() async throws {
+        let store = ContentStore(directory: directory)
+        ContentTransport.handler = { _ in (200, Data(#"{"items":[],"total":0}"#.utf8)) }
+        await store.refresh(client: client)
+        XCTAssertTrue(store.items.isEmpty); XCTAssertTrue(store.canOpenBundledLibrary)
+        store.openBundledLibrary()
+        XCTAssertFalse(store.courses.isEmpty); XCTAssertFalse(store.hasRemoteCatalog)
+        ContentTransport.handler = { [self] _ in (200, try page([item()])) }
+        await store.refresh(client: client, force: true)
+        ContentTransport.handler = { _ in (200, Data(#"{"items":[],"total":0}"#.utf8)) }
+        await store.refresh(client: client, force: true)
+        XCTAssertFalse(store.canOpenBundledLibrary)
+        store.openBundledLibrary(); XCTAssertTrue(store.items.isEmpty)
+        let relaunched = ContentStore(directory: directory)
+        await relaunched.refresh(client: client)
+        XCTAssertFalse(relaunched.canOpenBundledLibrary)
+    }
     func testBundledContentIsActualSourceAndMediaUsesBusinessDomain() async throws {
         let store = ContentStore(directory: directory)
         XCTAssertEqual(store.articles.count, 5)
         let first = try await store.freshItem("course-l1", client: client)
         XCTAssertEqual(first.mediaURL?.host, "vid.sleep.phoenixtreeai.com")
         XCTAssertNil(first.preview_seconds)
-        let preview = try await store.freshItem("course-l2", client: client)
-        XCTAssertEqual(preview.preview_seconds, 60)
+        for id in ["course-l2", "course-l3", "course-l4", "course-l5", "cbti-video", "sleep-harm-video"] {
+            let chapter = try await store.freshItem(id, client: client)
+            XCTAssertNil(chapter.preview_seconds)
+            XCTAssertEqual(chapter.mediaURL?.host, "vid.sleep.phoenixtreeai.com")
+        }
+        let product = try await store.freshItem("jd-sleep-device", client: client)
+        XCTAssertEqual(product.purchaseURL?.absoluteString, "https://3.cn/3bngE-ty")
+        XCTAssertNotNil(UIImage(named: product.cover))
         XCTAssertNil(ClassroomItem.https("http://insecure.test"))
         XCTAssertNil(ClassroomItem.https("https://name:password@example.test/video"))
+    }
+    func testProductLinksOnlyOpenKnownJDHosts() {
+        var product = item("test-product")
+        product.external_url = "https://item.m.jd.com/product/10229068197495.html"
+        XCTAssertNotNil(product.purchaseURL)
+        for url in ["https://jd.com.attacker.test/item", "javascript:alert(1)", "https://user:password@jd.com", "http://jd.com"] {
+            product.external_url = url; XCTAssertNil(product.purchaseURL)
+        }
     }
     func testLearningProgressIsScopedToServiceAndStableUserID() {
         let a = LearningProgress.key(service: "one", user: 1, item: "lesson")

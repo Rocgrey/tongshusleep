@@ -154,6 +154,7 @@ final class WearableVitalsStore: ObservableObject {
             if indexed[sample.id] != sample { changed += 1 }
             indexed[sample.id] = sample
         }
+        guard changed > 0 else { return 0 }
         let next = indexed.values.sorted { $0.date < $1.date }
         try persist(next)
         samples = next

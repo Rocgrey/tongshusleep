@@ -20,13 +20,18 @@ struct ClassroomItem: Codable, Identifiable, Hashable {
     var updated_at: Double
     var external_url: String?
     var mediaURL: URL? { Self.https(media_url) }
+    var purchaseURL: URL? {
+        guard let url = Self.https(external_url), let host = url.host?.lowercased(),
+              ["3.cn", "jd.com", "www.jd.com", "item.jd.com", "item.m.jd.com"].contains(host) else { return nil }
+        return url
+    }
     static func https(_ text: String?) -> URL? {
         guard let text, let url = URL(string: text), url.scheme == "https", url.host != nil,
               url.user == nil, url.password == nil else { return nil }
         return url
     }
 }
-struct ContentPage: Decodable { let items: [ClassroomItem]; let total: Int }
+struct ContentPage: Decodable { let items: [ClassroomItem]; let total: Int; let catalog_initialized: Bool? }
 
 @MainActor final class ContentStore: ObservableObject {
     @Published private(set) var items: [ClassroomItem] = []
@@ -34,6 +39,8 @@ struct ContentPage: Decodable { let items: [ClassroomItem]; let total: Int }
     @Published private(set) var isLoading = false
     @Published private(set) var refreshedAt: Date?
     @Published private(set) var hasRemoteCatalog = false
+    @Published private(set) var canOpenBundledLibrary = false
+    private var hasManagedCatalog = false
     private var service = ""
     private var bundled: [ClassroomItem] = []
     private let directory: URL
@@ -52,29 +59,55 @@ struct ContentPage: Decodable { let items: [ClassroomItem]; let total: Int }
         return list[abs(day) % list.count]
     }
     func refresh(client: APIClient, force: Bool = false) async {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing"), !ProcessInfo.processInfo.arguments.contains("-ui-testing-live-content") {
+            items = bundled; hasRemoteCatalog = false; message = "界面测试 · 随 App 内容，非线上目录"
+            return
+        }
+        #endif
         guard !isLoading else { return }
         if service != client.serviceID {
             service = client.serviceID; refreshedAt = nil
             items = bundled; hasRemoteCatalog = false
+            canOpenBundledLibrary = false
+            hasManagedCatalog = FileManager.default.fileExists(atPath: managedURL(service).path)
             if let data = try? Data(contentsOf: cacheURL(service)), let cached = try? JSONDecoder().decode([ClassroomItem].self, from: data) { items = cached; hasRemoteCatalog = true }
+            if hasRemoteCatalog && !items.isEmpty { hasManagedCatalog = true }
         }
         guard force || refreshedAt.map({ Date.now.timeIntervalSince($0) > 900 }) ?? true else { return }
         isLoading = true; defer { isLoading = false }
         do {
             var collected: [ClassroomItem] = [], page = 1
+            var initialized: Bool?
             while true {
                 let bytes = try await client.request("content/items", query: [.init(name: "page", value: "\(page)"), .init(name: "page_size", value: "100")])
                 let result = try JSONDecoder().decode(ContentPage.self, from: bytes)
+                if page == 1 { initialized = result.catalog_initialized }
                 collected += result.items
                 if collected.count >= result.total || result.items.isEmpty { break }
                 page += 1
                 guard page <= 100 else { throw APIError.invalidResponse }
             }
             guard !Task.isCancelled else { return }
+            // Only an explicit server state distinguishes an unconfigured catalog from takedowns.
+            if initialized == false, collected.isEmpty {
+                items = bundled; refreshedAt = .now; message = nil; hasRemoteCatalog = false
+                canOpenBundledLibrary = false
+                try? FileManager.default.removeItem(at: cacheURL(service))
+                return
+            }
             items = collected; refreshedAt = .now; message = nil; hasRemoteCatalog = true
+            hasManagedCatalog = hasManagedCatalog || initialized == true || !collected.isEmpty
+            canOpenBundledLibrary = collected.isEmpty && initialized == nil && !hasManagedCatalog
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            if hasManagedCatalog { try Data([1]).write(to: managedURL(service), options: .atomic) }
             try JSONEncoder().encode(items).write(to: cacheURL(service), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
         } catch { message = "内容服务暂不可用，当前显示本机保存内容。下次刷新再检查。" }
+    }
+    func openBundledLibrary() {
+        guard canOpenBundledLibrary, !hasManagedCatalog else { return }
+        items = bundled; hasRemoteCatalog = false; canOpenBundledLibrary = false
+        message = "正在查看随 App 课堂内容"
     }
     func freshItem(_ id: String, client: APIClient) async throws -> ClassroomItem {
         // Before the additive API is deployed, actual bundled content remains usable.
@@ -89,6 +122,7 @@ struct ContentPage: Decodable { let items: [ClassroomItem]; let total: Int }
     private func cacheURL(_ service: String) -> URL {
         directory.appendingPathComponent(SHA256.hash(data: Data(service.utf8)).map { String(format: "%02x", $0) }.joined() + ".json")
     }
+    private func managedURL(_ service: String) -> URL { cacheURL(service).appendingPathExtension("managed") }
 }
 struct LessonProgress: Codable { var seconds: Double; var duration: Double; var updatedAt: Date }
 enum LearningProgress {
