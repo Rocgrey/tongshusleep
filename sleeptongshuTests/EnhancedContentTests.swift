@@ -169,6 +169,35 @@ private final class ContentTransport: URLProtocol {
         LearningProgress.save(LessonProgress(seconds: 13, duration: 100, updatedAt: .now), key: a)
         XCTAssertEqual(LearningProgress.read(a)?.seconds, 13); XCTAssertNil(LearningProgress.read(b))
     }
+    func testSyncInventoryUsesAuthenticatedExistingEndpointAndReadsEveryPage() async throws {
+        var pages: [Int] = []
+        ContentTransport.handler = { request in
+            XCTAssertEqual(request.url?.path, "/api/v1/health/device-records")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer synthetic-token")
+            let query = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!.queryItems!
+            XCTAssertEqual(query.first { $0.name == "start_date" }?.value, "2026-11-17")
+            let page = Int(query.first { $0.name == "page" }!.value!)!; pages.append(page)
+            let keys = page == 1 ? Array(0..<100) : [100]
+            let items = keys.map { ["user_id": 7, "payload": ["record_key": "synthetic-\($0)", "kind": "steps", "revision_at": 1794355200]] as [String: Any] }
+            return (200, try JSONSerialization.data(withJSONObject: ["total": 101, "items": items]))
+        }
+        let rows = try await AutomaticSyncAPI(client: client).inventory(start: "2026-11-17", end: "2026-11-18", userID: 7, token: "synthetic-token")
+        XCTAssertEqual(rows.count, 101); XCTAssertEqual(pages, [1, 2])
+    }
+    func testSyncInventoryRejectsAnotherAccountAndPropagates401() async throws {
+        ContentTransport.handler = { _ in
+            (200, Data(#"{"total":1,"items":[{"user_id":8,"payload":{"record_key":"test","revision_at":1794355200,"kind":"steps"}}]}"#.utf8))
+        }
+        let api = AutomaticSyncAPI(client: client)
+        do { _ = try await api.inventory(start: "2026-11-17", end: "2026-11-18", userID: 7, token: "synthetic-token"); XCTFail() }
+        catch { XCTAssertEqual(error as? APIError, .invalidResponse) }
+        var expired: String?
+        client.onUnauthorized = { token, _ in expired = token }
+        ContentTransport.handler = { _ in (401, Data(#"{"detail":"Synthetic expired token"}"#.utf8)) }
+        do { _ = try await api.inventory(start: "2026-11-17", end: "2026-11-18", userID: 7, token: "synthetic-token"); XCTFail() }
+        catch { XCTAssertTrue((error as? APIError)?.isUnauthorized == true) }
+        XCTAssertEqual(expired, "synthetic-token")
+    }
     func testNotificationRoutesAndBreathingTiming() {
         let routes = AppRoutes()
         routes.open(URL(string: "sleeptongshu://content/article-1")!)

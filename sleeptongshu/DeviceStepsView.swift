@@ -40,7 +40,7 @@ struct DeviceStepsSummaryView: View {
     }
 }
 
-enum StepDisplaySource: Hashable { case device, cloud, health }
+enum StepDisplaySource: Hashable { case device, health }
 
 /// Latest point readings have their own dates and never masquerade as night averages.
 struct DeviceRecentVitalsView: View {

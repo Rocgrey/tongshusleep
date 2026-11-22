@@ -1,6 +1,36 @@
 import XCTest
 
 final class SleepClassroomUITests: XCTestCase {
+    func testPublishedLiveContentEndToEndWhenExplicitInspectionFixtureExists() throws {
+        let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("work/private-v043-live/catalog.json")
+        guard FileManager.default.fileExists(atPath: fixture.path) else { throw XCTSkip("Live deployment inspection was not requested") }
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: fixture)) as? [String: Any])
+        let rows = try XCTUnwrap(json["items"] as? [[String: Any]])
+        let course = try XCTUnwrap(rows.first { ($0["id"] as? String)?.hasPrefix("verify-course-") == true })
+        let product = try XCTUnwrap(rows.first { ($0["id"] as? String)?.hasPrefix("verify-prod-") == true })
+        let article = try XCTUnwrap(rows.first { ($0["id"] as? String)?.hasPrefix("v043-status-") == true })
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["-ui-testing", "-ui-testing-live-content", "-ui-testing-light"]
+        app.launch()
+        XCTAssertTrue(app.tabBars.buttons["睡眠课堂"].waitForExistence(timeout: 10)); app.tabBars.buttons["睡眠课堂"].tap()
+        XCTAssertTrue(app.staticTexts["classroomUpdatedAt"].waitForExistence(timeout: 30))
+        let card = app.buttons["classroomItem-" + (course["id"] as! String)]
+        for _ in 0..<4 where !card.isHittable { app.swipeUp() }
+        XCTAssertTrue(card.exists)
+        capture(app, "live-published-courses")
+        app.buttons["refreshClassroom"].tap()
+        app.segmentedControls["classroomSections"].buttons["产品"].tap()
+        let productImage = app.buttons["productImage-" + (product["id"] as! String)]
+        for _ in 0..<4 where !productImage.isHittable { app.swipeUp() }
+        XCTAssertTrue(productImage.exists)
+        capture(app, "live-published-products")
+        for _ in 0..<4 where !app.segmentedControls["classroomSections"].isHittable { app.swipeDown() }
+        app.segmentedControls["classroomSections"].buttons["阅读"].tap()
+        XCTAssertTrue(app.staticTexts[article["title"] as! String].waitForExistence(timeout: 10))
+        capture(app, "live-published-articles")
+    }
     private func capture(_ app: XCUIApplication, _ name: String) {
         // App screenshots can crop a programmatically rotated scene to portrait bounds.
         let image = XCTAttachment(screenshot: XCUIScreen.main.screenshot())

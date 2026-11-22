@@ -2,6 +2,19 @@ import XCTest
 @testable import sleeptongshu
 
 @MainActor final class SyncPreparationTests: XCTestCase {
+    func testPrivateTargetNightReplayIfAvailableIsPreparedWithoutUploadingOrPrintingValues() async throws {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("work/private-v043-live/target-sleep.json")
+        guard FileManager.default.fileExists(atPath: url.path) else { throw XCTSkip("Private target-night replay unavailable") }
+        let payloads = try JSONDecoder().decode([SleepPayload].self, from: Data(contentsOf: url))
+        XCTAssertFalse(payloads.isEmpty)
+        let records = payloads.map(SleepRecord.init)
+        let worker = SyncPreparationWorker()
+        let result = await worker.prepare(SyncPreparationInput(sleep: records.map(SleepSyncSnapshot.init), steps: [], healthSteps: [], vitals: []))
+        XCTAssertEqual(result.requests.count, records.count)
+        XCTAssertEqual(Set(result.requests.map(\.record_date)), ["2026-11-17", "2026-11-18"])
+        XCTAssertTrue(result.requests.allSatisfy { $0.kind == "sleep" && $0.sleep != nil })
+    }
     func testUnchangedDenseRecordsReusePreparedBatchAndChangedNotesInvalidate() async throws {
         let records = BIONightPerformanceFixture.make().map(SleepRecord.init)
         let input = SyncPreparationInput(sleep: records.map(SleepSyncSnapshot.init), steps: [], healthSteps: [], vitals: [])

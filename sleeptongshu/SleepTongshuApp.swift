@@ -94,7 +94,6 @@ struct RootTabView: View {
     @StateObject private var scanner = RingScanner()
     @StateObject private var vitals = WearableVitalsStore.appStore()
     @StateObject private var healthOverview = HealthOverviewStore()
-    @StateObject private var accountSteps = AccountStepsStore()
     @StateObject private var deviceSteps = DeviceStepsStore.appStore()
     @StateObject private var automaticSync = AutomaticSyncStore()
     @StateObject private var bioAlgorithm = BIOAlgorithmStore()
@@ -112,7 +111,7 @@ struct RootTabView: View {
             MonitoringView().tabItem { Label("监测与设备", systemImage: "waveform.path") }.tag(SleepTab.monitoring)
             TrendsView().tabItem { Label("趋势", systemImage: "chart.bar.xaxis") }.tag(SleepTab.trends)
             NavigationStack { HealthOverviewView() }.tabItem { Label("健康", systemImage: "heart.text.clipboard") }.tag(SleepTab.health)
-            SleepClassroomView().tabItem { Label("睡眠课堂", systemImage: "book.closed.fill") }.tag(SleepTab.classroom)
+            SleepClassroomView(isSelected: tab == .classroom).tabItem { Label("睡眠课堂", systemImage: "book.closed.fill") }.tag(SleepTab.classroom)
         }
         .toolbarBackground(.visible, for: .tabBar)
         .onChange(of: routes.target) { _, target in
@@ -127,7 +126,6 @@ struct RootTabView: View {
         .environmentObject(scanner)
         .environmentObject(vitals)
         .environmentObject(healthOverview)
-        .environmentObject(accountSteps)
         .environmentObject(deviceSteps)
         .environmentObject(automaticSync)
         .environmentObject(bioAlgorithm)

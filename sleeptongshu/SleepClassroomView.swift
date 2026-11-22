@@ -2,6 +2,7 @@ import SwiftUI
 import AVKit
 
 struct SleepClassroomView: View {
+    var isSelected = true
     @EnvironmentObject private var content: ContentStore
     @EnvironmentObject private var account: AccountStore
     @EnvironmentObject private var routes: AppRoutes
@@ -21,6 +22,10 @@ struct SleepClassroomView: View {
                             Text("了解睡眠，也练习好好休息").font(.caption).foregroundStyle(SleepPalette.muted)
                         }
                         Spacer()
+                        Button { Task { await content.refresh(client: account.client, force: true) } } label: {
+                            Image(systemName: "arrow.clockwise").font(.title2).frame(width: 44, height: 44)
+                        }.disabled(content.isLoading).accessibilityLabel("刷新课堂内容")
+                            .accessibilityIdentifier("refreshClassroom")
                         NavigationLink { AppSettingsView() } label: { Image(systemName: "gearshape").font(.title2) }
                             .accessibilityLabel("设置").accessibilityIdentifier("enhancedSettings")
                     }
@@ -28,6 +33,11 @@ struct SleepClassroomView: View {
                         .pickerStyle(.segmented).accessibilityIdentifier("classroomSections")
                     if let message = content.message { Label(message, systemImage: content.hasRemoteCatalog ? "wifi.exclamationmark" : "info.circle").font(.caption).foregroundStyle(.secondary) }
                     if !content.hasRemoteCatalog, content.message == nil { Text("随 App 提供的课堂内容").font(.caption).foregroundStyle(.secondary) }
+                    if content.isLoading { ProgressView("正在更新课堂").font(.caption) }
+                    else if content.hasRemoteCatalog, let date = content.refreshedAt {
+                        Text("平台内容 · 更新于 \(date.formatted(date: .omitted, time: .shortened))")
+                            .font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("classroomUpdatedAt")
+                    }
                     if content.canOpenBundledLibrary {
                         Button { content.openBundledLibrary() } label: { Label("查看随 App 课堂", systemImage: "books.vertical") }
                             .buttonStyle(.borderedProminent)
@@ -57,9 +67,13 @@ struct SleepClassroomView: View {
                 }.padding(16).frame(maxWidth: 760).frame(maxWidth: .infinity)
             }.background(SleepPalette.background).toolbar(.hidden, for: .navigationBar)
                 .refreshable { await content.refresh(client: account.client, force: true) }
-                .task { await content.refresh(client: account.client); resolveRoute() }
-                .onChange(of: scenePhase) { _, phase in
-                    if phase == .active { Task { await content.refresh(client: account.client) } }
+                .task(id: isSelected && scenePhase == .active) {
+                    guard isSelected, scenePhase == .active else { return }
+                    while !Task.isCancelled {
+                        await content.refresh(client: account.client)
+                        resolveRoute()
+                        do { try await Task.sleep(for: .seconds(60)) } catch { return }
+                    }
                 }
                 .onChange(of: routes.target) { _, _ in resolveRoute() }
                 .navigationDestination(item: $target) { ClassroomDetailView(item: $0) }

@@ -56,6 +56,7 @@ actor SyncPreparationWorker {
         return cached
     }
     func encode(_ request: DeviceSyncRequest) throws -> Data { try request.encoded() }
+    func decodeInventory(_ data: Data) throws -> SyncRemotePage { try APIJSON.decode(SyncRemotePage.self, from: data) }
     func clear() { previous = nil; cached = PreparedSyncBatch(requests: [], fingerprints: [:]) }
 }
 

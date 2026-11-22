@@ -80,7 +80,7 @@ struct ContentPage: Decodable { let items: [ClassroomItem]; let total: Int; let 
             if let data = try? Data(contentsOf: cacheURL(service)), let cached = try? JSONDecoder().decode([ClassroomItem].self, from: data) { items = cached; hasRemoteCatalog = true }
             if hasRemoteCatalog && !items.isEmpty { hasManagedCatalog = true }
         }
-        guard force || refreshedAt.map({ Date.now.timeIntervalSince($0) > 900 }) ?? true else { return }
+        guard force || refreshedAt.map({ Date.now.timeIntervalSince($0) > 60 }) ?? true else { return }
         isLoading = true; defer { isLoading = false }
         do {
             var collected: [ClassroomItem] = [], page = 1

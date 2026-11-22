@@ -106,12 +106,34 @@ struct DeviceSyncRequest: Codable {
 }
 struct DeviceSyncReceipt: Decodable { var id: Int; var user_id: Int; var applied: Bool }
 struct SyncCapabilities: Decodable { var device_sync_version: Int; var idempotent: Bool }
+struct SyncRemoteRecord: Decodable, Sendable {
+    struct Payload: Decodable, Sendable { var record_key: String; var revision_at: Double; var kind: String }
+    var user_id: Int
+    var sleep_record_id: Int?
+    var payload: Payload
+}
+struct SyncRemotePage: Decodable, Sendable { var total: Int; var items: [SyncRemoteRecord] }
 @MainActor protocol AutomaticSyncServing {
     func available(token: String) async throws -> Bool
+    func inventory(start: String, end: String, userID: Int, token: String) async throws -> [SyncRemoteRecord]
     func upload(_ request: DeviceSyncRequest, token: String) async throws -> DeviceSyncReceipt
 }
 @MainActor struct AutomaticSyncAPI: AutomaticSyncServing {
     let client: APIClient
+    func inventory(start: String, end: String, userID: Int, token: String) async throws -> [SyncRemoteRecord] {
+        var rows: [SyncRemoteRecord] = [], page = 1
+        while true {
+            let bytes = try await client.request("health/device-records", authenticated: true, token: token,
+                query: [.init(name: "start_date", value: start), .init(name: "end_date", value: end),
+                        .init(name: "page", value: String(page)), .init(name: "page_size", value: "100")])
+            let result = try await SyncPreparationWorker.shared.decodeInventory(bytes)
+            guard result.items.allSatisfy({ $0.user_id == userID }) else { throw APIError.invalidResponse }
+            rows += result.items
+            if rows.count >= result.total { return rows }
+            guard !result.items.isEmpty, page < 100 else { throw APIError.invalidResponse }
+            page += 1
+        }
+    }
     func available(token: String) async throws -> Bool {
         let data = try await client.request("health/sync-capabilities", authenticated: true, token: token)
         let result = try APIJSON.decode(SyncCapabilities.self, from: data)
@@ -131,6 +153,7 @@ struct SyncStamp: Codable { var fingerprint: String; var revision: Double; var c
     @Published private(set) var message = "登录后自动同步已有记录"
     @Published private(set) var isBusy = false
     @Published private(set) var lastSyncedAt: Date?
+    @Published private(set) var lastVerifiedAt: Date?
     private var scope = ""
     private var stamps: [String: SyncStamp] = [:]
     private let directory: URL?
@@ -141,7 +164,7 @@ struct SyncStamp: Codable { var fingerprint: String; var revision: Double; var c
     private func bind(_ next: String, token: String = "") {
         guard next != scope || token != tokenIdentity else { return }
         tokenIdentity = token
-        generation = UUID(); scope = next; isBusy = false; lastSyncedAt = nil; changedAt = nil
+        generation = UUID(); scope = next; isBusy = false; lastSyncedAt = nil; lastVerifiedAt = nil; changedAt = nil
         stamps = url.flatMap { try? Data(contentsOf: $0) }.flatMap { try? JSONDecoder().decode([String: SyncStamp].self, from: $0) } ?? [:]
     }
     private var url: URL? { directory?.appendingPathComponent(WearableVital.deviceKey(scope) + ".json") }
@@ -157,12 +180,51 @@ struct SyncStamp: Codable { var fingerprint: String; var revision: Double; var c
         guard !isBusy, force || changedAt.map({ Date.now.timeIntervalSince($0) > 30 }) ?? true else { return }
         let operation = generation
         func fingerprint(_ request: DeviceSyncRequest) -> String { fingerprints?[request.record_key] ?? request.fingerprint }
-        let pending = requests.filter { stamps[$0.record_key]?.fingerprint != fingerprint($0) || stamps[$0.record_key]?.confirmed != true }
-        guard !pending.isEmpty else { message = requests.isEmpty ? "暂无需要同步的真实记录" : "已自动同步到当前账号"; return }
-        isBusy = true; message = "正在自动同步 \(pending.count) 份记录"
-        defer { if operation == generation { isBusy = false } }
+        guard !requests.isEmpty else { message = "暂无需要同步的真实记录"; return }
+        let verify = force || lastVerifiedAt.map { Date.now.timeIntervalSince($0) >= 900 } ?? true
+        let needsUpload = requests.contains { stamps[$0.record_key]?.fingerprint != fingerprint($0) || stamps[$0.record_key]?.confirmed != true }
+        guard verify || needsUpload else { return }
+        isBusy = true; message = verify ? "正在核对平台中的记录" : "正在自动同步记录"
+        defer {
+            if operation == generation {
+                isBusy = false
+                // Local troubleshooting only: no token, contact details or health measurements.
+                struct Status: Encodable {
+                    var userID: Int; var verifiedAt: Date?; var syncedAt: Date?; var pendingDates: [String]
+                }
+                if let folder = directory?.appendingPathComponent("status", isDirectory: true) {
+                    let pendingDates = Set(requests.filter { stamps[$0.record_key]?.confirmed != true }.map(\.record_date)).sorted()
+                    let status = Status(userID: session.user.id, verifiedAt: lastVerifiedAt, syncedAt: lastSyncedAt, pendingDates: pendingDates)
+                    try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                    if let data = try? JSONEncoder().encode(status) {
+                        try? data.write(to: folder.appendingPathComponent("latest.json"), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+                    }
+                }
+            }
+        }
         do {
             guard try await api.available(token: session.accessToken) else { throw APIError.validation("平台同步功能尚未启用，本机记录已保留。") }
+            guard operation == generation, !Task.isCancelled else { return }
+            if verify, let firstDay = requests.map(\.record_date).min(), let lastDay = requests.map(\.record_date).max() {
+                // A local receipt is not proof that the current server still has its row.
+                let remote = try await api.inventory(start: firstDay, end: lastDay, userID: session.user.id, token: session.accessToken)
+                guard operation == generation, !Task.isCancelled else { return }
+                let indexed = Dictionary(remote.map { ($0.payload.record_key, $0) }, uniquingKeysWith: { a, b in
+                    a.payload.revision_at >= b.payload.revision_at ? a : b
+                })
+                for request in requests {
+                    guard let stamp = stamps[request.record_key], stamp.confirmed else { continue }
+                    let saved = indexed[request.record_key]
+                    if saved.map({ $0.payload.revision_at < stamp.revision || (request.kind == "sleep" && $0.sleep_record_id == nil) }) ?? true {
+                        stamps[request.record_key]?.confirmed = false
+                    }
+                }
+                try persist(); lastVerifiedAt = .now
+            }
+            let pending = requests.filter { stamps[$0.record_key]?.fingerprint != fingerprint($0) || stamps[$0.record_key]?.confirmed != true }
+                .sorted { ($0.kind == "sleep" ? 0 : 1) < ($1.kind == "sleep" ? 0 : 1) }
+            message = "正在自动同步 \(pending.count) 份记录"
+            var rejected = 0
             for var request in pending {
                 guard operation == generation, !Task.isCancelled else { return }
                 let fingerprint = fingerprint(request)
@@ -172,12 +234,22 @@ struct SyncStamp: Codable { var fingerprint: String; var revision: Double; var c
                 }
                 try persist()
                 request.revision_at = stamps[request.record_key]!.revision
-                let receipt = try await api.upload(request, token: session.accessToken)
-                guard operation == generation else { return }
-                guard receipt.id > 0, receipt.user_id == session.user.id else { throw APIError.invalidResponse }
-                stamps[request.record_key]?.confirmed = true; try persist()
+                do {
+                    let receipt = try await api.upload(request, token: session.accessToken)
+                    guard operation == generation else { return }
+                    guard receipt.id > 0, receipt.user_id == session.user.id else { throw APIError.invalidResponse }
+                    stamps[request.record_key]?.confirmed = true; try persist()
+                } catch APIError.business(let status, _) where [400, 409, 422].contains(status) {
+                    guard operation == generation else { return }
+                    rejected += 1
+                }
             }
-            lastSyncedAt = .now; changedAt = nil; message = "已自动同步到当前账号"
+            if rejected > 0 {
+                changedAt = .now
+                message = "其余记录已同步，\(rejected) 份记录暂未被平台接收。本机保留，稍后重试。"
+            } else {
+                lastSyncedAt = .now; changedAt = nil; message = "已自动同步到当前账号"
+            }
         } catch {
             guard operation == generation else { return }
             changedAt = .now
