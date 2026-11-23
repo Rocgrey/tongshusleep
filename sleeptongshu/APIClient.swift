@@ -49,6 +49,7 @@ final class APIClient {
     private let session: URLSession
     private var gatewayTask: Task<Void, Error>?
     var tokenProvider: (() -> String?)?
+    var sessionToken: ((String?) async throws -> String?)?
     var onUnauthorized: ((String, String) -> Void)?
     var serviceID: String { configuration.baseURL?.absoluteString ?? "unconfigured" }
     init(configuration: APIConfiguration = .app, session: URLSession? = nil) {
@@ -64,9 +65,11 @@ final class APIClient {
         }
     }
     func request(_ path: String, method: String = "GET", body: Data? = nil,
-                 authenticated: Bool = false, token explicitToken: String? = nil, query: [URLQueryItem] = [], requestTimeout: TimeInterval? = nil) async throws -> Data {
+                 authenticated: Bool = false, token explicitToken: String? = nil, query: [URLQueryItem] = [], requestTimeout: TimeInterval? = nil, resolveSession: Bool = true) async throws -> Data {
         guard let base = configuration.baseURL else { throw APIError.configuration }
-        let token = explicitToken ?? (authenticated ? tokenProvider?() : nil)
+        let token: String?
+        if authenticated, resolveSession, let sessionToken { token = try await sessionToken(explicitToken) }
+        else { token = explicitToken ?? (authenticated ? tokenProvider?() : nil) }
         if authenticated && token == nil { throw APIError.unauthorized("请先登录，再继续操作。") }
         try await prepareGateway()
         var components = URLComponents(url: base.appendingPathComponent(path), resolvingAgainstBaseURL: false)!

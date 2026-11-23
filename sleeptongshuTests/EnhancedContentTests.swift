@@ -17,6 +17,19 @@ private final class ContentTransport: URLProtocol {
 }
 
 @MainActor final class EnhancedContentTests: XCTestCase {
+    func testNotificationRoutesSupportSummaryColdLoginAndRepeatedContent() {
+        let routes = AppRoutes()
+        routes.receive("content/test-article")
+        let first = routes.deliveryID
+        XCTAssertEqual(routes.target, "content/test-article")
+        routes.receive("content/test-article")
+        XCTAssertNotEqual(routes.deliveryID, first)
+        routes.open(URL(string: "sleeptongshu://sleep-summary")!)
+        XCTAssertEqual(routes.target, "sleep-summary")
+        XCTAssertTrue(AppRoutes.valid("goodnight"))
+        routes.receive("https://untrusted.example.test")
+        XCTAssertEqual(routes.target, "goodnight")
+    }
     private var directory: URL!
     private var transport: URLSession!
     private var client: APIClient!

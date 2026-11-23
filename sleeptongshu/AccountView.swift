@@ -19,10 +19,23 @@ struct AppEntryView: View {
                     Image(systemName: "moon.stars.fill").font(.system(size: 36)).foregroundStyle(SleepPalette.teal)
                     ProgressView("正在检查登录状态")
                 }.frame(maxWidth: .infinity, maxHeight: .infinity).background(SleepPalette.background)
+            } else if account.canRetryRestore {
+                ContentUnavailableView {
+                    Label("登录信息已保留", systemImage: "wifi.exclamationmark")
+                } description: { Text(account.message ?? "请联网后继续使用。") }
+                actions: { Button("重新连接") { Task { await account.restore() } }.buttonStyle(.borderedProminent) }
             } else { NavigationStack { AccountLoginView().toolbar(.hidden, for: .navigationBar) } }
         }
-        .task { if !bypassForTests { await account.restore() } }
-        .onChange(of: scenePhase) { _, phase in if phase == .active { account.checkExpiry() } }
+        .task {
+            #if DEBUG
+            let args = ProcessInfo.processInfo.arguments
+            if args.contains("-ui-testing"), let index = args.firstIndex(of: "-ui-testing-notification-route"), args.indices.contains(index + 1) {
+                AppRoutes.shared.receive(args[index + 1])
+            }
+            #endif
+            if !bypassForTests { await account.restore() }
+        }
+        .onChange(of: scenePhase) { _, phase in if phase == .active { Task { await account.resume() } } }
         .sheet(item: $account.presentedDestination) { destination in
             switch destination {
             case .profile: AccountCenterView()

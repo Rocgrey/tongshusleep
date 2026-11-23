@@ -49,6 +49,28 @@ final class AccountUITests: XCTestCase {
         XCTAssertTrue(app.segmentedControls["accountMode"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.tabBars.buttons["健康"].exists)
     }
+    func testNotificationCardWaitsForLoginAndOpensNativePage() {
+        app.terminate()
+        app.launchArguments += ["-ui-testing-notification-route", "goodnight"]
+        app.launch()
+        XCTAssertTrue(app.segmentedControls["accountMode"].waitForExistence(timeout: 5))
+        enterLogin()
+        XCTAssertTrue(app.buttons["完成"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.navigationBars["晚安"].exists)
+        capture("notification-goodnight-test-route")
+        app.buttons["完成"].tap()
+        XCTAssertTrue(app.tabBars.buttons["睡眠课堂"].isSelected)
+    }
+    func testNotificationSummaryWaitsForLoginAndOpensSleepTab() {
+        app.terminate()
+        app.launchArguments += ["-ui-testing-notification-route", "sleep-summary", "-ui-testing-device-sleep"]
+        app.launch()
+        XCTAssertTrue(app.segmentedControls["accountMode"].waitForExistence(timeout: 5))
+        enterLogin()
+        XCTAssertTrue(app.segmentedControls["sleepDashboardSource"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.tabBars.buttons["睡眠"].isSelected)
+        capture("notification-summary-synthetic-record")
+    }
     func testRegisterReturnsToEmailLoginThenProfileAndLogoutWork() {
         capture("60-email-login")
         XCTAssertTrue(app.switches["accountRemember"].exists)

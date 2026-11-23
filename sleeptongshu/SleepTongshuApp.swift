@@ -107,7 +107,7 @@ struct RootTabView: View {
 
     var body: some View {
         TabView(selection: $tab) {
-            SleepDashboardView().tabItem { Label("睡眠", systemImage: "moon.zzz.fill") }.tag(SleepTab.sleep)
+            SleepDashboardView(isSelected: tab == .sleep).tabItem { Label("睡眠", systemImage: "moon.zzz.fill") }.tag(SleepTab.sleep)
             MonitoringView().tabItem { Label("监测与设备", systemImage: "waveform.path") }.tag(SleepTab.monitoring)
             TrendsView().tabItem { Label("趋势", systemImage: "chart.bar.xaxis") }.tag(SleepTab.trends)
             NavigationStack { HealthOverviewView() }.tabItem { Label("健康", systemImage: "heart.text.clipboard") }.tag(SleepTab.health)
@@ -115,11 +115,13 @@ struct RootTabView: View {
         }
         .toolbarBackground(.visible, for: .tabBar)
         .onChange(of: routes.target) { _, target in
-            if target == "monitoring" { tab = .monitoring }
+            if target == "sleep-summary" { tab = .sleep }
+            else if target == "monitoring" { tab = .monitoring; routes.target = nil }
             else if target != nil { tab = .classroom }
         }
-        .onAppear { if routes.target != nil { tab = routes.target == "monitoring" ? .monitoring : .classroom } }
-        .task(id: account.session?.user.id) {
+        .onAppear { if let route = routes.target { tab = route == "sleep-summary" ? .sleep : route == "monitoring" ? .monitoring : .classroom } }
+        .task(id: "reminders|\(account.session?.user.id ?? 0)|\(scenePhase == .active)") {
+            guard scenePhase == .active else { return }
             if account.session != nil { await ReminderService.shared.sync(account: account); await ReminderService.shared.apply(items: content.items) }
         }
         .environmentObject(phone)

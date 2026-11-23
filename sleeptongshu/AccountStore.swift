@@ -67,6 +67,9 @@ final class AccountStore: ObservableObject {
     private var restored = false
     private var generation = UUID()
     private var expiryTask: Task<Void, Never>?
+    private var refreshTask: Task<Void, Error>?
+    private var remembersSession = false
+    @Published private(set) var canRetryRestore = false
     var canEnter: Bool { session != nil }
 
     init(api: (any AccountServing)? = nil, storage: any AccountSessionStorage = KeychainAccountStorage()) {
@@ -75,6 +78,17 @@ final class AccountStore: ObservableObject {
         client.tokenProvider = { [weak self] in
             self?.checkExpiry()
             return self?.session?.accessToken
+        }
+        client.sessionToken = { [weak self] explicit in
+            guard let self, let current = self.session else { return explicit }
+            // A captured request from another session must never acquire a new user's token.
+            if let explicit, explicit != current.accessToken { return explicit }
+            if current.refreshToken != nil, current.expiresAt.timeIntervalSinceNow < 60 { try await self.renew() }
+            else if current.expiresAt <= .now {
+                self.invalidate(message: "登录已到期，请重新登录。")
+                throw APIError.unauthorized("登录已到期，请重新登录。")
+            }
+            return self.session?.accessToken
         }
         client.onUnauthorized = { [weak self] token, text in
             // An old response must never sign out a newer session.
@@ -97,11 +111,16 @@ final class AccountStore: ObservableObject {
         else { pendingDestination = destination }
     }
     func checkExpiry() {
-        if let session, session.expiresAt <= .now { invalidate(message: "登录已到期，请重新登录。") }
+        guard let session, session.expiresAt <= .now else { return }
+        if session.refreshToken != nil { Task { try? await self.renew() } }
+        else { invalidate(message: "登录已到期，请重新登录。") }
     }
     private func invalidate(message: String) {
         generation = UUID()
         expiryTask?.cancel()
+        refreshTask?.cancel()
+        refreshTask = nil
+        canRetryRestore = false
         if let destination = presentedDestination { pendingDestination = destination }
         presentedDestination = nil
         session = nil
@@ -114,33 +133,80 @@ final class AccountStore: ObservableObject {
         presentedDestination = pendingDestination
         pendingDestination = nil
         expiryTask?.cancel()
-        let seconds = max(0, value.expiresAt.timeIntervalSinceNow)
+        let seconds = max(1, value.expiresAt.timeIntervalSinceNow - (value.refreshToken == nil ? 0 : 60))
         expiryTask = Task { [weak self] in
-            do { try await Task.sleep(for: .seconds(min(seconds, 31_536_000))); self?.checkExpiry() }
+            do {
+                try await Task.sleep(for: .seconds(min(seconds, 31_536_000)))
+                if value.refreshToken != nil { try? await self?.renew() } else { self?.checkExpiry() }
+            }
             catch { }
         }
+    }
+    /// All API calls share one renewal; late responses cannot resurrect a signed-out account.
+    private func renew() async throws {
+        if let refreshTask { try await refreshTask.value; return }
+        guard let current = session else { throw APIError.unauthorized("请先登录。") }
+        let operation = generation
+        let task = Task { [self] in
+            let next = try await api.refresh(current)
+            guard operation == generation, session?.accessToken == current.accessToken else { throw CancellationError() }
+            guard next.user.id == current.user.id else { throw APIError.invalidResponse }
+            if remembersSession { try storage.save(SavedAccountSession(serviceID: client.serviceID, session: next)) }
+            activate(next)
+        }
+        refreshTask = task
+        defer { if operation == generation { refreshTask = nil } }
+        do {
+            try await task.value
+        } catch {
+            if operation == generation, (error as? APIError)?.isUnauthorized == true { invalidate(message: error.localizedDescription) }
+            throw error
+        }
+    }
+    func resume() async {
+        if canRetryRestore { await restore(); return }
+        guard let session else { return }
+        if session.refreshToken != nil, session.expiresAt.timeIntervalSinceNow < 60 { try? await renew() }
+        else { checkExpiry() }
     }
     /// Remembered sessions are accepted only after /me verifies them.
     func restore() async {
         guard !restored else { return }
         restored = true
+        canRetryRestore = false
+        isRestoring = true
         let operation = generation
         defer { isRestoring = false }
         do {
             guard let saved = try storage.load() else { return }
             guard saved.serviceID == client.serviceID else { try storage.clear(); return }
-            guard saved.session.expiresAt > .now else { invalidate(message: "登录已到期，请重新登录。"); return }
-            let user = try await api.me(token: saved.session.accessToken)
-            guard operation == generation else { return }
-            guard user.id == saved.session.user.id else { throw APIError.invalidResponse }
+            remembersSession = true
             var next = saved.session
-            next.user = user
+            if next.expiresAt.timeIntervalSinceNow < 60, next.refreshToken != nil {
+                next = try await api.refresh(next)
+            } else {
+                guard next.expiresAt > .now else { invalidate(message: "登录已到期，请重新登录。"); return }
+                next.user = try await api.me(token: next.accessToken)
+            }
+            guard operation == generation else { return }
+            guard next.user.id == saved.session.user.id else { throw APIError.invalidResponse }
+            if next.refreshToken == nil {
+                // Upgrade valid pre-release sessions when the new backend is deployed.
+                do { next = try await api.remember(next) }
+                catch let error as APIError where !error.isUnauthorized { /* Keep verified legacy login on temporary upgrade failure. */ }
+            }
+            guard operation == generation else { return }
             try storage.save(SavedAccountSession(serviceID: client.serviceID, session: next))
             activate(next)
         } catch {
             guard operation == generation else { return }
             if (error as? APIError)?.isUnauthorized == true { invalidate(message: error.localizedDescription) }
-            else { message = error.localizedDescription }
+            else {
+                // Keep credentials through a temporary outage; offer retry instead of password entry.
+                restored = false
+                canRetryRestore = true
+                message = "暂时无法恢复连接，登录信息仍已保留。请联网后重试。"
+            }
         }
     }
     /// Registration returns no token. Phone and email remain separate optional credentials.
@@ -181,6 +247,7 @@ final class AccountStore: ObservableObject {
                 try? await api.logout(token: next.accessToken)
                 throw APIError.secureStorage
             }
+            remembersSession = remember
             activate(next)
         } catch { if operation == generation { message = error.localizedDescription } }
     }

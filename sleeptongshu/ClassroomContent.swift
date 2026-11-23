@@ -115,10 +115,10 @@ struct ContentPage: Decodable { let items: [ClassroomItem]; let total: Int; let 
         items = bundled; hasRemoteCatalog = false; canOpenBundledLibrary = false
         message = "正在查看随 App 课堂内容"
     }
-    func freshItem(_ id: String, client: APIClient) async throws -> ClassroomItem {
+    func freshItem(_ id: String, client: APIClient, forceRemote: Bool = false) async throws -> ClassroomItem {
         // Before the additive API is deployed, actual bundled content remains usable.
         // After receiving a server catalog, never restore server-unpublished items.
-        if !hasRemoteCatalog, let local = bundled.first(where: { $0.id == id }) { return local }
+        if !forceRemote, !hasRemoteCatalog, let local = bundled.first(where: { $0.id == id }) { return local }
         do { return try JSONDecoder().decode(ClassroomItem.self, from: await client.request("content/items/" + id)) }
         catch let error as APIError {
             if case .business(404, _) = error { items.removeAll { $0.id == id || $0.parent_id == id } }
