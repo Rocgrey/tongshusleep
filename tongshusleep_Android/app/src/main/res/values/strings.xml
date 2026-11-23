@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">睡眠同书</string>
+    <string name="tab_sleep">睡眠</string>
+    <string name="tab_monitoring">监测与设备</string>
+    <string name="tab_trends">趋势</string>
+    <string name="tab_health">健康</string>
+    <string name="tab_classroom">睡眠课堂</string>
+</resources>

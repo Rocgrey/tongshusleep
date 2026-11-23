@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 月亮与星星：与 iOS 端品牌同源的简洁示意 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M62,26 C48,26 38,37 38,50 C38,63 48,74 62,74 C70,74 77,70 81,64 C80,64 79,65 78,65 C67,65 58,56 58,45 C58,38 61,32 66,28 C64,27 63,26 62,26 Z" />
+    <path
+        android:fillColor="#BFE8E2"
+        android:pathData="M76,36 m-2.5,0 a2.5,2.5 0 1,1 5,0 a2.5,2.5 0 1,1 -5,0" />
+    <path
+        android:fillColor="#BFE8E2"
+        android:pathData="M84,46 m-2,0 a2,2 0 1,1 4,0 a2,2 0 1,1 -4,0" />
+</vector>
