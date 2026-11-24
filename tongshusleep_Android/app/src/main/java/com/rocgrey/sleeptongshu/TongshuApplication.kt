@@ -39,6 +39,14 @@ class TongshuApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
+        // 注入云端能力（登录判定/上传客户端）给 Iwown 通道
+        com.rocgrey.sleeptongshu.core.ble.IwownSdkManager.attach(container)
+        try {
+            com.rocgrey.sleeptongshu.core.ble.IwownSdkManager.init(this)
+        } catch (e: Exception) {
+            // SDK 初始化失败不影响 App 其他功能
+            android.util.Log.e("TongshuApp", "Iwown SDK init failed", e)
+        }
         container.accountStore.initialize { token, onUnauthorized ->
             ApiClient(
                 baseUrl = com.rocgrey.sleeptongshu.BuildConfig.SLEEP_API_BASE_URL,

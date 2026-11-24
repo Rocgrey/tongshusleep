@@ -37,10 +37,9 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rocgrey.sleeptongshu.LocalAppContainer
-import com.rocgrey.sleeptongshu.core.ble.BioLocalSleepCalculator
 import com.rocgrey.sleeptongshu.core.ble.EncryptedBandChannel
 import com.rocgrey.sleeptongshu.core.ble.GattVitalsClient
-import com.rocgrey.sleeptongshu.core.ble.IwownProbeChannel
+import com.rocgrey.sleeptongshu.core.ble.IwownSdkManager
 import com.rocgrey.sleeptongshu.core.ble.StBandChannel
 import com.rocgrey.sleeptongshu.core.ble.VeepooChannel
 import com.rocgrey.sleeptongshu.core.monitor.PhoneMonitorResultBus
@@ -54,6 +53,7 @@ import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /** 监测页（对应 iOS MonitoringView）：手机监测 + BLE 设备 + 厂商通道 + 本地数据。 */
@@ -104,6 +104,29 @@ fun MonitoringScreen() {
         bleClient.startScan()
     }
 
+    // ---------- BIO-7349（Iwown SDK） ----------
+    val iwownState by IwownSdkManager.connectionState.collectAsStateWithLifecycle()
+    val iwownDevice by IwownSdkManager.deviceInfo.collectAsStateWithLifecycle()
+    val iwownScans by IwownSdkManager.scanResults.collectAsStateWithLifecycle()
+    val iwownEvent by IwownSdkManager.lastEvent.collectAsStateWithLifecycle()
+    var iwownCapturing by remember { mutableStateOf(false) }
+    var iwownHeartMeasuring by remember { mutableStateOf(false) }
+
+    val iwownScanLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) {
+        IwownSdkManager.startScan()
+    }
+
+    // 采集原始信号 20 秒后自动停止
+    LaunchedEffect(iwownCapturing) {
+        if (iwownCapturing) {
+            delay(20_000)
+            IwownSdkManager.stopSensorCapture()
+            iwownCapturing = false
+        }
+    }
+
     // ---------- 备份导入 ----------
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
@@ -124,14 +147,12 @@ fun MonitoringScreen() {
         }
     }
 
-    // ---------- 厂商通道（架构预留，全部未接入） ----------
+    // ---------- 厂商通道（架构预留，全部未接入；BIO-7349 已单独接入见上方卡片） ----------
     val vendorChannels = remember {
         listOf(
             VeepooChannel(),
-            IwownProbeChannel(),
             StBandChannel(),
             EncryptedBandChannel(),
-            BioLocalSleepCalculator(),
         )
     }
 
@@ -285,6 +306,111 @@ fun MonitoringScreen() {
                     }
                 }
                 Text(gattStatus.message, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+
+        // ---------- BIO-7349（Iwown SDK）面板 ----------
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text("BIO-7349（Iwown SDK）", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "厂商 BLE SDK 通道：支持扫描连接、电量/固件信息、实时心率测量、" +
+                        "原始信号采集（ACC/BIOZ/PPG）与最近 3 天历史同步（含 AI 睡眠计算）。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = palette.muted,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(
+                        onClick = { iwownScanLauncher.launch(blePermissions()) },
+                        enabled = iwownState != "syncing",
+                    ) {
+                        Text(if (iwownState == "scan") "扫描中…" else "扫描手环")
+                    }
+                    if (iwownState == "scan") {
+                        TextButton(onClick = { IwownSdkManager.stopScan() }) { Text("停止扫描") }
+                    }
+                    if (iwownState == "connected" || iwownState == "syncing") {
+                        TextButton(onClick = { IwownSdkManager.disconnect() }) { Text("断开") }
+                    }
+                }
+                if (iwownState == "scan" && iwownScans.isEmpty()) {
+                    Text("正在搜索附近手环…", style = MaterialTheme.typography.bodySmall, color = palette.muted)
+                }
+                iwownScans.forEach { item ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(item.name, style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                "${item.address} · ${item.rssi} dBm",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = palette.muted,
+                            )
+                        }
+                        TextButton(onClick = { IwownSdkManager.connect(item.name, item.address) }) {
+                            Text("连接")
+                        }
+                    }
+                }
+                iwownDevice?.let { info ->
+                    Text(
+                        listOfNotNull(
+                            info.model?.let { "型号 $it" },
+                            info.version?.let { "固件 $it" },
+                            info.sn?.let { "SN $it" },
+                            info.battery?.let { "电量 ${it}%" + if (info.charging) "（充电中）" else "" },
+                        ).joinToString(" · ").ifEmpty { "已连接" },
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(
+                        onClick = { IwownSdkManager.startHistorySync(3) },
+                        enabled = iwownState == "connected" || iwownState == "syncing",
+                    ) {
+                        Text(if (iwownState == "syncing") "历史同步中…" else "同步历史 3 天")
+                    }
+                    Button(
+                        onClick = {
+                            if (iwownCapturing) {
+                                IwownSdkManager.stopSensorCapture()
+                                iwownCapturing = false
+                            } else {
+                                IwownSdkManager.startSensorCapture()
+                                iwownCapturing = true
+                            }
+                        },
+                        enabled = iwownState == "connected" || iwownState == "syncing",
+                    ) {
+                        Text(if (iwownCapturing) "停止采集" else "采集原始信号 20 秒")
+                    }
+                    Button(
+                        onClick = {
+                            if (iwownHeartMeasuring) {
+                                IwownSdkManager.stopHeartMeasure()
+                                iwownHeartMeasuring = false
+                            } else {
+                                IwownSdkManager.measureHeartRate()
+                                iwownHeartMeasuring = true
+                            }
+                        },
+                        enabled = iwownState == "connected" || iwownState == "syncing",
+                    ) {
+                        Text(if (iwownHeartMeasuring) "停止心率测量" else "实时心率测量")
+                    }
+                }
+                if (iwownEvent.isNotEmpty()) {
+                    Text(
+                        "最近事件：$iwownEvent",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = palette.mint,
+                    )
+                }
             }
         }
 

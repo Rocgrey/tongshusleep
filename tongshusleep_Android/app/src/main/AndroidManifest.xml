@@ -13,6 +13,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <!-- BLE 设备 -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -75,6 +77,10 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
+        <!-- Iwown BLE SDK 服务 -->
+        <service
+            android:name="com.zeroner.blemidautumn.bluetooth.impl.BleService"
+            android:exported="false" />
         <service
             android:name=".core.monitor.PhoneMonitorService"
             android:exported="false"

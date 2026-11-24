@@ -87,6 +87,15 @@ dependencies {
     // 提醒与后台
     implementation("androidx.work:work-runtime-ktx:2.10.0")
 
+    // Iwown BLE SDK（BIO-7349 手环）
+    implementation(files("libs/blesdk260618.aar"))
+    implementation(files("libs/libble-0.5.aar"))
+    implementation("com.google.protobuf:protobuf-java:3.11.0")
+    implementation("io.reactivex.rxjava2:rxjava:2.2.3")
+    implementation("io.reactivex.rxjava2:rxandroid:2.1.0")
+    implementation("com.alibaba:fastjson:1.2.83")
+    implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.0.0")
+
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
