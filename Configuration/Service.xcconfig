@@ -4,5 +4,6 @@ SLEEP_GATEWAY_SHARE_CODE =
 // SMS/email recovery matches the deployed v1 request/confirm contract.
 SLEEP_EMAIL_RECOVERY_ENABLED = YES
 SLEEP_APNS_ENVIRONMENT = sandbox
+SLEEP_PUSH_ENABLED = NO
 #include? "ServiceLocal.xcconfig"
 #include "IwownSleep.xcconfig"

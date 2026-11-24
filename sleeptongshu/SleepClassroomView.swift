@@ -2,6 +2,7 @@ import SwiftUI
 import AVKit
 
 struct SleepClassroomView: View {
+    var isSelected = true
     @EnvironmentObject private var content: ContentStore
     @EnvironmentObject private var account: AccountStore
     @EnvironmentObject private var routes: AppRoutes
@@ -11,6 +12,7 @@ struct SleepClassroomView: View {
     @State private var selection = "课程"
     @State private var target: ClassroomItem?
     @State private var playingItem: ClassroomItem?
+    @State private var routeMessage: String?
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -21,6 +23,10 @@ struct SleepClassroomView: View {
                             Text("了解睡眠，也练习好好休息").font(.caption).foregroundStyle(SleepPalette.muted)
                         }
                         Spacer()
+                        Button { Task { await content.refresh(client: account.client, force: true) } } label: {
+                            Image(systemName: "arrow.clockwise").font(.title2).frame(width: 44, height: 44)
+                        }.disabled(content.isLoading).accessibilityLabel("刷新课堂内容")
+                            .accessibilityIdentifier("refreshClassroom")
                         NavigationLink { AppSettingsView() } label: { Image(systemName: "gearshape").font(.title2) }
                             .accessibilityLabel("设置").accessibilityIdentifier("enhancedSettings")
                     }
@@ -28,6 +34,11 @@ struct SleepClassroomView: View {
                         .pickerStyle(.segmented).accessibilityIdentifier("classroomSections")
                     if let message = content.message { Label(message, systemImage: content.hasRemoteCatalog ? "wifi.exclamationmark" : "info.circle").font(.caption).foregroundStyle(.secondary) }
                     if !content.hasRemoteCatalog, content.message == nil { Text("随 App 提供的课堂内容").font(.caption).foregroundStyle(.secondary) }
+                    if content.isLoading { ProgressView("正在更新课堂").font(.caption) }
+                    else if content.hasRemoteCatalog, let date = content.refreshedAt {
+                        Text("平台内容 · 更新于 \(date.formatted(date: .omitted, time: .shortened))")
+                            .font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("classroomUpdatedAt")
+                    }
                     if content.canOpenBundledLibrary {
                         Button { content.openBundledLibrary() } label: { Label("查看随 App 课堂", systemImage: "books.vertical") }
                             .buttonStyle(.borderedProminent)
@@ -57,16 +68,22 @@ struct SleepClassroomView: View {
                 }.padding(16).frame(maxWidth: 760).frame(maxWidth: .infinity)
             }.background(SleepPalette.background).toolbar(.hidden, for: .navigationBar)
                 .refreshable { await content.refresh(client: account.client, force: true) }
-                .task { await content.refresh(client: account.client); resolveRoute() }
-                .onChange(of: scenePhase) { _, phase in
-                    if phase == .active { Task { await content.refresh(client: account.client) } }
+                .task(id: isSelected && scenePhase == .active) {
+                    guard isSelected, scenePhase == .active else { return }
+                    while !Task.isCancelled {
+                        await content.refresh(client: account.client)
+                        do { try await Task.sleep(for: .seconds(60)) } catch { return }
+                    }
                 }
-                .onChange(of: routes.target) { _, _ in resolveRoute() }
+                .task(id: "\(isSelected)|\(routes.deliveryID)|\(routes.target ?? "")") { if isSelected { await resolveRoute() } }
+                .alert("内容提醒", isPresented: Binding(get: { routeMessage != nil }, set: { if !$0 { routeMessage = nil } })) {
+                    Button("知道了", role: .cancel) { routeMessage = nil }
+                } message: { Text(routeMessage ?? "") }
                 .navigationDestination(item: $target) { ClassroomDetailView(item: $0) }
                 .fullScreenCover(item: $playingItem) { lesson in
                     NavigationStack { ClassroomVideoView(item: lesson, progressKey: progressKey(lesson)) }
                 }
-                .sheet(isPresented: Binding(get: { ["breathing", "noise", "goodnight"].contains(routes.target ?? "") }, set: { if !$0 { routes.target = nil } })) {
+                .sheet(isPresented: Binding(get: { isSelected && ["breathing", "noise", "goodnight"].contains(routes.target ?? "") }, set: { if !$0 { routes.target = nil } })) {
                     NavigationStack {
                         Group { if routes.target == "breathing" { BreathingView() } else if routes.target == "noise" { WhiteNoiseView() } else { GoodnightView() } }
                             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { routes.target = nil } } }
@@ -74,10 +91,22 @@ struct SleepClassroomView: View {
                 }
         }
     }
-    private func resolveRoute() {
+    private func resolveRoute() async {
         if let route = routes.target, route.hasPrefix("content/") {
-            if let item = content.items.first(where: { $0.id == String(route.dropFirst(8)) }) { target = item }
-            else { routes.target = "goodnight" }
+            do {
+                // Notification cold launch may precede catalog loading.
+                let item = try await content.freshItem(String(route.dropFirst(8)), client: account.client, forceRemote: true)
+                guard !Task.isCancelled, routes.target == route else { return }
+                target = item
+                routes.target = nil
+            } catch {
+                guard !Task.isCancelled, routes.target == route else { return }
+                if case APIError.business(404, _) = error { routeMessage = "这条内容已下架，可以浏览其他睡眠内容。" }
+                else { routeMessage = "内容暂时无法打开，请稍后重试。" }
+                routes.target = nil
+            }
+        } else if routes.target == "classroom" {
+            routes.target = nil
         }
     }
     private func playFirstLesson(of course: ClassroomItem) {

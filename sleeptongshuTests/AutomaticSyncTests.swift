@@ -9,11 +9,23 @@ import XCTest
     var tokens: [String] = []
     var continuation: CheckedContinuation<DeviceSyncReceipt, Error>?
     var suspend = false
+    var remote: [SyncRemoteRecord] = []
+    var inventoryCalls = 0
+    var rejectedKeys: Set<String> = []
     func available(token: String) async throws -> Bool { if let failure { throw failure }; return ready }
+    func inventory(start: String, end: String, userID: Int, token: String) async throws -> [SyncRemoteRecord] {
+        inventoryCalls += 1
+        if let failure { throw failure }
+        return remote
+    }
     func upload(_ request: DeviceSyncRequest, token: String) async throws -> DeviceSyncReceipt {
         requests.append(request); tokens.append(token)
         if let failure { throw failure }
+        if rejectedKeys.contains(request.record_key) { throw APIError.business(422, "Synthetic validation failure") }
         if suspend { return try await withCheckedThrowingContinuation { continuation = $0 } }
+        remote.removeAll { $0.payload.record_key == request.record_key }
+        remote.append(SyncRemoteRecord(user_id: userID, sleep_record_id: request.kind == "sleep" ? 10 : nil,
+            payload: .init(record_key: request.record_key, revision_at: request.revision_at, kind: request.kind)))
         return DeviceSyncReceipt(id: 10, user_id: userID, applied: true)
     }
 }
@@ -80,6 +92,34 @@ import XCTest
         api.userID = 2
         await store.sync([request()], session: session(2), service: "two", api: api)
         XCTAssertEqual(api.requests.count, 3)
+    }
+    func testServerMissingConfirmedRecordsAreRestoredAfterRelaunchWithoutNewRevision() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let api = MockAutomaticSync()
+        let store = AutomaticSyncStore(directory: directory)
+        await store.sync([request()], session: session(1), service: "test", api: api)
+        let revision = try XCTUnwrap(api.requests.first?.revision_at)
+        api.remote = [] // Simulate a server database restore; the local receipt remains.
+        let relaunched = AutomaticSyncStore(directory: directory)
+        await relaunched.sync([request()], session: session(1), service: "test", api: api)
+        XCTAssertEqual(api.requests.count, 2)
+        XCTAssertEqual(api.requests.last?.revision_at, revision)
+        XCTAssertNotNil(relaunched.lastVerifiedAt)
+        await relaunched.sync([request()], session: session(1), service: "test", api: api)
+        XCTAssertEqual(api.inventoryCalls, 2); XCTAssertEqual(api.requests.count, 2)
+        await relaunched.sync([request()], session: session(1), service: "test", api: api, force: true)
+        XCTAssertEqual(api.inventoryCalls, 3); XCTAssertEqual(api.requests.count, 2)
+    }
+    func testOneRejectedRecordDoesNotBlockOtherNightsAndDoesNotClaimCompleteSuccess() async throws {
+        let api = MockAutomaticSync(), store = AutomaticSyncStore(directory: nil)
+        var rejected = request(); rejected.record_key = "rejected"
+        var accepted = request(); accepted.record_key = "accepted"; accepted.record_date = "2026-11-18"
+        api.rejectedKeys.insert(rejected.record_key)
+        await store.sync([rejected, accepted], session: session(1), service: "test", api: api)
+        XCTAssertEqual(api.requests.count, 2)
+        XCTAssertEqual(api.remote.map { $0.payload.record_key }, [accepted.record_key])
+        XCTAssertNil(store.lastSyncedAt); XCTAssertTrue(store.message.contains("1 份记录暂未"))
     }
     func testNightObservationJSONHasMeasuredAveragesButNoInventedSleepFields() throws {
         let start = StepDates.date("2026-11-11")!

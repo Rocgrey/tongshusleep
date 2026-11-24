@@ -1,3 +1,7 @@
 // Copy to ServiceLocal.xcconfig for a private deployment override; that file is ignored.
 // SLEEP_API_BASE_URL = https:/$()/your-api.example.com/api/v1
 // SLEEP_GATEWAY_SHARE_CODE = gateway-share-code-if-required
+// A paid team and a provisioning profile with Push Notifications are required.
+// SLEEP_PUSH_ENABLED = YES
+// SLEEP_APNS_ENVIRONMENT = sandbox
+// For TestFlight/App Store use production; set matching aps-environment to production.

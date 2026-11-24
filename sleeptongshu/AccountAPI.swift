@@ -14,6 +14,8 @@ struct AccountSession: Codable, Equatable {
     var user: AccountUser
     var accessToken: String
     var expiresAt: Date
+    var refreshToken: String? = nil
+    var refreshExpiresAt: Date? = nil
 }
 
 struct RegistrationResult: Decodable { let message: String }
@@ -71,6 +73,13 @@ protocol AccountServing {
     func register(username: String, phone: String?, email: String?, password: String) async throws -> RegistrationResult
     func me(token: String) async throws -> AccountUser
     func logout(token: String) async throws
+    func refresh(_ session: AccountSession) async throws -> AccountSession
+    func remember(_ session: AccountSession) async throws -> AccountSession
+}
+
+extension AccountServing {
+    func refresh(_ session: AccountSession) async throws -> AccountSession { throw APIError.unauthorized("登录已到期，请重新登录。") }
+    func remember(_ session: AccountSession) async throws -> AccountSession { session }
 }
 
 /// Only the exact v1 request fields are encoded; registration never impersonates login.
@@ -78,23 +87,47 @@ protocol AccountServing {
 final class AccountAPI: AccountServing {
     let client: APIClient
     init(client: APIClient) { self.client = client }
-    func login(identifier: String, method: AccountInput.Method, password: String) async throws -> AccountSession {
-        struct Body: Encodable { let phone: String?; let email: String?; let password: String }
-        struct Token: Decodable {
-            let access_token: String
-            let token_type: String
-            let expire_at: Double
-        }
-        let body = Body(phone: method == .phone ? AccountInput.phone(identifier) : nil,
-                        email: method == .email ? AccountInput.email(identifier) : nil, password: password)
-        let data = try await client.request("auth/login", method: "POST", body: JSONEncoder().encode(body))
+    private struct Token: Decodable {
+        let access_token: String
+        let token_type: String
+        let expire_at: Double
+        var refresh_token: String?
+        var refresh_expire_at: Double?
+    }
+    private func decodeSession(_ data: Data) async throws -> AccountSession {
         let token = try APIJSON.decode(Token.self, from: data)
         let expiry = Date(timeIntervalSince1970: token.expire_at)
         guard token.token_type.lowercased() == "bearer", !token.access_token.isEmpty,
               !token.access_token.contains(where: { $0.isWhitespace || $0.isNewline }), expiry > .now else { throw APIError.invalidResponse }
-        // /me is the authority for the current user's identity.
         let user = try await me(token: token.access_token)
-        return AccountSession(user: user, accessToken: token.access_token, expiresAt: expiry)
+        return AccountSession(user: user, accessToken: token.access_token, expiresAt: expiry,
+                              refreshToken: token.refresh_token, refreshExpiresAt: token.refresh_expire_at.map(Date.init(timeIntervalSince1970:)))
+    }
+    func login(identifier: String, method: AccountInput.Method, password: String) async throws -> AccountSession {
+        struct Body: Encodable { let phone: String?; let email: String?; let password: String }
+        let body = Body(phone: method == .phone ? AccountInput.phone(identifier) : nil,
+                        email: method == .email ? AccountInput.email(identifier) : nil, password: password)
+        let data = try await client.request("auth/login", method: "POST", body: JSONEncoder().encode(body))
+        return try await decodeSession(data)
+    }
+    func refresh(_ session: AccountSession) async throws -> AccountSession {
+        guard let token = session.refreshToken, session.refreshExpiresAt.map({ $0 > .now }) == true else {
+            throw APIError.unauthorized("登录已到期，请重新登录。")
+        }
+        struct Body: Encodable { let refresh_token: String }
+        let data = try await client.request("auth/refresh", method: "POST", body: JSONEncoder().encode(Body(refresh_token: token)))
+        let next = try await decodeSession(data)
+        guard next.user.id == session.user.id else { throw APIError.invalidResponse }
+        return next
+    }
+    func remember(_ session: AccountSession) async throws -> AccountSession {
+        do {
+            let data = try await client.request("auth/session", method: "POST", authenticated: true, token: session.accessToken, resolveSession: false)
+            let next = try await decodeSession(data)
+            guard next.user.id == session.user.id else { throw APIError.invalidResponse }
+            return next
+        } catch APIError.business(404, _) { return session } // Old deployments remain compatible until updated.
+          catch APIError.business(405, _) { return session }
     }
     func register(username: String, phone: String?, email: String?, password: String) async throws -> RegistrationResult {
         struct Body: Encodable { let username: String; let phone: String?; let email: String?; let password: String }
@@ -102,7 +135,7 @@ final class AccountAPI: AccountServing {
         return try APIJSON.decode(RegistrationResult.self, from: data)
     }
     func me(token: String) async throws -> AccountUser {
-        let data = try await client.request("auth/me", authenticated: true, token: token)
+        let data = try await client.request("auth/me", authenticated: true, token: token, resolveSession: false)
         let user = try APIJSON.decode(AccountUser.self, from: data)
         guard user.id > 0, !user.username.isEmpty else { throw APIError.invalidResponse }
         return user

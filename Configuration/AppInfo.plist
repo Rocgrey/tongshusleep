@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
+    <key>SleepPushEnabled</key><string>$(SLEEP_PUSH_ENABLED)</string>
     <key>SleepAPIBaseURL</key><string>$(SLEEP_API_BASE_URL)</string>
     <key>SleepGatewayShareCode</key><string>$(SLEEP_GATEWAY_SHARE_CODE)</string>
     <key>SleepEmailRecoveryEnabled</key><string>$(SLEEP_EMAIL_RECOVERY_ENABLED)</string>

@@ -2,7 +2,9 @@ import SwiftUI
 import SwiftData
 
 struct SleepDashboardView: View {
+    var isSelected = true
     @EnvironmentObject private var account: AccountStore
+    @EnvironmentObject private var routes: AppRoutes
     @EnvironmentObject private var health: HealthOverviewStore
     @EnvironmentObject private var deviceSteps: DeviceStepsStore
     @EnvironmentObject private var deviceVitals: WearableVitalsStore
@@ -90,6 +92,14 @@ struct SleepDashboardView: View {
             .toolbar(.hidden, for: .navigationBar)
             .task {
                 await health.refreshSleepIfNeeded(in: context)
+            }
+            .task(id: "\(isSelected)|\(routes.deliveryID)|\(routes.target ?? "")") {
+                guard isSelected, routes.target == "sleep-summary" else { return }
+                let latest = storedRecords.first { $0.isVisible && $0.source != .sample && $0.hasSleepDuration }
+                sourceOverride = latest == nil ? .device : .all
+                selectedID = latest?.id
+                showsHistory = false
+                routes.target = nil
             }
             .onChange(of: scenePhase) { _, phase in if phase == .active { Task { await health.refreshSleepIfNeeded(in: context) } } }
             .sheet(isPresented: $showsEditor) { SleepEditorView() }

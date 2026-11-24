@@ -103,6 +103,79 @@ final class AccountTests: XCTestCase {
         XCTAssertNil(storage.saved)
     }
 
+    private func renewable(expired: Bool = true) -> AccountSession {
+        AccountSession(user: AccountUser(id: 7, username: "同书test", email: "test@example.com", createdAt: .now),
+            accessToken: "old-access", expiresAt: .now.addingTimeInterval(expired ? -60 : 10),
+            refreshToken: String(repeating: "r", count: 64), refreshExpiresAt: .now.addingTimeInterval(86400))
+    }
+    private var renewedJSON: Data {
+        Data(#"{"access_token":"renewed-access","token_type":"bearer","expire_at":4070908800,"refresh_token":"rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr","refresh_expire_at":4070995200}"#.utf8)
+    }
+    func testExpiredRememberedLoginRenewsWithoutPasswordAndPersistsKeychainSession() async throws {
+        storage.saved = SavedAccountSession(serviceID: client.serviceID, session: renewable())
+        var renewals = 0
+        AccountURLProtocol.handler = { [self] request in
+            if request.url!.path.hasSuffix("refresh") {
+                renewals += 1
+                XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+                XCTAssertEqual(Set(try body(request).keys), ["refresh_token"])
+                return (200, renewedJSON)
+            }
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer renewed-access")
+            return (200, userJSON)
+        }
+        let store = AccountStore(api: api, storage: storage)
+        await store.restore()
+        XCTAssertTrue(store.canEnter)
+        XCTAssertEqual(renewals, 1)
+        XCTAssertEqual(storage.saved?.session.accessToken, "renewed-access")
+        let reopened = AccountStore(api: api, storage: storage)
+        await reopened.restore()
+        XCTAssertTrue(reopened.canEnter)
+        XCTAssertEqual(renewals, 1)
+    }
+    func testOfflineRestoreKeepsCredentialsAndRetriesWithoutPasswordForm() async {
+        storage.saved = SavedAccountSession(serviceID: client.serviceID, session: renewable())
+        AccountURLProtocol.handler = { _ in throw URLError(.notConnectedToInternet) }
+        let store = AccountStore(api: api, storage: storage)
+        await store.restore()
+        XCTAssertNotNil(storage.saved)
+        XCTAssertTrue(store.canRetryRestore)
+        XCTAssertNil(store.session)
+        AccountURLProtocol.handler = { [self] request in request.url!.path.hasSuffix("refresh") ? (200, renewedJSON) : (200, userJSON) }
+        await store.resume()
+        XCTAssertTrue(store.canEnter)
+        XCTAssertFalse(store.canRetryRestore)
+    }
+    func testRevokedRefreshClearsSavedLogin() async {
+        storage.saved = SavedAccountSession(serviceID: client.serviceID, session: renewable())
+        AccountURLProtocol.handler = { _ in (401, Data(#"{"detail":"登录已到期，请重新登录。"}"#.utf8)) }
+        let store = AccountStore(api: api, storage: storage)
+        await store.restore()
+        XCTAssertNil(storage.saved)
+        XCTAssertFalse(store.canRetryRestore)
+        XCTAssertFalse(store.canEnter)
+    }
+    func testConcurrentAuthenticatedRequestsShareRenewalAndUseNewBearer() async throws {
+        AccountURLProtocol.handler = { [self] request in
+            request.url!.path.hasSuffix("login") ? (200, try JSONSerialization.data(withJSONObject: ["access_token": "old-access", "token_type": "bearer", "expire_at": Date.now.addingTimeInterval(30).timeIntervalSince1970, "refresh_token": String(repeating: "r", count: 64), "refresh_expire_at": 4070995200])) : (200, userJSON)
+        }
+        let store = AccountStore(api: api, storage: storage)
+        await store.login(email: "test@example.com", password: "test-pass", remember: false)
+        var renewals = 0
+        AccountURLProtocol.handler = { [self] request in
+            if request.url!.path.hasSuffix("refresh") { renewals += 1; return (200, renewedJSON) }
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer renewed-access")
+            return (200, userJSON)
+        }
+        async let first = client.request("protected", authenticated: true)
+        async let second = client.request("protected", authenticated: true)
+        _ = try await (first, second)
+        XCTAssertEqual(renewals, 1)
+        XCTAssertEqual(store.session?.accessToken, "renewed-access")
+        XCTAssertNil(storage.saved)
+    }
+
     func testPhoneOnlyRegistrationLoginRestoreAndLogoutWithoutEmail() async throws {
         let phoneUser = Data(#"{"id":71,"username":"phone_test","phone":"13800001234","email":null,"created_at":"2026-11-09T08:00:00Z"}"#.utf8)
         let store = AccountStore(api: api, storage: storage)

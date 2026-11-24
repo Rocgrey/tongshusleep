@@ -49,6 +49,28 @@ final class AccountUITests: XCTestCase {
         XCTAssertTrue(app.segmentedControls["accountMode"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.tabBars.buttons["健康"].exists)
     }
+    func testNotificationCardWaitsForLoginAndOpensNativePage() {
+        app.terminate()
+        app.launchArguments += ["-ui-testing-notification-route", "goodnight"]
+        app.launch()
+        XCTAssertTrue(app.segmentedControls["accountMode"].waitForExistence(timeout: 5))
+        enterLogin()
+        XCTAssertTrue(app.buttons["完成"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.navigationBars["晚安"].exists)
+        capture("notification-goodnight-test-route")
+        app.buttons["完成"].tap()
+        XCTAssertTrue(app.tabBars.buttons["睡眠课堂"].isSelected)
+    }
+    func testNotificationSummaryWaitsForLoginAndOpensSleepTab() {
+        app.terminate()
+        app.launchArguments += ["-ui-testing-notification-route", "sleep-summary", "-ui-testing-device-sleep"]
+        app.launch()
+        XCTAssertTrue(app.segmentedControls["accountMode"].waitForExistence(timeout: 5))
+        enterLogin()
+        XCTAssertTrue(app.segmentedControls["sleepDashboardSource"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.tabBars.buttons["睡眠"].isSelected)
+        capture("notification-summary-synthetic-record")
+    }
     func testRegisterReturnsToEmailLoginThenProfileAndLogoutWork() {
         capture("60-email-login")
         XCTAssertTrue(app.switches["accountRemember"].exists)
@@ -136,8 +158,8 @@ final class AccountUITests: XCTestCase {
         app.tabBars.buttons["趋势"].tap()
         app.segmentedControls["trendCategory"].buttons["步数"].tap()
         XCTAssertTrue(app.segmentedControls["stepsSource"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["尚未读取账号步数"].exists)
-        capture("72-account-steps-empty")
+        XCTAssertFalse(app.segmentedControls["stepsSource"].buttons["账号云端"].exists)
+        capture("72-local-steps-empty")
         app.segmentedControls["stepsSource"].buttons["系统健康"].tap()
         XCTAssertTrue(app.staticTexts["尚未读取这段时间的系统步数"].exists)
         app.tabBars.buttons["健康"].tap(); app.buttons["openAccount"].tap()
@@ -169,9 +191,10 @@ final class AccountUITests: XCTestCase {
                 bytesPerRow: image.width * 4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return 0 }
             context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
             let bytes = buffer.bindMemory(to: UInt8.self)
-            // Teal is used only for bars inside the captured plot, not axes or text.
+            // Local device bars are indigo; HealthKit bars are teal.
             return stride(from: 0, to: buffer.count, by: 4).filter {
-                bytes[$0] < 65 && bytes[$0 + 1] > 80 && bytes[$0 + 1] < 160 && bytes[$0 + 2] > 65 && bytes[$0 + 2] < 150
+                (bytes[$0] < 65 && bytes[$0 + 1] > 80 && bytes[$0 + 1] < 160 && bytes[$0 + 2] > 65 && bytes[$0 + 2] < 150)
+                || (bytes[$0] > 55 && bytes[$0] < 110 && bytes[$0 + 1] > 70 && bytes[$0 + 1] < 130 && bytes[$0 + 2] > 160)
             }.count
         }
         XCTAssertGreaterThan(count, 500, "The chart must draw visible bars, not only axes", file: file, line: line)

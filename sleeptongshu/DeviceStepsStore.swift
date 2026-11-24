@@ -49,7 +49,21 @@ struct DeviceStepDay: Codable, Equatable, Identifiable {
         }
     }
     static func appStore() -> DeviceStepsStore {
-        if ProcessInfo.processInfo.arguments.contains("-ui-testing") { return DeviceStepsStore(url: nil) }
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing") {
+            let store = DeviceStepsStore(url: nil)
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("-ui-testing-steps-chart") {
+                let rows = StepRange(days: 30).dates.enumerated().compactMap { index, day -> DeviceStepDay? in
+                    guard index % 4 != 1 else { return nil }
+                    return DeviceStepDay(device: "ui-test-only", deviceName: "界面测试示例 · 非真实设备",
+                        day: day, steps: index == 0 ? 0 : 3800 + index % 7 * 930,
+                        readAt: StepDates.date(day)!, dayBasis: "北京时间（UTC+8）")
+                }
+                store.merge(rows)
+            }
+            #endif
+            return store
+        }
         let folder = try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
         return DeviceStepsStore(url: folder?.appendingPathComponent("device-steps-v1.json"))
     }
