@@ -1,0 +1,14 @@
+[
+  {
+    "date": "2026-11-25",
+    "target": "SleepGrove native SwiftUI iOS",
+    "register": "product",
+    "designLanguage": "apple",
+    "mode": "app",
+    "palette": "existing classroom teal, adaptive neutral surfaces, distinct sleep-stage colors",
+    "composition": "five system tabs, sleep-first summary, native modules, source-separated charts",
+    "motion": "feedback only, reduced-motion breathing, no idle animation on home",
+    "assets": "existing authorized catalog covers and product assets",
+    "validation": "iPhone SE simulator, light/dark and accessibility text; see docs/SLEEPGROVE_V050.md"
+  }
+]

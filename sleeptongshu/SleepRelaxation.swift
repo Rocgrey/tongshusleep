@@ -2,6 +2,7 @@ import SwiftUI
 import AVFoundation
 import MediaPlayer
 import Combine
+import AudioToolbox
 
 @MainActor final class AudioCoordinator {
     static let shared = AudioCoordinator()
@@ -40,11 +41,13 @@ struct BreathingView: View {
     @State private var running = false
     @State private var elapsed: TimeInterval = 0
     @State private var lastTick = Date.now
+    @State private var cues = true
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 0.2)) { context in
+        TimelineView(.animation(minimumInterval: 1, paused: !running)) { context in
             let phase = BreathingCycle.phase(elapsed: elapsed)
             ScrollView { VStack(spacing: 28) {
                 Text("把呼吸，慢慢交还给自己").font(.title2.bold()).multilineTextAlignment(.center)
+                Text("不用追赶节奏，感到舒服最重要").font(.subheadline).foregroundStyle(SleepPalette.muted)
                 ZStack {
                     Circle().stroke(SleepPalette.teal.opacity(0.15), lineWidth: 20)
                     Circle().fill(SleepPalette.teal.opacity(0.2)).scaleEffect(phase.expanded ? 0.95 : 0.62)
@@ -56,9 +59,16 @@ struct BreathingView: View {
                     Button { running = false; elapsed = 0 } label: { Label("结束", systemImage: "stop.fill") }.buttonStyle(.bordered)
                 }
                 Text("4 秒吸气 · 7 秒屏息 · 8 秒呼气\n量力而行，不适时停止，恢复自然呼吸。").font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                Toggle("阶段提示音", isOn: $cues).frame(maxWidth: 300)
+                Text("手机录音或声音播放期间不发出提示音。").font(.caption).foregroundStyle(SleepPalette.muted)
                 Spacer(minLength: 0)
                 }.padding(24).padding(.top, 30).frame(maxWidth: .infinity) }.background(SleepPalette.background)
                 .onChange(of: context.date) { _, now in if running { elapsed += max(0, now.timeIntervalSince(lastTick)) }; lastTick = now }
+                .onChange(of: phase.title) { _, _ in
+                    if running, cues, !AudioCoordinator.shared.recording, !WhiteNoisePlayer.shared.playing {
+                        AudioServicesPlaySystemSound(1057)
+                    }
+                }
         }.navigationTitle("4-7-8 呼吸").navigationBarTitleDisplayMode(.inline).toolbar(.visible, for: .navigationBar)
     }
 }
@@ -70,6 +80,7 @@ struct BreathingView: View {
     @Published var volume: Float = 0.35 { didSet { player?.volume = volume } }
     @Published private(set) var deadline: Date?
     @Published private(set) var loading = false
+    @Published private(set) var sound = GroveNoise.library[0]
     private let owner = UUID()
     private var player: AVAudioPlayer?
     private var task: Task<Void, Never>?
@@ -79,17 +90,18 @@ struct BreathingView: View {
         MPRemoteCommandCenter.shared().pauseCommand.addTarget { [weak self] _ in Task { @MainActor in self?.pause() }; return .success }
         interruption = NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] _ in Task { @MainActor in self?.pause() } }
     }
-    func start(minutes: Int) async {
+    func start(minutes: Int, sound next: GroveNoise = GroveNoise.library[0]) async {
         guard !playing, !loading else { return }
         loading = true; defer { loading = false }
         message = nil
         guard AudioCoordinator.shared.beginPlayback(owner: owner) else { message = "手机正在监测或音频不可用，请结束监测后再播放。"; return }
         do {
-            if player == nil {
+            if player == nil || sound != next {
                 // Original procedural white noise: no external recording/license or large download.
-                let url = FileManager.default.temporaryDirectory.appendingPathComponent("tongshu-white-noise.wav")
-                try await Task.detached(priority: .utility) { try Self.render(to: url) }.value
+                let url = FileManager.default.temporaryDirectory.appendingPathComponent("sleepgrove-noise-\(next.id).wav")
+                try await Task.detached(priority: .utility) { try Self.render(next, to: url) }.value
                 player = try AVAudioPlayer(contentsOf: url); player?.numberOfLoops = -1
+                sound = next
             }
             guard AudioCoordinator.shared.ownsPlayback(owner) else { message = "音频任务已切换，未开始播放。"; return }
             AudioCoordinator.shared.stopPlayback = { [weak self] in self?.stop() }
@@ -112,39 +124,47 @@ struct BreathingView: View {
         do { try AVAudioSession.sharedInstance().setCategory(.playback); try AVAudioSession.sharedInstance().setActive(true) }
         catch { message = "音频暂不可用，请稍后再试。"; return }
         player.volume = volume; playing = player.play()
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = [MPMediaItemPropertyTitle: "睡眠同书 · 白噪音", MPNowPlayingInfoPropertyPlaybackRate: playing ? 1 : 0]
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = [MPMediaItemPropertyTitle: "SleepGrove · " + sound.title, MPNowPlayingInfoPropertyPlaybackRate: playing ? 1 : 0]
     }
     func pause() { player?.pause(); playing = false; MPNowPlayingInfoCenter.default().nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackRate] = 0 }
     func stop() { task?.cancel(); task = nil; player?.stop(); playing = false; deadline = nil; MPNowPlayingInfoCenter.default().nowPlayingInfo = nil; AudioCoordinator.shared.endPlayback(owner: owner) }
-    nonisolated private static func render(to url: URL) throws {
-        let rate = 22050.0, count = 22050 * 6
+    nonisolated private static func render(_ sound: GroveNoise, to url: URL) throws {
+        let rate = 22050.0, samples = sound.samples()
+        let count = samples.count
         let format = AVAudioFormat(standardFormatWithSampleRate: rate, channels: 1)!
         let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(count))!
         buffer.frameLength = AVAudioFrameCount(count)
-        var seed: UInt64 = 0x123456789
-        for i in 0..<count { seed = seed &* 6364136223846793005 &+ 1; buffer.floatChannelData![0][i] = (Float(seed >> 40) / Float(1 << 24) * 2 - 1) * 0.3 }
+        for i in 0..<count { buffer.floatChannelData![0][i] = samples[i] }
         let file = try AVAudioFile(forWriting: url, settings: format.settings); try file.write(from: buffer)
     }
 }
 struct WhiteNoiseView: View {
     @StateObject private var audio = WhiteNoisePlayer.shared
     @State private var minutes = 30
+    @State private var selection = 0
     var body: some View {
         Form {
             Section {
                 Image(systemName: "waveform").font(.system(size: 60)).frame(maxWidth: .infinity).padding(30).foregroundStyle(SleepPalette.teal)
-                Text("轻柔白噪音").font(.title2.bold())
-                Text("本机生成的连续声音，不需要下载音源。手机监测开始时会停止播放，避免干扰声音分析。").font(.subheadline).foregroundStyle(.secondary)
+                Text(GroveNoise.library[selection].title).font(.title2.bold())
+                Text("24 种本机合成音色，包含白噪、粉噪和棕噪的不同变化。风、雨与水声为声音意象，不是实地录音。手机监测开始时停止播放。").font(.subheadline).foregroundStyle(.secondary)
+            }
+            Section("选择合成音色") {
+                Picker("音色", selection: $selection) {
+                    ForEach(GroveNoise.library) { sound in Text(sound.title).tag(sound.id) }
+                }.disabled(audio.loading || audio.deadline != nil).accessibilityIdentifier("groveNoiseSelection")
+                Text("先停止播放，再切换音色。").font(.caption).foregroundStyle(.secondary)
             }
             Section("音量") { Slider(value: $audio.volume, in: 0...1).accessibilityLabel("音量") }
             Section("关闭定时") {
                 Picker("时长", selection: $minutes) { ForEach([5,15,30,45,60,90], id: \.self) { Text("\($0) 分钟").tag($0) } }.disabled(audio.deadline != nil)
                 if let end = audio.deadline { Text("将在 \(end.formatted(date: .omitted, time: .shortened)) 前渐弱停止，离开页面后仍有效。") }
-                Button { if audio.playing { audio.pause() } else if audio.deadline != nil { audio.resume() } else { Task { await audio.start(minutes: minutes) } } } label: { Label(audio.loading ? "准备中" : audio.playing ? "暂停" : "播放", systemImage: audio.playing ? "pause.fill" : "play.fill") }.disabled(audio.loading)
+                Button { if audio.playing { audio.pause() } else if audio.deadline != nil { audio.resume() } else { Task { await audio.start(minutes: minutes, sound: GroveNoise.library[selection]) } } } label: { Label(audio.loading ? "准备中" : audio.playing ? "暂停" : "播放", systemImage: audio.playing ? "pause.fill" : "play.fill") }.disabled(audio.loading)
                 Button { audio.stop() } label: { Label("停止并关闭定时", systemImage: "stop.fill") }
                 if let message = audio.message { Text(message).foregroundStyle(.secondary) }
             }
         }.navigationTitle("白噪音").toolbar(.visible, for: .navigationBar)
+            .onAppear { if audio.deadline != nil { selection = audio.sound.id } }
     }
 }
 struct GoodnightView: View {

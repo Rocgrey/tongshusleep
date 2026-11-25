@@ -31,7 +31,7 @@ struct SleepTongshuApp: App {
         WindowGroup {
             if let container {
                 AppEntryView().environmentObject(account).environmentObject(content).environmentObject(routes)
-                    .modelContainer(container).tint(Color(uiColor: (AppAppearance(rawValue: appearance) ?? .fresh).accent))
+                    .modelContainer(container).tint(Color(uiColor: (AppAppearance(rawValue: appearance) ?? .fresh).readableAccent))
                     .scrollContentBackground(.hidden)
                     .background(SleepPalette.background)
                     .onOpenURL { routes.open($0) }
@@ -58,6 +58,7 @@ enum SleepPalette {
     static let background = Color(uiColor: AppAppearance.adaptive(0xF2F5F4, 0x121A19))
     static let surface = Color(uiColor: AppAppearance.adaptive(0xFFFFFF, 0x1D2826))
     static let ink = Color(uiColor: AppAppearance.adaptive(0x1A2B29, 0xEDF4F2))
+    static let onAccent = Color(uiColor: AppAppearance.adaptive(0xFFFFFF, 0x112825))
     static let muted = Color(uiColor: AppAppearance.adaptive(0x596F6B, 0xA7BDB7))
     static var teal: Color { Color(uiColor: UIColor { traits in
         let color = AppAppearance.current.accent
@@ -77,7 +78,17 @@ extension SleepStage {
     }
 }
 
-enum SleepTab: Hashable { case sleep, monitoring, trends, health, classroom }
+enum SleepTab: Hashable {
+    case sleep, classroom, relax, products, center
+
+    static func destination(for route: String) -> Self {
+        switch route {
+        case "sleep-summary", "monitoring": .sleep
+        case "breathing", "noise", "goodnight": .relax
+        default: .classroom
+        }
+    }
+}
 
 struct RootTabView: View {
     @EnvironmentObject private var routes: AppRoutes
@@ -89,9 +100,12 @@ struct RootTabView: View {
     @Query private var records: [SleepRecord]
     @AppStorage("hasSeededDemoV1") private var hasSeededDemo = false
     @State private var tab = SleepTab.sleep
+    @State private var showsMonitoring = false
+    @State private var showsHealth = false
     @State private var errorMessage: String?
     @StateObject private var phone = PhoneSleepMonitor()
     @StateObject private var scanner = RingScanner()
+    @StateObject private var ring = VeepooRingClient()
     @StateObject private var vitals = WearableVitalsStore.appStore()
     @StateObject private var healthOverview = HealthOverviewStore()
     @StateObject private var deviceSteps = DeviceStepsStore.appStore()
@@ -108,24 +122,33 @@ struct RootTabView: View {
     var body: some View {
         TabView(selection: $tab) {
             SleepDashboardView(isSelected: tab == .sleep).tabItem { Label("睡眠", systemImage: "moon.zzz.fill") }.tag(SleepTab.sleep)
-            MonitoringView().tabItem { Label("监测与设备", systemImage: "waveform.path") }.tag(SleepTab.monitoring)
-            TrendsView().tabItem { Label("趋势", systemImage: "chart.bar.xaxis") }.tag(SleepTab.trends)
-            NavigationStack { HealthOverviewView() }.tabItem { Label("健康", systemImage: "heart.text.clipboard") }.tag(SleepTab.health)
-            SleepClassroomView(isSelected: tab == .classroom).tabItem { Label("睡眠课堂", systemImage: "book.closed.fill") }.tag(SleepTab.classroom)
+            SleepClassroomView(isSelected: tab == .classroom).tabItem { Label("科普", systemImage: "book.closed.fill") }.tag(SleepTab.classroom)
+            GroveRelaxView(isSelected: tab == .relax).tabItem { Label("助眠", systemImage: "wind") }.tag(SleepTab.relax)
+            GroveProductsView(isSelected: tab == .products).tabItem { Label("掌心安睡仪", systemImage: "hand.raised.fingers.spread.fill") }.tag(SleepTab.products)
+            GroveCenterView().tabItem { Label("用户中心", systemImage: "person.crop.circle") }.tag(SleepTab.center)
         }
         .toolbarBackground(.visible, for: .tabBar)
         .onChange(of: routes.target) { _, target in
-            if target == "sleep-summary" { tab = .sleep }
-            else if target == "monitoring" { tab = .monitoring; routes.target = nil }
-            else if target != nil { tab = .classroom }
+            if let target {
+                tab = SleepTab.destination(for: target)
+                if target == "monitoring" { showsMonitoring = true; routes.target = nil }
+            }
         }
-        .onAppear { if let route = routes.target { tab = route == "sleep-summary" ? .sleep : route == "monitoring" ? .monitoring : .classroom } }
+        .onAppear {
+            if let route = routes.target {
+                tab = SleepTab.destination(for: route)
+                if route == "monitoring" { showsMonitoring = true; routes.target = nil }
+            }
+        }
+        .sheet(isPresented: $showsMonitoring) { GroveModuleSheet { MonitoringView() } }
+        .sheet(isPresented: $showsHealth) { GroveModuleSheet { NavigationStack { HealthOverviewView() } } }
         .task(id: "reminders|\(account.session?.user.id ?? 0)|\(scenePhase == .active)") {
             guard scenePhase == .active else { return }
             if account.session != nil { await ReminderService.shared.sync(account: account); await ReminderService.shared.apply(items: content.items) }
         }
         .environmentObject(phone)
         .environmentObject(scanner)
+        .environmentObject(ring)
         .environmentObject(vitals)
         .environmentObject(healthOverview)
         .environmentObject(deviceSteps)
@@ -212,8 +235,8 @@ struct RootTabView: View {
         }
         .task {
             #if DEBUG
-            if ProcessInfo.processInfo.arguments.contains("-preview-monitor") { tab = .monitoring }
-            if ProcessInfo.processInfo.arguments.contains("-preview-health") { tab = .health }
+            if ProcessInfo.processInfo.arguments.contains("-preview-monitor") { showsMonitoring = true }
+            if ProcessInfo.processInfo.arguments.contains("-preview-health") { showsHealth = true }
             #endif
             #if targetEnvironment(macCatalyst)
             try? await Task.sleep(for: .milliseconds(500))

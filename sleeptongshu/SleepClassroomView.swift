@@ -19,7 +19,7 @@ struct SleepClassroomView: View {
                 LazyVStack(alignment: .leading, spacing: 22) {
                     HStack(alignment: .top) {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("睡眠课堂").font(.title2.bold())
+                            Text("睡眠科普").font(.title.bold())
                             Text("了解睡眠，也练习好好休息").font(.caption).foregroundStyle(SleepPalette.muted)
                         }
                         Spacer()
@@ -30,7 +30,7 @@ struct SleepClassroomView: View {
                         NavigationLink { AppSettingsView() } label: { Image(systemName: "gearshape").font(.title2) }
                             .accessibilityLabel("设置").accessibilityIdentifier("enhancedSettings")
                     }
-                    Picker("课堂栏目", selection: $selection) { ForEach(["课程", "阅读", "助眠", "产品"], id: \.self) { Text($0) } }
+                    Picker("课堂栏目", selection: $selection) { ForEach(["课程", "阅读", "自评"], id: \.self) { Text($0) } }
                         .pickerStyle(.segmented).accessibilityIdentifier("classroomSections")
                     if let message = content.message { Label(message, systemImage: content.hasRemoteCatalog ? "wifi.exclamationmark" : "info.circle").font(.caption).foregroundStyle(.secondary) }
                     if !content.hasRemoteCatalog, content.message == nil { Text("随 App 提供的课堂内容").font(.caption).foregroundStyle(.secondary) }
@@ -54,16 +54,11 @@ struct SleepClassroomView: View {
                     } else if selection == "阅读" {
                         ForEach(content.articles) { item in NavigationLink { ClassroomDetailView(item: item) } label: { ContentTile(item: item) }.buttonStyle(.plain) }
                         if content.articles.isEmpty { empty("暂无已发布文章") }
-                    } else if selection == "助眠" {
-                        NavigationLink { BreathingView() } label: { tool("4-7-8 呼吸", "跟随自己的节奏慢下来", "wind") }
-                        NavigationLink { WhiteNoiseView() } label: { tool("白噪音", "安静陪伴，定时渐弱停止", "waveform") }
-                        NavigationLink { GoodnightView() } label: { tool("晚安卡", "给今天一个温柔的收尾", "moon.stars") }
-                        ForEach(content.items.filter { ["noise", "breathing", "goodnight"].contains($0.kind) }) { item in
-                            NavigationLink { ClassroomDetailView(item: item) } label: { ContentTile(item: item) }.buttonStyle(.plain)
-                        }
                     } else {
-                        ForEach(content.items.filter { $0.kind == "product" }) { item in ProductTile(item: item) }
-                        if !content.items.contains(where: { $0.kind == "product" }) { empty("商品信息核实后会在这里展示") }
+                        NavigationLink { GroveSelfAssessmentView() } label: {
+                            GroveFeatureRow(title: "睡眠自评", subtitle: "为真实睡眠记录补充已有 AIS 自评总分", icon: "list.clipboard")
+                        }.buttonStyle(.plain)
+                        Text("自评帮助记录自己的感受，不能替代设备记录，也不会自动生成分期。").font(.subheadline).foregroundStyle(SleepPalette.muted)
                     }
                 }.padding(16).frame(maxWidth: 760).frame(maxWidth: .infinity)
             }.background(SleepPalette.background).toolbar(.hidden, for: .navigationBar)
@@ -185,7 +180,7 @@ struct ProductTile: View {
             Text("前往京东查看商品详情并完成购买").font(.caption).foregroundStyle(SleepPalette.muted)
             HStack {
                 Button { if let url = item.purchaseURL { openURL(url) } } label: { Label("前往京东购买", systemImage: "arrow.up.right.square") }
-                    .buttonStyle(.borderedProminent).foregroundStyle(.white).disabled(item.purchaseURL == nil)
+                    .buttonStyle(.borderedProminent).foregroundStyle(SleepPalette.onAccent).disabled(item.purchaseURL == nil)
                 Spacer(minLength: 8)
                 Button { UIPasteboard.general.url = item.purchaseURL } label: { Image(systemName: "doc.on.doc").frame(width: 44, height: 44) }
                     .accessibilityLabel("复制商品链接").disabled(item.purchaseURL == nil)

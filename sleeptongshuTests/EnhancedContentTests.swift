@@ -17,6 +17,46 @@ private final class ContentTransport: URLProtocol {
 }
 
 @MainActor final class EnhancedContentTests: XCTestCase {
+    func testThemeActionColorsMeetTextContrastInLightAndDark() {
+        func luminance(_ color: UIColor, _ traits: UITraitCollection) -> Double {
+            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+            color.resolvedColor(with: traits).getRed(&r, green: &g, blue: &b, alpha: &a)
+            func linear(_ value: CGFloat) -> Double {
+                let value = Double(value)
+                return value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
+            }
+            return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)
+        }
+        for style in [UIUserInterfaceStyle.light, .dark] {
+            let traits = UITraitCollection(userInterfaceStyle: style)
+            for theme in AppAppearance.allCases {
+                let foreground = luminance(UIColor(SleepPalette.onAccent), traits)
+                let background = luminance(theme.readableAccent, traits)
+                XCTAssertGreaterThanOrEqual((max(foreground, background) + 0.05) / (min(foreground, background) + 0.05), 4.5, theme.rawValue)
+            }
+        }
+    }
+
+    func testGroveRoutesKeepMonitoringSummaryAndRelaxationDestinations() {
+        XCTAssertEqual(SleepTab.destination(for: "monitoring"), .sleep)
+        XCTAssertEqual(SleepTab.destination(for: "sleep-summary"), .sleep)
+        for route in ["goodnight", "noise", "breathing"] { XCTAssertEqual(SleepTab.destination(for: route), .relax) }
+        XCTAssertEqual(SleepTab.destination(for: "content/new-course"), .classroom)
+    }
+
+    func testSynthesizedNoiseLibraryIsDistinctFiniteAndBounded() {
+        XCTAssertEqual(GroveNoise.library.count, 24)
+        XCTAssertEqual(Set(GroveNoise.library.map(\.id)).count, 24)
+        let signals = GroveNoise.library.map { $0.samples(rate: 1000, seconds: 2) }
+        for signal in signals {
+            XCTAssertEqual(signal.count, 2000)
+            XCTAssertTrue(signal.allSatisfy { $0.isFinite && abs($0) <= 0.8 })
+            XCTAssertGreaterThan(signal.map { abs($0) }.max() ?? 0, 0.01)
+            XCTAssertEqual(signal.first, signal.last)
+        }
+        XCTAssertEqual(Set(signals.map { Array($0.prefix(20)) }).count, 24)
+    }
+
     func testNotificationRoutesSupportSummaryColdLoginAndRepeatedContent() {
         let routes = AppRoutes()
         routes.receive("content/test-article")

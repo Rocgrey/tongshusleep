@@ -2,6 +2,10 @@ import XCTest
 
 final class SystemSleepUITests: XCTestCase {
     private var app: XCUIApplication!
+    private var displayed: XCUIElement {
+        let close = app.buttons["closeGroveModule"]
+        return close.exists && close.isHittable ? app.otherElements["groveModuleSurface"] : app
+    }
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
@@ -12,10 +16,11 @@ final class SystemSleepUITests: XCTestCase {
         app.launchArguments += ["-preview-health"]
         app.launch()
         readSleep()
-        app.tabBars.buttons["睡眠"].tap()
+        app.openGroveSection("睡眠")
         XCTAssertTrue(app.segmentedControls["sleepDashboardSource"].buttons["系统健康"].isSelected)
-        reveal(app.staticTexts["界面测试来源 · 非真实健康数据"])
-        XCTAssertTrue(app.staticTexts["界面测试来源 · 非真实健康数据"].exists)
+        let source = displayed.staticTexts["systemSleepSourceName"]
+        reveal(source)
+        XCTAssertTrue(source.label.contains("界面测试来源"))
         XCTAssertFalse(app.buttons["睡眠参考分说明"].exists)
         capture("system-sleep-overview-test-data")
         reveal(app.otherElements["sleepStageTimeline"])
@@ -27,11 +32,11 @@ final class SystemSleepUITests: XCTestCase {
         app.buttons["完成"].tap()
         for _ in 0..<8 where !app.buttons["readHealthOverview"].isHittable { app.swipeDown() }
         readSleep()
-        app.tabBars.buttons["趋势"].tap()
-        XCTAssertTrue(app.staticTexts["6 条记录"].waitForExistence(timeout: 5))
+        app.openGroveSection("趋势")
+        XCTAssertTrue(displayed.staticTexts["6 条记录"].waitForExistence(timeout: 5))
         capture("system-sleep-seven-days-test-data")
         app.segmentedControls["trendPeriod"].buttons["近 30 天"].tap()
-        XCTAssertTrue(app.staticTexts["7 条记录"].exists)
+        XCTAssertTrue(displayed.staticTexts["7 条记录"].exists)
         capture("system-sleep-thirty-days-test-data")
     }
 
@@ -39,11 +44,11 @@ final class SystemSleepUITests: XCTestCase {
         app.launchArguments += ["-system-sleep-empty"]
         app.launch()
         readSleep()
-        reveal(app.staticTexts["暂无系统睡眠"])
-        XCTAssertTrue(app.staticTexts["暂无系统睡眠"].exists)
-        XCTAssertFalse(app.staticTexts["示例数据"].exists)
+        reveal(displayed.staticTexts["暂无系统睡眠"])
+        XCTAssertTrue(displayed.staticTexts["暂无系统睡眠"].exists)
+        XCTAssertFalse(displayed.staticTexts["示例数据"].exists)
         XCTAssertFalse(app.otherElements["sleepStageTimeline"].exists)
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "未读取到睡眠记录，请检查系统健康中的数据和访问设置")).firstMatch.exists)
+        XCTAssertTrue(displayed.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "未读取到睡眠记录，请检查系统健康中的数据和访问设置")).firstMatch.exists)
         capture("system-sleep-empty-test-state")
     }
 
@@ -51,8 +56,8 @@ final class SystemSleepUITests: XCTestCase {
         app.launchArguments += ["-system-sleep-bed-only"]
         app.launch()
         readSleep()
-        reveal(app.staticTexts["仅有卧床记录"])
-        XCTAssertTrue(app.staticTexts["仅有卧床记录"].exists)
+        reveal(displayed.staticTexts["仅有卧床记录"])
+        XCTAssertTrue(displayed.staticTexts["仅有卧床记录"].exists)
         XCTAssertFalse(app.otherElements["sleepStageTimeline"].exists)
         capture("system-sleep-bed-only-test-data")
     }
@@ -61,8 +66,8 @@ final class SystemSleepUITests: XCTestCase {
         app.launchArguments += ["-system-sleep-unspecified"]
         app.launch()
         readSleep()
-        reveal(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "未分期睡眠 ·")).firstMatch)
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "未分期睡眠 ·")).firstMatch.exists)
+        reveal(displayed.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "未分期睡眠 ·")).firstMatch)
+        XCTAssertTrue(displayed.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "未分期睡眠 ·")).firstMatch.exists)
         XCTAssertFalse(app.otherElements["sleepStageTimeline"].exists)
         capture("system-sleep-unspecified-test-data")
     }
@@ -71,7 +76,7 @@ final class SystemSleepUITests: XCTestCase {
         app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         app.launch()
         readSleep()
-        reveal(app.staticTexts["界面测试来源 · 非真实健康数据"])
+        reveal(displayed.staticTexts["systemSleepSourceName"])
         capture("system-sleep-large-type-test-data")
         reveal(app.otherElements["sleepStageTimeline"])
         XCTAssertTrue(app.otherElements["sleepStageTimeline"].exists)
@@ -82,13 +87,13 @@ final class SystemSleepUITests: XCTestCase {
         app.launchArguments += ["-system-sleep-mixed", "-preview-health"]
         app.launch()
         readSleep()
-        reveal(app.staticTexts["latestConfirmedSystemSleep"])
-        XCTAssertTrue(app.staticTexts["latestConfirmedSystemSleep"].label.contains("8小时0分"))
-        XCTAssertTrue(app.staticTexts["systemSleepMessage"].label.contains("5 段睡眠记录，另有 2 段仅卧床记录"))
-        reveal(app.staticTexts["latestSystemBedRecord"])
-        XCTAssertTrue(app.staticTexts["latestSystemBedRecord"].exists)
+        reveal(displayed.staticTexts["latestConfirmedSystemSleep"])
+        XCTAssertTrue(displayed.staticTexts["latestConfirmedSystemSleep"].label.contains("8小时0分"))
+        XCTAssertTrue(displayed.staticTexts["systemSleepMessage"].label.contains("5 段睡眠记录，另有 2 段仅卧床记录"))
+        reveal(displayed.staticTexts["latestSystemBedRecord"])
+        XCTAssertTrue(displayed.staticTexts["latestSystemBedRecord"].exists)
         capture("unified-health-sleep-summary-test-data")
-        app.tabBars.buttons["睡眠"].tap()
+        app.openGroveSection("睡眠")
         let duration = app.descendants(matching: .any).matching(identifier: "totalSleepDuration").firstMatch
         reveal(duration)
         XCTAssertEqual(duration.label, "8小时0分")
@@ -97,25 +102,35 @@ final class SystemSleepUITests: XCTestCase {
     }
 
     private func readSleep() {
-        let button = app.buttons["readHealthOverview"]
-        if !button.exists { app.segmentedControls["sleepDashboardSource"].buttons["系统健康"].tap() }
+        if !app.buttons["closeGroveModule"].exists {
+            app.openGroveSection("健康")
+        }
+        let surface = app.otherElements["groveModuleSurface"]
+        let button = surface.buttons["readHealthOverview"]
         reveal(button)
-        XCTAssertEqual(app.buttons.matching(identifier: "readHealthOverview").count, 1)
+        XCTAssertEqual(surface.buttons.matching(identifier: "readHealthOverview").count, 1)
         XCTAssertFalse(app.buttons["readSystemSleep"].exists)
         XCTAssertFalse(app.buttons["读取系统睡眠"].exists)
         button.tap()
-        XCTAssertTrue(app.staticTexts["systemSleepReadAt"].waitForExistence(timeout: 8))
-        expectation(for: NSPredicate(format: "enabled == true"), evaluatedWith: button)
+        XCTAssertTrue(displayed.staticTexts["systemSleepReadAt"].waitForExistence(timeout: 8))
+        expectation(for: NSPredicate { _, _ in button.isEnabled }, evaluatedWith: button)
         waitForExpectations(timeout: 8)
-        XCTAssertTrue(app.staticTexts["systemSleepMessage"].exists)
+        XCTAssertTrue(displayed.staticTexts["systemSleepMessage"].exists)
         XCTAssertEqual(app.alerts.count, 0)
+        if !app.launchArguments.contains("-preview-health") {
+            app.openGroveSection("睡眠")
+            app.segmentedControls["sleepDashboardSource"].buttons["系统健康"].tap()
+        }
     }
     private func reveal(_ element: XCUIElement) {
-        for _ in 0..<12 {
+        for _ in 0..<24 {
             if element.exists && element.isHittable { return }
-            app.swipeUp()
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.72))
+                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.50)))
         }
+        if !element.exists { capture("unreachable-health-element") }
         XCTAssertTrue(element.exists)
+        XCTAssertTrue(element.isHittable, "Element should be visible after scrolling")
     }
     private func capture(_ name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())

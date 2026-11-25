@@ -21,6 +21,8 @@ struct SleepDashboardView: View {
     @State private var showsEditor = false
     @State private var showsAIS = false
     @State private var help: MetricHelp?
+    @State private var module: GroveModule?
+    @State private var trendDays = 7
     @AppStorage("sleepGoalHours") private var goal = 8.0
 
     private func selectedRecord(in records: [SleepRecord], source: SleepDashboardSource) -> SleepRecord? {
@@ -39,23 +41,33 @@ struct SleepDashboardView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 25) {
                     brandHeader
-                    HomeContentView()
+                    GroveSleepShortcuts(module: $module)
                     Picker("睡眠来源", selection: Binding(get: { source }, set: { sourceOverride = $0; selectedID = nil })) {
                         ForEach(SleepDashboardSource.allCases, id: \.self) { Text($0.label).tag($0) }
                     }.pickerStyle(.segmented).accessibilityIdentifier("sleepDashboardSource")
                     if systemSleepSelected { SystemSleepImportView() }
-                    else {
-                        DisclosureGroup("从系统健康读取（可选）") { SystemSleepImportView().padding(.top, 12) }
-                            .font(.subheadline).accessibilityIdentifier("optionalSystemHealth")
-                    }
-                    DeviceStepsSummaryView()
-                    AutomaticSyncStatusView()
                     if let record = selected {
                         dateNavigation(record, records: records, selectedIndex: selectedIndex)
                         if let night = record.metadata?.bioNight, !record.hasSleepDuration {
                             BIONightView(record: record, night: night).id(record.id)
                         } else {
                         overview(record)
+                        if record.hasSleepDuration {
+                            let cutoff = Calendar.current.date(byAdding: .day, value: 1 - trendDays, to: Calendar.current.startOfDay(for: .now)) ?? .now
+                            let trend = records.filter { $0.seriesKey == record.seriesKey && $0.isVisible && $0.day >= cutoff && $0.end <= .now && $0.hasSleepDuration }
+                            VStack(alignment: .leading, spacing: 16) {
+                                HStack {
+                                    SectionHeading(title: "最近的睡眠", subtitle: "时长变化 · 不同来源分别统计")
+                                    Spacer(minLength: 6)
+                                    Button { module = .trends } label: { Image(systemName: "arrow.up.right").frame(width: 44, height: 44) }
+                                        .accessibilityLabel("查看完整趋势")
+                                }
+                                Picker("首页趋势范围", selection: $trendDays) { Text("近 7 天").tag(7); Text("近 30 天").tag(30) }
+                                    .pickerStyle(.segmented)
+                                if trend.isEmpty { Text("此时间范围暂无睡眠时长记录").font(.subheadline).foregroundStyle(SleepPalette.muted) }
+                                else { SleepTrendChart(records: trend, metric: .duration, goal: goal) }
+                            }
+                        }
                         if record.source == .healthKit { SystemSleepSourceView(record: record) }
                         if let phone = record.metadata?.phone { PhoneReportView(night: phone) }
                         stages(record)
@@ -84,7 +96,14 @@ struct SleepDashboardView: View {
                         actions: { Button("添加记录") { showsEditor = true }.buttonStyle(.borderedProminent) }
                         .padding(.vertical, 40)
                     }
+                    DeviceStepsSummaryView()
+                    GroveHealthSummary()
                     if !systemSleepSelected { DeviceRecentVitalsView() }
+                    DisclosureGroup("系统健康与同步状态") {
+                        if !systemSleepSelected { SystemSleepImportView().padding(.top, 12) }
+                        AutomaticSyncStatusView()
+                    }.font(.subheadline).accessibilityIdentifier("optionalSystemHealth")
+                    HomeContentView()
                 }.padding(.horizontal, 22).padding(.top, 14).padding(.bottom, 26)
                     .frame(maxWidth: 680).frame(maxWidth: .infinity)
             }
@@ -105,6 +124,7 @@ struct SleepDashboardView: View {
             .sheet(isPresented: $showsEditor) { SleepEditorView() }
             .sheet(isPresented: $showsAIS) { if let record = selected { SleepAISView(record: record) } }
             .sheet(item: $help) { MetricHelpSheet(help: $0) }
+            .sheet(item: $module) { GroveModuleContent(module: $0) }
             .sheet(isPresented: $showsHistory) {
                 NavigationStack {
                     List(records) { record in
@@ -122,8 +142,8 @@ struct SleepDashboardView: View {
     private var brandHeader: some View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("sleeptongshu").font(.system(size: 25, weight: .bold, design: .rounded)).foregroundStyle(SleepPalette.ink)
-                Text("睡眠同书 · 每一晚，都值得了解").font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
+                Text("SleepGrove").font(.system(size: 25, weight: .bold, design: .rounded)).foregroundStyle(SleepPalette.ink)
+                Text("昨晚睡得怎么样？").font(.subheadline).foregroundStyle(SleepPalette.muted)
             }
             Spacer(minLength: 8)
             Button { showsEditor = true } label: {
@@ -164,7 +184,7 @@ struct SleepDashboardView: View {
                     if record.source == .band, let name = record.metadata?.externalSource {
                         Text(name).font(.caption).foregroundStyle(SleepPalette.muted).fixedSize(horizontal: false, vertical: true)
                     }
-                    Text("给身体，一晚好眠").font(.system(size: 19, weight: .bold)).foregroundStyle(SleepPalette.ink)
+                    Text("这一晚的休息").font(.system(size: 19, weight: .bold)).foregroundStyle(SleepPalette.ink)
                     Text(record.source == .phone ? "估算睡眠时长" : "总睡眠时长").font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
                     if !record.hasSleepDuration {
                         Text(record.onlyInBed ? "仅有卧床记录" : record.metadata?.bioNight != nil ? "夜间观测" : "待估算").font(.title2.weight(.semibold)).foregroundStyle(SleepPalette.ink)
@@ -183,6 +203,34 @@ struct SleepDashboardView: View {
                 if record.source != .healthKit && record.metadata?.bioNight == nil { Button {
                     help = SleepMetricGuide.score(record)
                 } label: { scoreRing(record) }.buttonStyle(.plain).accessibilityLabel("睡眠参考分说明") }
+                else if record.hasSleepDuration {
+                    let progress = Double(record.asleepMinutes) / max(1, goal * 60)
+                    ZStack {
+                        Circle().stroke(SleepPalette.teal.opacity(0.12), lineWidth: 7)
+                        Circle().trim(from: 0, to: min(1, progress))
+                            .stroke(SleepPalette.teal, style: StrokeStyle(lineWidth: 7, lineCap: .round)).rotationEffect(.degrees(-90))
+                        VStack(spacing: 4) {
+                            Text("\(Int(progress * 100))%").font(.title3.bold()).monospacedDigit()
+                            Text("时长目标").font(.caption2)
+                        }.foregroundStyle(SleepPalette.teal)
+                    }.frame(width: 82, height: 82).padding(.top, 24)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("睡眠时长目标完成 \(Int(progress * 100))%，不是睡眠评分")
+                }
+            }
+            if record.hasStages {
+                GeometryReader { proxy in
+                    HStack(spacing: 2) {
+                        ForEach(record.segments) { segment in
+                            Rectangle().fill(segment.stage.color)
+                                .frame(width: max(0, (proxy.size.width - CGFloat(max(0, record.segments.count - 1)) * 2) * segment.end.timeIntervalSince(segment.start) / record.end.timeIntervalSince(record.start)))
+                        }
+                    }.clipShape(RoundedRectangle(cornerRadius: 4))
+                }.frame(height: 12).accessibilityHidden(true)
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) { stageLegend(record) }
+                    VStack(alignment: .leading, spacing: 6) { stageLegend(record) }
+                }
             }
             if record.hasSleepDuration { VStack(spacing: 7) {
                 GeometryReader { proxy in
@@ -206,6 +254,13 @@ struct SleepDashboardView: View {
             }
         }
         .padding(.vertical, 10)
+    }
+
+    @ViewBuilder private func stageLegend(_ record: SleepRecord) -> some View {
+        ForEach([SleepStage.deep, .light, .rem, .awake].filter { record.minutes($0) > 0 }) { stage in
+            Label { Text(stage.label).font(.caption2) } icon: { Circle().fill(stage.color).frame(width: 6, height: 6) }
+                .foregroundStyle(SleepPalette.muted)
+        }
     }
 
     private func scoreRing(_ record: SleepRecord) -> some View {
@@ -397,6 +452,7 @@ struct TrendsView: View {
                         Text(stepsMode ? "活动趋势" : "睡眠趋势").font(.system(size: 27, weight: .bold)).foregroundStyle(SleepPalette.ink)
                         Text(stepsMode ? "让每一天的活动都看得见" : "比起某一晚，更在意每一天的节奏").font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
                     }
+                    GroveHealthSummary()
                     Picker("统计内容", selection: $stepsMode) { Text("睡眠").tag(false); Text("步数").tag(true) }
                         .pickerStyle(.segmented).accessibilityIdentifier("trendCategory")
                     Picker("时间范围", selection: $days) { Text("近 7 天").tag(7); Text("近 30 天").tag(30) }.pickerStyle(.segmented)

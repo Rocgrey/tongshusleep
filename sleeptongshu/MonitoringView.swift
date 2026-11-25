@@ -9,7 +9,8 @@ struct MonitoringView: View {
     @EnvironmentObject private var encryptedBand: EncryptedBandStore
     @Environment(\.modelContext) private var context
     @Query private var records: [SleepRecord]
-    @StateObject private var ring = VeepooRingClient()
+    // Keep the SDK client alive when this module is dismissed during a read.
+    @EnvironmentObject private var ring: VeepooRingClient
     @State private var ringTask: Task<Void, Never>?
     @AppStorage("phoneTrackingEnabled") private var trackingEnabled = false
     @State private var mode = 0
@@ -142,7 +143,7 @@ struct MonitoringView: View {
                 Toggle("开启手机睡眠跟踪", isOn: $trackingEnabled).font(.system(size: 14)).tint(SleepPalette.teal)
                 Button { Task { await phone.start() } } label: {
                     Label(phone.isStarting ? "正在准备…" : "开始今晚监测", systemImage: "play.fill")
-                        .foregroundStyle(trackingEnabled ? Color.white : SleepPalette.muted)
+                        .foregroundStyle(trackingEnabled ? SleepPalette.onAccent : SleepPalette.muted)
                         .frame(maxWidth: .infinity).padding(.vertical, 8)
                 }.buttonStyle(.borderedProminent).disabled(!trackingEnabled || phone.isStarting).accessibilityIdentifier("startMonitoring")
                 Text("睡前开始，醒来后手动结束；最长监测 23 小时。")
@@ -150,13 +151,13 @@ struct MonitoringView: View {
             } else if phone.isRecording {
                 Label("麦克风信号 \(Int(phone.currentDB)) dBFS", systemImage: "mic.fill").font(.system(size: 12))
                 Button { phone.stop() } label: {
-                    Label("结束本次监测", systemImage: "stop.fill").foregroundStyle(.white).frame(maxWidth: .infinity).padding(.vertical, 8)
+                    Label("结束本次监测", systemImage: "stop.fill").foregroundStyle(SleepPalette.onAccent).frame(maxWidth: .infinity).padding(.vertical, 8)
                 }.buttonStyle(.borderedProminent).accessibilityIdentifier("stopMonitoring")
                 Text("醒来后点“结束本次监测”，再保存报告。当前显示监测时长，不代表已经睡着；本版不会自动判断你已醒来。")
                     .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
             } else {
                 HStack {
-                    Button { savePhone() } label: { Label("保存睡眠报告", systemImage: "checkmark").foregroundStyle(.white).frame(maxWidth: .infinity) }
+                    Button { savePhone() } label: { Label("保存睡眠报告", systemImage: "checkmark").foregroundStyle(SleepPalette.onAccent).frame(maxWidth: .infinity) }
                         .buttonStyle(.borderedProminent).accessibilityIdentifier("saveMonitoring")
                     Button { showDiscard = true } label: { Image(systemName: "trash").frame(width: 40, height: 36) }
                         .accessibilityLabel("舍弃采集").tint(.red)
@@ -223,7 +224,7 @@ struct MonitoringView: View {
             } else {
                 Button { scanner.isScanning ? scanner.stopScan() : scanner.scan() } label: {
                     Label(scanner.isScanning ? "停止搜索" : "搜索蓝牙", systemImage: scanner.isScanning ? "stop.fill" : "magnifyingglass")
-                        .foregroundStyle(.white)
+                        .foregroundStyle(SleepPalette.onAccent)
                         .frame(maxWidth: .infinity).padding(.vertical, 7)
                 }.buttonStyle(.borderedProminent).accessibilityIdentifier("scanBluetooth")
             }

@@ -10,6 +10,7 @@ struct HealthOverviewView: View {
     var embedded = false
     @State private var showsSources = false
     @State private var showsAccess = false
+    @State private var showsAccount = false
     @State private var detail: HealthMetric?
     @State private var help: MetricHelp?
     @AppStorage("healthManualProfile") private var manualProfile = false
@@ -65,6 +66,7 @@ struct HealthOverviewView: View {
             .toolbar(embedded ? .visible : .hidden, for: .navigationBar)
             .sheet(isPresented: $showsSources) { HealthSourceSelectionView() }
             .sheet(isPresented: $showsAccess) { HealthAccessHelpView() }
+            .sheet(isPresented: $showsAccount) { AccountCenterView() }
             .sheet(item: $help) { MetricHelpSheet(help: $0) }
             .sheet(item: $detail) { metric in HealthMetricDetailView(metric: metric) }
             .refreshable { await health.refresh(in: context) }
@@ -84,7 +86,7 @@ struct HealthOverviewView: View {
             Button { showsSources = true } label: {
                 Image(systemName: "slider.horizontal.3").font(.system(size: 19)).frame(width: 44, height: 44).background(SleepPalette.surface, in: Circle())
             }.accessibilityLabel("健康设置").accessibilityIdentifier("healthSources").help("健康设置")
-            Button { account.open(.profile) } label: {
+            Button { showsAccount = true } label: {
                 Image(systemName: "person.crop.circle").font(.system(size: 22)).frame(width: 44, height: 44).background(SleepPalette.surface, in: Circle())
             }.accessibilityLabel("我的账号").accessibilityIdentifier("openAccount").help("我的账号")
         }
@@ -296,7 +298,7 @@ struct HealthOverviewView: View {
             SectionHeading(title: "健康记录", subtitle: "\(available) 项有可展示数据 · 点开看详情")
             if available == 0 {
                 ContentUnavailableView("等待健康记录", systemImage: "heart.text.clipboard",
-                                       description: Text("请先读取系统健康。若仍为空，请在健康 App 中允许 sleeptongshu 读取信息，并确认设备记录已同步。"))
+                                       description: Text("请先读取系统健康。若仍为空，请在健康 App 中允许 SleepGrove 读取信息，并确认设备记录已同步。"))
             }
             LazyVGrid(columns: [GridItem(.flexible(), alignment: .top), GridItem(.flexible(), alignment: .top)], alignment: .leading, spacing: 12) {
                 ForEach(availableMetrics) { metric in

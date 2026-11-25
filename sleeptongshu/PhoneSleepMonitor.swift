@@ -175,7 +175,7 @@ final class PhoneSleepMonitor: ObservableObject {
         }
         guard granted else {
             status = "尚未开始 · 麦克风未授权"
-            error = "请在 iPhone 设置 → 隐私与安全性 → 麦克风中允许 sleeptongshu 使用麦克风。"
+            error = "请在 iPhone 设置 → 隐私与安全性 → 麦克风中允许 SleepGrove 使用麦克风。"
             return
         }
         do {

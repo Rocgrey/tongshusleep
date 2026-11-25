@@ -8,12 +8,12 @@ struct SystemHealthReadButton: View {
     var body: some View {
         Button { Task { await health.refresh(in: context, requestAccess: true) } } label: {
             HStack(spacing: 12) {
-                if health.isLoading { ProgressView().tint(.white) }
+                if health.isLoading { ProgressView().tint(SleepPalette.onAccent) }
                 else { Image(systemName: "heart.text.clipboard") }
                 Text(health.isLoading ? "正在读取健康记录" : "从系统健康读取").font(.body.weight(.semibold))
                 Spacer(minLength: 6)
                 Image(systemName: "arrow.down.circle")
-            }.foregroundStyle(.white).padding(16).frame(maxWidth: .infinity, minHeight: 54)
+            }.foregroundStyle(SleepPalette.onAccent).padding(16).frame(maxWidth: .infinity, minHeight: 54)
                 .background(SleepPalette.teal, in: RoundedRectangle(cornerRadius: 8))
         }.buttonStyle(.plain).disabled(health.isLoading).accessibilityIdentifier("readHealthOverview")
     }
@@ -82,7 +82,7 @@ struct SystemSleepImportView: View {
                     Text("读取你已记录的睡眠").font(.title2.bold())
                     Text("点击“从系统健康读取”统一申请睡眠、活动和可用体征等读取权限，可按自己的意愿选择项目。不申请任何写入权限。睡眠页与健康页一起更新；系统可能提供手机、手表以及第三方 App 已写入的记录，能否读到取决于数据是否存在和访问设置。")
                     Text("蓝牙连接本身不会产生系统健康睡眠记录。设备配套 App 需要支持并实际写入 Apple 健康；请先在配套 App 中完成同步。")
-                    Text("没有记录时，打开健康 App，查看“浏览 → 睡眠”的实际数据；再到健康 App 的头像 → App（或数据访问与设备）→ sleeptongshu 检查睡眠读取设置。系统版本不同，入口名称可能略有不同。")
+                    Text("没有记录时，打开健康 App，查看“浏览 → 睡眠”的实际数据；再到健康 App 的头像 → App（或数据访问与设备）→ SleepGrove 检查睡眠读取设置。系统版本不同，入口名称可能略有不同。")
                     Text("系统不会告诉我们你是否关闭了读取权限。未读取到记录时无法据此判断原因；本机旧导入会移到健康设置的归档中，保留备注。恢复访问并重新读取后可再次显示。")
                     Text("同一段重叠记录优先选择提供较多真实分期的来源，再比较睡眠覆盖时长；不同来源不拼接。超过 30 分钟没有任何阶段记录时分成独立时段；间隔不会补为清醒。午睡单独保留，日期按原记录时区的睡眠结束日显示。")
                     Text("仅卧床不等于睡着。未分期睡眠只计真实时长，不推算深睡、浅睡或 REM。系统记录中的 Core 在这里显示为浅睡。资料有缺口时不计算清醒次数和效率；只有未分期的总时长时，不推算清醒次数。系统睡眠不生成 App 参考分。")
@@ -99,7 +99,10 @@ struct SystemSleepSourceView: View {
     var body: some View {
         if let details = record.metadata?.healthSleep {
             VStack(alignment: .leading, spacing: 10) {
-                Label(details.origin.appName, systemImage: "heart.text.clipboard").font(.subheadline.weight(.medium))
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Image(systemName: "heart.text.clipboard").accessibilityHidden(true)
+                    Text(details.origin.appName).accessibilityIdentifier("systemSleepSourceName")
+                }.font(.subheadline.weight(.medium))
                 Text(details.origin.deviceName ?? details.origin.model ?? "来源未标明设备")
                 Text("记录时区 \(details.timeZoneIdentifier) · 归属 \(details.endDay)")
                 Text("\(details.samples.count) 个原始样本 · \(details.otherSourceIDs.isEmpty ? "没有其他重叠来源" : "已排除其他重叠来源")")

@@ -47,7 +47,7 @@ final class AccountUITests: XCTestCase {
         let back = app.buttons["recoveryBackToLogin"]
         show(back); capture("76-sms-email-recovery"); back.tap()
         XCTAssertTrue(app.segmentedControls["accountMode"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.tabBars.buttons["健康"].exists)
+        XCTAssertFalse(app.tabBars.buttons["睡眠"].exists)
     }
     func testNotificationCardWaitsForLoginAndOpensNativePage() {
         app.terminate()
@@ -59,7 +59,7 @@ final class AccountUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["晚安"].exists)
         capture("notification-goodnight-test-route")
         app.buttons["完成"].tap()
-        XCTAssertTrue(app.tabBars.buttons["睡眠课堂"].isSelected)
+        XCTAssertTrue(app.tabBars.buttons["助眠"].isSelected)
     }
     func testNotificationSummaryWaitsForLoginAndOpensSleepTab() {
         app.terminate()
@@ -87,17 +87,17 @@ final class AccountUITests: XCTestCase {
         show(app.buttons["accountSubmit"]); capture("61-register-form")
         app.buttons["accountSubmit"].tap()
         XCTAssertTrue(app.switches["accountRemember"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.tabBars.buttons["健康"].exists)
+        XCTAssertFalse(app.tabBars.buttons["睡眠"].exists)
         enterLogin()
-        XCTAssertTrue(app.tabBars.buttons["健康"].waitForExistence(timeout: 5))
-        app.tabBars.buttons["健康"].tap()
+        XCTAssertTrue(app.tabBars.buttons["睡眠"].waitForExistence(timeout: 5))
+        app.openGroveSection("健康")
         app.buttons["openAccount"].tap()
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "sleeper@example.com")).firstMatch.waitForExistence(timeout: 5))
         capture("62-account-profile")
         app.buttons["accountSignOut"].tap()
         app.buttons["确定退出"].tap()
         XCTAssertTrue(app.segmentedControls["accountMode"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.tabBars.buttons["健康"].exists)
+        XCTAssertFalse(app.tabBars.buttons["睡眠"].exists)
     }
     func testWrongPasswordDisplaysBackendMessageAndStaysLoggedOut() {
         enterLogin(password: "wrongpass")
@@ -105,7 +105,7 @@ final class AccountUITests: XCTestCase {
         XCTAssertTrue(app.alerts.staticTexts["账号或密码错误"].exists)
         capture("63-login-server-error")
         app.alerts.buttons["知道了"].tap()
-        XCTAssertFalse(app.tabBars.buttons["健康"].exists)
+        XCTAssertFalse(app.tabBars.buttons["睡眠"].exists)
     }
     func testSleepUsesAutomaticSyncInsteadOfManualUploadButton() {
         enterLogin()
@@ -114,6 +114,8 @@ final class AccountUITests: XCTestCase {
         XCTAssertTrue(app.buttons["saveSleep"].waitForExistence(timeout: 5))
         app.buttons["saveSleep"].tap()
         XCTAssertFalse(app.buttons["openSleepUpload"].exists)
+        let sync = app.buttons["系统健康与同步状态"]
+        show(sync); sync.tap()
         XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "automaticSyncStatus").firstMatch.exists)
         XCTAssertFalse(app.textFields["uploadISI"].exists)
         XCTAssertFalse(app.buttons["上传这晚睡眠"].exists)
@@ -134,7 +136,7 @@ final class AccountUITests: XCTestCase {
         show(app.buttons["accountSubmit"]); app.buttons["accountSubmit"].tap()
         XCTAssertTrue(app.alerts.firstMatch.waitForExistence(timeout: 5))
         XCTAssertTrue(app.alerts.staticTexts["请填写完整的邮箱地址。"].exists)
-        XCTAssertFalse(app.tabBars.buttons["健康"].exists)
+        XCTAssertFalse(app.tabBars.buttons["睡眠"].exists)
     }
     func testPhoneRegistrationWithoutEmailThenProfileAndStepSources() {
         capture("70-phone-login")
@@ -154,15 +156,15 @@ final class AccountUITests: XCTestCase {
         let loginPassword = app.secureTextFields["accountPassword"]
         show(loginPassword); loginPassword.tap(); loginPassword.typeText("test-pass-only\n")
         show(app.buttons["accountSubmit"]); app.buttons["accountSubmit"].tap()
-        XCTAssertTrue(app.tabBars.buttons["趋势"].waitForExistence(timeout: 5))
-        app.tabBars.buttons["趋势"].tap()
+        XCTAssertTrue(app.tabBars.buttons["睡眠"].waitForExistence(timeout: 5))
+        app.openGroveSection("趋势")
         app.segmentedControls["trendCategory"].buttons["步数"].tap()
         XCTAssertTrue(app.segmentedControls["stepsSource"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.segmentedControls["stepsSource"].buttons["账号云端"].exists)
         capture("72-local-steps-empty")
         app.segmentedControls["stepsSource"].buttons["系统健康"].tap()
         XCTAssertTrue(app.staticTexts["尚未读取这段时间的系统步数"].exists)
-        app.tabBars.buttons["健康"].tap(); app.buttons["openAccount"].tap()
+        app.openGroveSection("健康"); app.buttons["openAccount"].tap()
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "13800001234")).firstMatch.waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["邮箱"].exists)
         capture("73-phone-profile")
@@ -172,8 +174,8 @@ final class AccountUITests: XCTestCase {
         app.launchArguments.append("-ui-testing-steps-chart")
         app.launch()
         enterLogin()
-        XCTAssertTrue(app.tabBars.buttons["趋势"].waitForExistence(timeout: 5))
-        app.tabBars.buttons["趋势"].tap()
+        XCTAssertTrue(app.tabBars.buttons["睡眠"].waitForExistence(timeout: 5))
+        app.openGroveSection("趋势")
         app.segmentedControls["trendCategory"].buttons["步数"].tap()
         XCTAssertTrue(app.otherElements["stepsChart"].waitForExistence(timeout: 5))
         assertStepBarsRender()

@@ -19,6 +19,9 @@ enum AppAppearance: String, CaseIterable, Identifiable {
         case .cute: UIColor(red: 0.67, green: 0.21, blue: 0.39, alpha: 1)
         }
     }
+    var readableAccent: UIColor {
+        UIColor { traits in traits.userInterfaceStyle == .dark ? self.accent.lighter : self.accent }
+    }
     static var current: Self { Self(rawValue: UserDefaults.standard.string(forKey: "appAppearance") ?? "fresh") ?? .fresh }
     static func adaptive(_ light: UInt32, _ dark: UInt32) -> UIColor {
         UIColor { traits in

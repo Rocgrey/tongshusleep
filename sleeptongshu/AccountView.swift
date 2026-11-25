@@ -76,7 +76,7 @@ struct AccountLoginView: View {
                     Text("睡眠同书").font(.system(size: 14)).foregroundStyle(SleepPalette.muted)
                 }.padding(.top, 24)
                 VStack(alignment: .leading, spacing: 9) {
-                    Text("sleeptongshu").font(.system(size: 32, weight: .semibold, design: .rounded)).minimumScaleFactor(0.7).lineLimit(1)
+                    Text("SleepGrove").font(.system(size: 32, weight: .semibold, design: .rounded)).minimumScaleFactor(0.7).lineLimit(1)
                     Text(register ? "创建账号，记录每一晚的自己" : "欢迎回来，今晚也好好休息")
                         .font(.system(size: 15)).foregroundStyle(SleepPalette.muted)
                 }
@@ -137,7 +137,7 @@ struct AccountLoginView: View {
                         Text(account.isLoading ? "请稍候" : register ? "注册" : "登录")
                         Image(systemName: "arrow.right")
                     }.font(.system(size: 16, weight: .semibold)).frame(maxWidth: .infinity, minHeight: 54)
-                        .foregroundStyle(account.isLoading ? SleepPalette.muted : .white)
+                        .foregroundStyle(account.isLoading ? SleepPalette.muted : SleepPalette.onAccent)
                         .background(account.isLoading ? SleepPalette.line : SleepPalette.teal, in: RoundedRectangle(cornerRadius: 8))
                         .contentShape(Rectangle())
                 }.buttonStyle(.plain).disabled(account.isLoading).accessibilityIdentifier("accountSubmit")

@@ -11,7 +11,7 @@ final class SleepAppUITests: XCTestCase {
     }
 
     func testDashboardDateAndMetricHelp() {
-        XCTAssertTrue(app.staticTexts["sleeptongshu"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["SleepGrove"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["示例数据"].exists)
         capture("01-sleep-overview")
         press(app.buttons["上一晚"])
@@ -442,12 +442,7 @@ final class SleepAppUITests: XCTestCase {
     }
 
     private func selectTab(_ title: String) {
-        #if targetEnvironment(macCatalyst)
-        if app.radioButtons[title].exists { press(app.radioButtons[title]) }
-        else { press(app.tabBars.buttons[title]) }
-        #else
-        press(app.tabBars.buttons[title])
-        #endif
+        app.openGroveSection(title)
     }
 
     private func scrollDown() {

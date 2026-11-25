@@ -107,9 +107,9 @@ struct HealthAccessGuide: View {
             VStack(alignment: .leading, spacing: 24) {
                 Image(systemName: "heart.text.clipboard.fill").font(.system(size: 42)).foregroundStyle(SleepPalette.rose)
                 Text("让健康记录在这里相遇").font(.system(size: 24, weight: .bold))
-                guideStep("1", title: "允许读取", text: "打开健康 App → 右上角头像 → App 与服务（部分系统显示为 App）→ sleeptongshu，开启你希望读取的项目。若找不到本 App，先回健康页点一次“读取系统健康”。")
+                guideStep("1", title: "允许读取", text: "打开健康 App → 右上角头像 → App 与服务（部分系统显示为 App）→ SleepGrove，开启你希望读取的项目。若找不到本 App，先回健康页点一次“从系统健康读取”。")
                 guideStep("2", title: "先把设备记录同步过来", text: "在手环、手表或戒指的配套 App 中完成同步，并开启向系统健康共享数据。只有配套 App 支持且实际写入的项目，才能在这里读取。蓝牙已连接不代表记录已写入系统健康。")
-                guideStep("3", title: "确认系统里确实有记录", text: "在健康 App 中打开步数、心率或睡眠，查看“显示所有数据”和“数据来源与访问权限”。确认有近期记录后，回到 sleeptongshu 更新健康数据，无需逐项选择设备。")
+                guideStep("3", title: "确认系统里确实有记录", text: "在健康 App 中打开步数、心率或睡眠，查看“显示所有数据”和“数据来源与访问权限”。确认有近期记录后，回到 SleepGrove 更新健康数据，无需逐项选择设备。")
                 Divider()
                 Label("怎样让年龄参考开始更新？", systemImage: "figure.mind.and.body").font(.system(size: 16, weight: .semibold))
                 Text("先补充实际年龄，再同步最近的睡眠或活动。探索性参考使用最近 7 天内同一天至少两类睡眠、步数、静息心率或 HRV 数据，不要求每项都有。它是尚未验证的实验估算，只用于观察自己的变化；其他已读取的记录可以先看。最大摄氧量是独立的心肺能力记录，没有它也不影响探索性年龄。")
