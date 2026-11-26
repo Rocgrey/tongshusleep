@@ -55,11 +55,11 @@ struct SleepTongshuApp: App {
 }
 
 enum SleepPalette {
-    static let background = Color(uiColor: AppAppearance.adaptive(0xF2F5F4, 0x121A19))
+    static let background = Color(uiColor: AppAppearance.adaptive(0xFAF7F5, 0x17191E))
     static let surface = Color(uiColor: AppAppearance.adaptive(0xFFFFFF, 0x1D2826))
-    static let ink = Color(uiColor: AppAppearance.adaptive(0x1A2B29, 0xEDF4F2))
+    static let ink = Color(uiColor: AppAppearance.adaptive(0x3B3435, 0xF1EBEF))
     static let onAccent = Color(uiColor: AppAppearance.adaptive(0xFFFFFF, 0x112825))
-    static let muted = Color(uiColor: AppAppearance.adaptive(0x596F6B, 0xA7BDB7))
+    static let muted = Color(uiColor: AppAppearance.adaptive(0x71666A, 0xBDB3BF))
     static var teal: Color { Color(uiColor: UIColor { traits in
         let color = AppAppearance.current.accent
         return traits.userInterfaceStyle == .dark ? color.withAlphaComponent(1).lighter : color

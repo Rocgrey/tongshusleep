@@ -33,42 +33,87 @@ enum BreathingCueTone {
     }
 }
 
-@MainActor final class BreathingCuePlayer: ObservableObject {
+@MainActor final class BreathingCuePlayer: NSObject, ObservableObject, AVSpeechSynthesizerDelegate {
     @Published var volume: Float = 0.55 { didSet { player?.volume = volume } }
     @Published private(set) var message: String?
     private let owner = UUID()
     private var player: AVAudioPlayer?
-    private var completion: Task<Void, Never>?
+    private let speech = AVSpeechSynthesizer()
+    private var introID: ObjectIdentifier?
+    private var introCompletion: (() -> Void)?
+    private var introWatchdog: Task<Void, Never>?
+    override init() { super.init(); speech.delegate = self }
 
-    func play(phase: Int) {
+    private func acquire() -> Bool {
         guard !AudioCoordinator.shared.recording else {
-            message = "手机监测正在录音，提示音暂不播放。"; return
+            message = "手机监测正在录音，语音和提示音暂不播放。"; return false
         }
         guard WhiteNoisePlayer.shared.deadline == nil else {
-            message = "请先停止声音陪伴，再试听呼吸提示音。"; return
+            message = "请先停止声音陪伴，再开始呼吸引导。"; return false
         }
-        completion?.cancel()
-        guard AudioCoordinator.shared.beginPlayback(owner: owner) else {
-            message = "声音暂不可用，请检查音频输出后重试。"; return
+        guard AudioCoordinator.shared.ownsPlayback(owner) || AudioCoordinator.shared.beginPlayback(owner: owner) else {
+            message = "声音暂不可用，请检查音频输出后重试。"; return false
         }
+        AudioCoordinator.shared.stopPlayback = { [weak self] in self?.stop() }
+        message = nil
+        return true
+    }
+    func introduction(completion: @escaping () -> Void) {
+        stop()
+        guard acquire() else { completion(); return }
+        guard let utterance = utterance("把呼吸，慢慢交给自己。") else { completion(); return }
+        introCompletion = completion; introID = ObjectIdentifier(utterance)
+        speech.speak(utterance)
+        // A missing system voice must not leave the exercise stuck in preparation.
+        introWatchdog = Task { [weak self] in
+            do { try await Task.sleep(for: .seconds(8)) } catch { return }
+            guard let self, self.introID != nil else { return }
+            let finish = self.introCompletion
+            self.introID = nil; self.introCompletion = nil
+            self.speech.stopSpeaking(at: .immediate)
+            finish?()
+            self.message = "中文开场语暂不可用，已开始倒计时。请检查系统中文声音。"
+        }
+    }
+    func play(phase: Int, tone: Bool = true, voice: Bool = false) {
+        guard tone || voice else { stop(); return }
+        guard acquire() else { return }
+        introCompletion = nil; introID = nil
+        introWatchdog?.cancel(); introWatchdog = nil
+        speech.stopSpeaking(at: .immediate)
+        if voice, let word = utterance(["吸气", "屏息", "呼气"][max(0, min(2, phase))]) { speech.speak(word) }
+        guard tone else { return }
         do {
             player = try AVAudioPlayer(data: BreathingCueTone.waveData(phase: phase))
             player?.volume = volume
             player?.prepareToPlay()
             guard player?.play() == true else { throw CocoaError(.fileReadUnknown) }
-            message = nil
-            AudioCoordinator.shared.stopPlayback = { [weak self] in self?.stop() }
-            completion = Task { [weak self] in
-                do { try await Task.sleep(for: .seconds(1)) } catch { return }
-                self?.stop()
-            }
         } catch {
             stop(); message = "未能播放提示音，请检查媒体音量和耳机连接。"
         }
     }
     func stop() {
-        completion?.cancel(); completion = nil
+        introID = nil; introCompletion = nil
+        introWatchdog?.cancel(); introWatchdog = nil
+        speech.stopSpeaking(at: .immediate)
         player?.stop(); player = nil
         AudioCoordinator.shared.endPlayback(owner: owner)
+    }
+    private func utterance(_ text: String) -> AVSpeechUtterance? {
+        guard let voice = AVSpeechSynthesisVoice(language: "zh-CN") else {
+            message = "中文语音暂不可用，可在系统辅助功能的朗读内容中下载中文声音；轻柔提示音仍可使用。"; return nil
+        }
+        let word = AVSpeechUtterance(string: text)
+        word.voice = voice; word.rate = 0.42; word.volume = volume
+        return word
+    }
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        let id = ObjectIdentifier(utterance)
+        Task { @MainActor [weak self] in
+            guard let self, self.introID == id else { return }
+            let finish = self.introCompletion
+            self.introWatchdog?.cancel(); self.introWatchdog = nil
+            self.introID = nil; self.introCompletion = nil; finish?()
+        }
     }
 }

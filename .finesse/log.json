@@ -22,5 +22,17 @@
     "motion": "only breathing exercise and feedback; no new home animation",
     "assets": "manufacturer banner-product.jpg; exact published product-promo.mp4; original soft PCM cues",
     "validation": "SE simulator light/dark, accessibility typography, temperature charts; see docs/RELEASE_V051.md"
+  },
+  {
+    "date": "2026-11-26",
+    "target": "SleepGrove 0.5.2 self-test, relaxation, health and product",
+    "register": "product",
+    "designLanguage": "apple",
+    "mode": "app",
+    "palette": "adaptive coral, lavender, mint, honey and sky on warm-neutral surfaces",
+    "composition": "one course per row; top audio controls; source-accurate sleep charts; purchase before specifications",
+    "motion": "breathing phase transitions and result-ring entry only, with Reduce Motion support",
+    "assets": "existing licensed content covers, manufacturer product photo, 24 native SF Symbol and Canvas sound illustrations",
+    "validation": "see docs/RELEASE_V052.md"
   }
 ]

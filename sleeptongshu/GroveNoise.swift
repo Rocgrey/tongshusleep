@@ -47,6 +47,14 @@ struct GroveNoise: Identifiable, Equatable, Sendable {
                 values[count - fade + i] = values[count - fade + i] * (1 - mix) + values[0] * mix
             }
         }
+        // Equal perceived starting level across families, while retaining headroom.
+        // Brown/pink filtering previously made some presets much quieter than white.
+        let rms = sqrt(values.reduce(0.0) { $0 + Double($1 * $1) } / Double(count))
+        let peak = values.map { abs($0) }.max() ?? 0
+        if rms > 0, peak > 0 {
+            let gain = Float(min(0.17 / rms, 0.8 / Double(peak)))
+            for i in values.indices { values[i] *= gain }
+        }
         return values
     }
 }

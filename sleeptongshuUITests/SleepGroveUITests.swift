@@ -59,17 +59,60 @@ final class SleepGroveUITests: XCTestCase {
         capture(app, "breathing")
         app.navigationBars.buttons.firstMatch.tap()
         app.buttons["groveNoise"].tap()
-        XCTAssertTrue(app.buttons["groveNoiseSelection"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["noisePlayPause"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["noiseStop"].isHittable)
         capture(app, "noise")
         app.openGroveSection("掌心安睡仪")
+        for _ in 0..<6 where !app.buttons["productIntroductionVideo"].isHittable { app.swipeUp() }
         XCTAssertTrue(app.buttons["productIntroductionVideo"].waitForExistence(timeout: 5))
         capture(app, "product-introduction")
-        for _ in 0..<8 where !app.buttons["productImage-jd-sleep-device"].isHittable { app.swipeUp() }
+        for _ in 0..<8 where !app.buttons["productImage-jd-sleep-device"].isHittable { app.swipeDown() }
         XCTAssertTrue(app.buttons["productImage-jd-sleep-device"].waitForExistence(timeout: 5))
         capture(app, "product")
         app.openGroveSection("用户中心")
         XCTAssertTrue(app.buttons["enhancedSettings"].waitForExistence(timeout: 5))
         capture(app, "center")
+    }
+    func testPSQICompletesAndAllTwentyFourSoundsAreReachable() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["-ui-testing", "-ui-testing-light"]
+        app.launch()
+        app.openGroveSection("科普")
+        app.segmentedControls["classroomSections"].buttons["自测"].tap()
+        app.buttons["grovePSQI"].tap()
+        app.buttons["startPSQI"].tap()
+        for question in 0..<18 {
+            if question == 1 || question == 3 {
+                let field = app.textFields["psqiNumber"]
+                field.tap(); field.typeText(question == 1 ? "35" : "6.5")
+                app.swipeUp() // Dismiss decimal keyboard and reveal navigation.
+            } else if question >= 4 {
+                let option = question == 4 || question == 5 ? 2 : question == 15 ? 0 : 1
+                app.buttons["psqiOption\(option)"].tap()
+            }
+            let next = app.buttons["psqiNext"]
+            for _ in 0..<3 where !next.isHittable { app.swipeUp() }
+            next.tap()
+        }
+        XCTAssertTrue(app.navigationBars["这次自测"].waitForExistence(timeout: 5))
+        capture(app, "psqi-result-test-answers")
+        app.openGroveSection("助眠")
+        for _ in 0..<4 where !app.buttons["groveNoise"].isHittable { app.swipeUp() }
+        app.buttons["groveNoise"].tap()
+        XCTAssertTrue(app.buttons["noisePlayPause"].isHittable)
+        for sound in 0..<24 {
+            let tile = app.buttons["noise-\(sound)"]
+            for _ in 0..<12 where !tile.isHittable { app.swipeUp() }
+            XCTAssertTrue(tile.isHittable, "Sound \(sound) is reachable")
+        }
+        capture(app, "noise-final-presets")
+        app.buttons["noise-23"].tap()
+        for _ in 0..<14 where !app.buttons["noiseStop"].isHittable { app.swipeDown() }
+        XCTAssertTrue(app.staticTexts["正在陪伴你"].waitForExistence(timeout: 8))
+        capture(app, "noise-playing-selected-preset")
+        app.buttons["noiseStop"].tap()
+        XCTAssertTrue(app.staticTexts["留一点安静给自己"].exists)
     }
     func testDarkLargeTypeAndNotificationRelaxRoute() {
         continueAfterFailure = false
@@ -88,5 +131,17 @@ final class SleepGroveUITests: XCTestCase {
         app.buttons["theme-cute"].tap()
         XCTAssertEqual(app.buttons["theme-cute"].value as? String, "已选择")
         capture(app, "dark-large-theme")
+    }
+    func testColorfulHealthAgeRetainsActualAgeAndTestSourceLabel() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["-ui-testing", "-ui-testing-health", "-ui-testing-health-sparse", "-ui-testing-light"]
+        app.launch()
+        app.openGroveSection("健康")
+        let value = app.staticTexts["fitnessAgeValue"]
+        for _ in 0..<10 where !value.isHittable { app.swipeUp() }
+        XCTAssertTrue(value.isHittable)
+        XCTAssertTrue(app.staticTexts["实际年龄 42 岁"].exists)
+        capture(app, "health-age-synthetic-data")
     }
 }

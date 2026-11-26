@@ -40,23 +40,26 @@ struct BreathingView: View {
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var cue = BreathingCuePlayer()
     @State private var running = false
+    @State private var preparing = false
     @State private var elapsed: TimeInterval = 0
     @State private var lastTick = Date.now
     @AppStorage("breathingCueEnabled") private var cues = true
+    @AppStorage("breathingVoiceEnabled") private var voice = true
     private var phaseIndex: Int { let second = max(0, Int(elapsed)) % 19; return second < 4 ? 0 : second < 11 ? 1 : 2 }
     var body: some View {
         TimelineView(.animation(minimumInterval: 1, paused: !running)) { context in
             let phase = BreathingCycle.phase(elapsed: elapsed)
             ScrollView { VStack(spacing: 28) {
+                GroveSectionBanner(title: "把呼吸，慢慢交给自己", subtitle: preparing ? "听完开场语，再一起吸气" : "跟随声音，也跟随自己的节奏", symbol: "wind", color: .lavender)
                 ZStack {
                     ForEach(0..<3) { index in
                         Circle().stroke(SleepPalette.teal.opacity(0.04 + Double(index) * 0.025), lineWidth: 1)
                             .padding(CGFloat(index) * 14)
                     }
-                    Circle().stroke(SleepPalette.teal.opacity(0.15), lineWidth: 20)
-                    Circle().fill(SleepPalette.teal.opacity(0.2)).scaleEffect(phase.expanded ? 0.95 : 0.62)
+                    Circle().stroke(GroveColor.coral.tint.opacity(0.25), lineWidth: 20)
+                    Circle().fill(GroveColor.lavender.wash).scaleEffect(phase.expanded ? 0.95 : 0.62)
                         .animation(reduceMotion ? nil : .easeInOut(duration: phase.expanded ? 4 : 8), value: phase.expanded)
-                    VStack { Text(phase.title).font(.largeTitle.bold()); Text("\(phase.remaining)").font(.title.monospacedDigit()) }
+                    VStack { Text(preparing ? "准备" : phase.title).font(.largeTitle.bold()); Text(preparing ? "放松肩膀" : "\(phase.remaining)").font(.title.monospacedDigit()) }
                 }.frame(width: 230, height: 230).accessibilityElement(children: .combine)
                 HStack(spacing: 18) {
                     Label("吸气 4秒", systemImage: "arrow.up")
@@ -65,12 +68,15 @@ struct BreathingView: View {
                 }.font(.caption).foregroundStyle(SleepPalette.muted)
                 HStack {
                     Button {
-                        running.toggle(); lastTick = .now
-                        if running && cues { cue.play(phase: phaseIndex) } else { cue.stop() }
-                    } label: { Label(running ? "暂停" : "开始", systemImage: running ? "pause.fill" : "play.fill").padding(.vertical, 8) }.buttonStyle(.borderedProminent)
-                    Button { running = false; elapsed = 0; cue.stop() } label: { Label("结束", systemImage: "stop.fill").padding(.vertical, 8) }.buttonStyle(.bordered)
+                        if running || preparing { running = false; preparing = false; cue.stop() }
+                        else if elapsed == 0, voice {
+                            preparing = true
+                            cue.introduction { guard preparing else { return }; preparing = false; startClock() }
+                        } else { startClock() }
+                    } label: { Label(running || preparing ? "暂停" : "开始", systemImage: running || preparing ? "pause.fill" : "play.fill").padding(.vertical, 8) }.buttonStyle(.borderedProminent).tint(GroveColor.lavender.tint).foregroundStyle(SleepPalette.onAccent)
+                    Button { running = false; preparing = false; elapsed = 0; cue.stop() } label: { Label("结束", systemImage: "stop.fill").padding(.vertical, 8) }.buttonStyle(.bordered)
                 }
-                Text("把呼吸，慢慢交还给自己").font(.title3.bold()).multilineTextAlignment(.center)
+                Toggle("轻声语音引导", isOn: $voice).frame(maxWidth: 300)
                 Toggle("阶段提示音", isOn: $cues).frame(maxWidth: 300)
                 HStack {
                     Image(systemName: "speaker.wave.1")
@@ -79,19 +85,22 @@ struct BreathingView: View {
                         .accessibilityLabel("试听轻柔提示音").accessibilityIdentifier("previewBreathingCue")
                 }.frame(maxWidth: 350)
                 if let message = cue.message { Text(message).font(.caption).foregroundStyle(SleepPalette.rose) }
-                Text("开始及切换阶段时响起轻柔提示音。听不到时请调高手机媒体音量，并检查是否连着耳机。录音或声音陪伴期间不播放提示音。").font(.caption).foregroundStyle(SleepPalette.muted)
+                Text("开场语结束后开始计时，阶段语音与倒计时同步切换。听不到时请检查媒体音量和耳机连接。录音或声音陪伴期间不播放引导。").font(.caption).foregroundStyle(SleepPalette.muted)
                 Text("量力而行，不适时停止，恢复自然呼吸。").font(.caption).foregroundStyle(SleepPalette.muted)
                 Spacer(minLength: 0)
                 }.padding(24).padding(.top, 30).frame(maxWidth: .infinity) }.background(SleepPalette.background)
                 .onChange(of: context.date) { _, now in if running { elapsed += max(0, now.timeIntervalSince(lastTick)) }; lastTick = now }
                 .onChange(of: phase.title) { _, _ in
-                    if running, cues { cue.play(phase: phaseIndex) }
+                    if running { cue.play(phase: phaseIndex, tone: cues, voice: voice) }
                 }
         }.navigationTitle("4-7-8 呼吸").navigationBarTitleDisplayMode(.inline).toolbar(.visible, for: .navigationBar)
-            .onChange(of: cues) { _, enabled in if !enabled { cue.stop() } }
-            .onChange(of: scenePhase) { _, phase in if phase != .active { running = false; cue.stop() } }
-            .onDisappear { running = false; cue.stop() }
+            .onChange(of: cues) { _, _ in if running { cue.play(phase: phaseIndex, tone: cues, voice: voice) } }
+            .onChange(of: voice) { _, _ in preparing = false; if running { cue.play(phase: phaseIndex, tone: cues, voice: voice) } else { cue.stop() } }
+            .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)) { _ in running = false; preparing = false; cue.stop() }
+            .onChange(of: scenePhase) { _, phase in if phase != .active { running = false; preparing = false; cue.stop() } }
+            .onDisappear { running = false; preparing = false; cue.stop() }
     }
+    private func startClock() { lastTick = .now; running = true; cue.play(phase: phaseIndex, tone: cues, voice: voice) }
 }
 
 @MainActor final class WhiteNoisePlayer: ObservableObject {
@@ -105,6 +114,7 @@ struct BreathingView: View {
     private let owner = UUID()
     private var player: AVAudioPlayer?
     private var task: Task<Void, Never>?
+    private var operation = UUID()
     private var interruption: NSObjectProtocol?
     private init() {
         MPRemoteCommandCenter.shared().playCommand.addTarget { [weak self] _ in Task { @MainActor in self?.resume() }; return .success }
@@ -112,16 +122,20 @@ struct BreathingView: View {
         interruption = NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] _ in Task { @MainActor in self?.pause() } }
     }
     func start(minutes: Int, sound next: GroveNoise = GroveNoise.library[0]) async {
-        guard !playing, !loading else { return }
-        loading = true; defer { loading = false }
+        stop()
+        let request = UUID(); operation = request
+        loading = true; defer { if operation == request { loading = false } }
         message = nil
         guard AudioCoordinator.shared.beginPlayback(owner: owner) else { message = "手机正在监测或音频不可用，请结束监测后再播放。"; return }
+        AudioCoordinator.shared.stopPlayback = { [weak self] in self?.stop() }
         do {
             if player == nil || sound != next {
                 // Original procedural white noise: no external recording/license or large download.
-                let url = FileManager.default.temporaryDirectory.appendingPathComponent("sleepgrove-noise-\(next.id).wav")
+                let url = FileManager.default.temporaryDirectory.appendingPathComponent("sleepgrove-noise-\(request).wav")
+                defer { try? FileManager.default.removeItem(at: url) }
                 try await Task.detached(priority: .utility) { try Self.render(next, to: url) }.value
-                player = try AVAudioPlayer(contentsOf: url); player?.numberOfLoops = -1
+                guard operation == request, !Task.isCancelled, AudioCoordinator.shared.ownsPlayback(owner) else { return }
+                player = try AVAudioPlayer(data: Data(contentsOf: url)); player?.numberOfLoops = -1
                 sound = next
             }
             guard AudioCoordinator.shared.ownsPlayback(owner) else { message = "音频任务已切换，未开始播放。"; return }
@@ -138,17 +152,20 @@ struct BreathingView: View {
                     try? await Task.sleep(for: .seconds(1))
                 }
             }
-        } catch { message = "暂时无法播放白噪音，请稍后重试。"; AudioCoordinator.shared.endPlayback(owner: owner) }
+        } catch {
+            guard operation == request else { return }
+            stop(); message = "暂时无法播放白噪音，请稍后重试。"
+        }
     }
     func resume() {
-        guard !AudioCoordinator.shared.recording, let player, deadline.map({ $0 > .now }) ?? false else { return }
+        guard AudioCoordinator.shared.ownsPlayback(owner), let player, deadline.map({ $0 > .now }) ?? false else { return }
         do { try AVAudioSession.sharedInstance().setCategory(.playback); try AVAudioSession.sharedInstance().setActive(true) }
         catch { message = "音频暂不可用，请稍后再试。"; return }
         player.volume = volume; playing = player.play()
         MPNowPlayingInfoCenter.default().nowPlayingInfo = [MPMediaItemPropertyTitle: "SleepGrove · " + sound.title, MPNowPlayingInfoPropertyPlaybackRate: playing ? 1 : 0]
     }
     func pause() { player?.pause(); playing = false; MPNowPlayingInfoCenter.default().nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackRate] = 0 }
-    func stop() { task?.cancel(); task = nil; player?.stop(); playing = false; deadline = nil; MPNowPlayingInfoCenter.default().nowPlayingInfo = nil; AudioCoordinator.shared.endPlayback(owner: owner) }
+    func stop() { operation = UUID(); loading = false; task?.cancel(); task = nil; player?.stop(); playing = false; deadline = nil; MPNowPlayingInfoCenter.default().nowPlayingInfo = nil; AudioCoordinator.shared.endPlayback(owner: owner) }
     nonisolated private static func render(_ sound: GroveNoise, to url: URL) throws {
         let rate = 22050.0, samples = sound.samples()
         let count = samples.count
@@ -161,31 +178,90 @@ struct BreathingView: View {
 }
 struct WhiteNoiseView: View {
     @StateObject private var audio = WhiteNoisePlayer.shared
+    @Environment(\.dynamicTypeSize) private var typeSize
     @State private var minutes = 30
     @State private var selection = 0
     var body: some View {
-        Form {
-            Section {
-                Image(systemName: "waveform").font(.system(size: 60)).frame(maxWidth: .infinity).padding(30).foregroundStyle(SleepPalette.teal)
-                Text(GroveNoise.library[selection].title).font(.title2.bold())
-                Text("24 种本机合成音色，包含白噪、粉噪和棕噪的不同变化。风、雨与水声为声音意象，不是实地录音。手机监测开始时停止播放。").font(.subheadline).foregroundStyle(.secondary)
-            }
-            Section("选择合成音色") {
-                Picker("音色", selection: $selection) {
-                    ForEach(GroveNoise.library) { sound in Text(sound.title).tag(sound.id) }
-                }.disabled(audio.loading || audio.deadline != nil).accessibilityIdentifier("groveNoiseSelection")
-                Text("先停止播放，再切换音色。").font(.caption).foregroundStyle(.secondary)
-            }
-            Section("音量") { Slider(value: $audio.volume, in: 0...1).accessibilityLabel("音量") }
-            Section("关闭定时") {
-                Picker("时长", selection: $minutes) { ForEach([5,15,30,45,60,90], id: \.self) { Text("\($0) 分钟").tag($0) } }.disabled(audio.deadline != nil)
-                if let end = audio.deadline { Text("将在 \(end.formatted(date: .omitted, time: .shortened)) 前渐弱停止，离开页面后仍有效。") }
-                Button { if audio.playing { audio.pause() } else if audio.deadline != nil { audio.resume() } else { Task { await audio.start(minutes: minutes, sound: GroveNoise.library[selection]) } } } label: { Label(audio.loading ? "准备中" : audio.playing ? "暂停" : "播放", systemImage: audio.playing ? "pause.fill" : "play.fill") }.disabled(audio.loading)
-                Button { audio.stop() } label: { Label("停止并关闭定时", systemImage: "stop.fill") }
-                if let message = audio.message { Text(message).foregroundStyle(.secondary) }
-            }
-        }.navigationTitle("白噪音").toolbar(.visible, for: .navigationBar)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                controls
+                Text("24 种声音，选一个陪伴今晚").font(.title2.bold())
+                Text("点选即可播放和切换，每次选择重新开启定时。白噪、粉噪、棕噪均在本机合成；风、雨、水声是音色意象，并非自然实录。开始手机录音时自动停止。").font(.caption).foregroundStyle(SleepPalette.muted)
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .top), count: typeSize.isAccessibilitySize ? 1 : 2), spacing: 16) {
+                    ForEach(GroveNoise.library) { sound in
+                        Button {
+                            selection = sound.id
+                            Task { await audio.start(minutes: minutes, sound: sound) }
+                        } label: {
+                            VStack(alignment: .leading, spacing: 10) {
+                                NoiseArtwork(sound: sound).frame(height: 100).clipShape(RoundedRectangle(cornerRadius: 8))
+                                HStack(alignment: .top) {
+                                    Text(sound.title).font(.subheadline.weight(.semibold)).fixedSize(horizontal: false, vertical: true)
+                                    Spacer(minLength: 0)
+                                    Image(systemName: selection == sound.id && audio.playing ? "speaker.wave.2.fill" : "play.circle")
+                                }
+                                Text(["白噪 · 细密", "粉噪 · 柔和", "棕噪 · 低沉"][sound.family]).font(.caption).foregroundStyle(SleepPalette.muted)
+                            }.foregroundStyle(SleepPalette.ink).padding(10)
+                                .background(selection == sound.id ? GroveColor.allCases[sound.id % 5].wash : SleepPalette.surface, in: RoundedRectangle(cornerRadius: 8))
+                                .overlay(RoundedRectangle(cornerRadius: 8).stroke(selection == sound.id ? GroveColor.allCases[sound.id % 5].tint : .clear, lineWidth: 2))
+                        }.buttonStyle(.plain).accessibilityIdentifier("noise-\(sound.id)")
+                            .accessibilityLabel(sound.title + "，点按播放")
+                    }
+                }.accessibilityIdentifier("groveNoiseSelection")
+            }.padding(20).frame(maxWidth: 680).frame(maxWidth: .infinity)
+        }.background(SleepPalette.background).navigationTitle("声音陪伴").navigationBarTitleDisplayMode(.inline).toolbar(.visible, for: .navigationBar)
             .onAppear { if audio.deadline != nil { selection = audio.sound.id } }
+    }
+    private var controls: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Image(systemName: "waveform.circle.fill").font(.largeTitle).foregroundStyle(GroveColor.lavender.tint)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(GroveNoise.library[selection].title).font(.headline)
+                    Text(audio.loading ? "正在准备声音…" : audio.playing ? "正在陪伴你" : "留一点安静给自己").font(.caption).foregroundStyle(SleepPalette.muted)
+                }
+                Spacer(minLength: 0)
+            }
+            HStack(spacing: 20) {
+                Button { if audio.playing { audio.pause() } else if audio.deadline != nil { audio.resume() } else { Task { await audio.start(minutes: minutes, sound: GroveNoise.library[selection]) } } } label: {
+                    Label(audio.playing ? "暂停" : "播放", systemImage: audio.playing ? "pause.fill" : "play.fill").frame(minHeight: 32)
+                }.buttonStyle(.borderedProminent).tint(GroveColor.lavender.tint).foregroundStyle(SleepPalette.onAccent).disabled(audio.loading).accessibilityIdentifier("noisePlayPause")
+                Button { audio.stop() } label: { Label("停止", systemImage: "stop.fill").frame(minHeight: 32) }.buttonStyle(.bordered).accessibilityIdentifier("noiseStop")
+            }
+            HStack { Image(systemName: "speaker.wave.1"); Slider(value: $audio.volume, in: 0...1).accessibilityLabel("音量"); Image(systemName: "speaker.wave.3") }.tint(GroveColor.coral.tint)
+            Picker(selection: $minutes) { ForEach([5,15,30,45,60,90], id: \.self) { Text("\($0) 分钟").tag($0) } } label: { Label("关闭定时", systemImage: "timer") }
+                .pickerStyle(.menu).disabled(audio.deadline != nil).accessibilityIdentifier("noiseTimer")
+            if let end = audio.deadline { Text("\(end.formatted(date: .omitted, time: .shortened)) 渐弱停止，离开页面仍有效。停止后可重新设置时长。").font(.caption).foregroundStyle(SleepPalette.muted) }
+            if let message = audio.message { Text(message).font(.caption).foregroundStyle(SleepPalette.rose) }
+        }.groveWash(.lavender)
+    }
+}
+
+/// Small native illustrations; each preset has its own color, symbol and wave contour.
+private struct NoiseArtwork: View {
+    let sound: GroveNoise
+    private var color: GroveColor { GroveColor.allCases[sound.id % 5] }
+    private var symbol: String {
+        ["sparkles", "sun.haze.fill", "wind", "cloud.rain.fill", "cloud.fill", "leaf.fill", "fan.fill", "cloud.drizzle.fill",
+         "waveform", "cloud.rain.fill", "water.waves", "tree.fill", "drop.fill", "cloud.moon.rain.fill", "leaf.fill", "water.waves",
+         "moon.stars.fill", "wind", "water.waves", "cloud.rain.fill", "drop.fill", "cloud.moon.fill", "waveform", "water.waves"][sound.id]
+    }
+    var body: some View {
+        ZStack {
+            color.wash
+            Canvas { context, size in
+                for row in 0..<3 {
+                    var path = Path()
+                    for step in 0...60 {
+                        let x = size.width * Double(step) / 60
+                        let y = size.height * 0.7 + Double(row) * 11 + sin(Double(step) / 60 * .pi * Double(sound.id % 4 + 2) + Double(row)) * 7
+                        if step == 0 { path.move(to: CGPoint(x: x, y: y)) } else { path.addLine(to: CGPoint(x: x, y: y)) }
+                    }
+                    context.stroke(path, with: .color(color.tint.opacity(0.15)), lineWidth: 2)
+                }
+            }
+            Image(systemName: symbol).font(.system(size: 36, weight: .light)).symbolRenderingMode(.hierarchical).foregroundStyle(color.tint).offset(y: -8)
+        }.accessibilityHidden(true)
     }
 }
 struct GoodnightView: View {

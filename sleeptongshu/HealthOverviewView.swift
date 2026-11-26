@@ -174,6 +174,11 @@ struct HealthOverviewView: View {
 
     private var ageOverview: some View {
         VStack(alignment: .leading, spacing: 16) {
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("-ui-testing-health") {
+                Text("界面测试示例 · 非真实身体年龄").font(.caption).foregroundStyle(SleepPalette.muted)
+            }
+            #endif
             HStack {
                 Label("身体年龄参考", systemImage: "figure.mind.and.body").font(.system(size: 16, weight: .semibold))
                 Spacer()
@@ -185,13 +190,14 @@ struct HealthOverviewView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(exploratoryAge.map { "约\($0.age)" } ?? "等待了解你")
                         .font(.system(size: exploratoryAge == nil ? 26 : 40, weight: .semibold, design: .rounded)).monospacedDigit()
-                        .foregroundStyle(SleepPalette.teal).accessibilityIdentifier("fitnessAgeValue")
+                        .foregroundStyle(GroveColor.lavender.tint).accessibilityIdentifier("fitnessAgeValue")
                     Text(exploratoryAge == nil ? "从已有记录开始" : "岁 · 探索性参考值").font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
                     Text(age.map { "实际年龄 \($0) 岁" } ?? "实际年龄未读取到").font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
                 }
                 Spacer(minLength: 0)
             }
             Text("探索性健康年龄 · 观察自己的日常变化").font(.system(size: 12, weight: .medium))
+            Text("今天，给自己一点恢复的时间").font(.headline).foregroundStyle(GroveColor.coral.tint)
             if let exploratoryAge {
                 HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(SleepPalette.awake)
@@ -227,7 +233,7 @@ struct HealthOverviewView: View {
                     VStack(alignment: .leading, spacing: 12) { ageActions }
                 }
             }
-        }
+        }.groveWash(.lavender)
     }
     @ViewBuilder private var ageActions: some View {
         Button { showsAccess = true } label: { Label("健康权限指引", systemImage: "heart.text.clipboard") }
@@ -351,7 +357,7 @@ struct HealthAgeDial: View {
             Circle().stroke(SleepPalette.line, lineWidth: 9)
             ForEach(0..<total, id: \.self) { index in
                 Circle().trim(from: Double(index) / Double(total) + 0.025, to: Double(index + 1) / Double(total) - 0.025)
-                    .stroke(index < completed ? SleepPalette.teal : SleepPalette.line, style: StrokeStyle(lineWidth: 9, lineCap: .round))
+                    .stroke(index < completed ? GroveColor.allCases[index % 5].tint : SleepPalette.line, style: StrokeStyle(lineWidth: 9, lineCap: .round))
                     .rotationEffect(.degrees(-90))
             }
             VStack(spacing: 3) {

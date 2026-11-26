@@ -61,7 +61,7 @@ struct SleepDashboardView: View {
                                     HStack(spacing: 14) { stageLegend(record) }
                                     VStack(alignment: .leading, spacing: 7) { stageLegend(record) }
                                 }
-                            }.padding(.vertical, 6).accessibilityElement(children: .contain).accessibilityIdentifier("sleepStageHero")
+                            }.groveWash(.lavender).accessibilityElement(children: .contain).accessibilityIdentifier("sleepStageHero")
                         }
                         overview(record)
                         GroveSleepShortcuts(module: $module)

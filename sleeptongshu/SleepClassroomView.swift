@@ -30,7 +30,7 @@ struct SleepClassroomView: View {
                         NavigationLink { AppSettingsView() } label: { Image(systemName: "gearshape").font(.title2) }
                             .accessibilityLabel("设置").accessibilityIdentifier("enhancedSettings")
                     }
-                    Picker("课堂栏目", selection: $selection) { ForEach(["课程", "阅读", "自评"], id: \.self) { Text($0) } }
+                    Picker("课堂栏目", selection: $selection) { ForEach(["课程", "阅读", "自测"], id: \.self) { Text($0) } }
                         .pickerStyle(.segmented).accessibilityIdentifier("classroomSections")
                     if let message = content.message { Label(message, systemImage: content.hasRemoteCatalog ? "wifi.exclamationmark" : "info.circle").font(.caption).foregroundStyle(.secondary) }
                     if !content.hasRemoteCatalog, content.message == nil { Text("随 App 提供的课堂内容").font(.caption).foregroundStyle(.secondary) }
@@ -44,7 +44,7 @@ struct SleepClassroomView: View {
                             .buttonStyle(.borderedProminent)
                     }
                     if selection == "课程" {
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: typeSize.isAccessibilitySize ? 300 : 145), spacing: 14, alignment: .top)], spacing: 18) {
+                        LazyVStack(alignment: .leading, spacing: 24) {
                             ForEach(content.courses) { item in
                                 Button { playFirstLesson(of: item) } label: { ContentTile(item: item) }
                                     .buttonStyle(.plain).accessibilityIdentifier("classroomItem-" + item.id)
@@ -55,8 +55,13 @@ struct SleepClassroomView: View {
                         ForEach(content.articles) { item in NavigationLink { ClassroomDetailView(item: item) } label: { ContentTile(item: item) }.buttonStyle(.plain) }
                         if content.articles.isEmpty { empty("暂无已发布文章") }
                     } else {
+                        GroveSectionBanner(title: "给睡眠一个回顾", subtitle: "从自己的感受出发，找到改善方向", symbol: "list.clipboard.fill", color: .lavender)
+                        NavigationLink { PSQIView() } label: {
+                            GroveFeatureRow(title: "PSQI 睡眠自测", subtitle: "18 项 · 回顾近 1 个月 · 0–21 分", icon: "moon.stars.fill", tint: GroveColor.lavender.tint)
+                        }.buttonStyle(.plain).accessibilityIdentifier("grovePSQI")
+                        Divider()
                         NavigationLink { GroveSelfAssessmentView() } label: {
-                            GroveFeatureRow(title: "睡眠自评", subtitle: "为真实睡眠记录补充已有 AIS 自评总分", icon: "list.clipboard")
+                            GroveFeatureRow(title: "已有 AIS 自评", subtitle: "为真实睡眠记录补充已有 AIS 自评总分", icon: "list.clipboard")
                         }.buttonStyle(.plain)
                         Text("自评帮助记录自己的感受，不能替代设备记录，也不会自动生成分期。").font(.subheadline).foregroundStyle(SleepPalette.muted)
                     }
