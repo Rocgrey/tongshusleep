@@ -7,6 +7,7 @@ struct SleepMetadata: Codable {
     var healthSleep: HealthSleepDetails? = nil
     var encryptedBand: EncryptedBandSleepOrigin? = nil
     var bioNight: BIONight? = nil
+    // Legacy local value retained for decoding older records; no UI or new upload uses it.
     var aisScore: Int? = nil
 }
 

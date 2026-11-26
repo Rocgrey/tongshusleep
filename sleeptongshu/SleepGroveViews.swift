@@ -234,25 +234,6 @@ struct GroveCenterView: View {
     }
 }
 
-struct GroveSelfAssessmentView: View {
-    @Query(sort: \SleepRecord.end, order: .reverse) private var records: [SleepRecord]
-    @State private var record: SleepRecord?
-    var body: some View {
-        List {
-            Section {
-                Text("已有 AIS 自评总分时，可以选一晚保存。设备不会自动生成自评分；这里不提供未经核实的新问卷。")
-                    .font(.subheadline).foregroundStyle(SleepPalette.muted)
-            }
-            let available = records.filter { $0.isVisible && $0.source != .sample }
-            if available.isEmpty { Text("先保存一晚真实睡眠记录，再添加自评。").foregroundStyle(SleepPalette.muted) }
-            ForEach(available) { night in
-                Button { record = night } label: { RecordRow(record: night) }.buttonStyle(.plain)
-            }
-        }.navigationTitle("睡眠自评").navigationBarTitleDisplayMode(.inline).toolbar(.visible, for: .navigationBar)
-            .sheet(item: $record) { SleepAISView(record: $0) }
-    }
-}
-
 /// A compact projection of the existing HealthKit store, never a second estimate algorithm.
 struct GroveHealthSummary: View {
     @EnvironmentObject private var health: HealthOverviewStore

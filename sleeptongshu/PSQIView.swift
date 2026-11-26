@@ -61,6 +61,7 @@ struct PSQIView: View {
 
 private struct PSQIForm: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let save: ([String: Double]) throws -> Void
     @State private var index = 0
     @State private var answers: [String: Double] = [:]
@@ -68,12 +69,17 @@ private struct PSQIForm: View {
     @State private var clock = Calendar.current.startOfDay(for: .now)
     @State private var error: String?
     private var question: PSQIQuestion { PSQI.questions[index] }
+    private var scene: PSQIQuestionScene { .forQuestion(question.id) }
     @FocusState private var editingNumber: Bool
     var body: some View {
+        ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                ProgressView(value: Double(index), total: 18).tint(GroveColor.lavender.tint)
-                Text("\(index + 1) / 18 · \(question.title)").font(.subheadline).foregroundStyle(GroveColor.lavender.tint)
+                ProgressView(value: Double(index + 1), total: 18).tint(scene.color.tint).id("psqiQuestionTop")
+                    .accessibilityLabel("第 \(index + 1) 项，共 18 项")
+                PSQIQuestionArtwork(questionID: question.id).id(question.id)
+                    .transition(.opacity)
+                Text("\(index + 1) / 18 · \(question.title)").font(.subheadline.weight(.semibold)).foregroundStyle(scene.color.tint)
                 Text(question.text).font(.title2.bold()).fixedSize(horizontal: false, vertical: true)
                 Text("请根据近 1 个月的通常情况回答。").font(.caption).foregroundStyle(SleepPalette.muted)
                 switch question.input {
@@ -94,34 +100,44 @@ private struct PSQIForm: View {
                                 Image(systemName: answers[question.id] == Double(offset) ? "checkmark.circle.fill" : "circle")
                                 Text(title).multilineTextAlignment(.leading); Spacer(minLength: 0)
                             }.padding(16).frame(maxWidth: .infinity, minHeight: 48)
-                                .background(answers[question.id] == Double(offset) ? GroveColor.lavender.wash : SleepPalette.surface, in: RoundedRectangle(cornerRadius: 8))
-                        }.buttonStyle(.plain).foregroundStyle(answers[question.id] == Double(offset) ? GroveColor.lavender.tint : SleepPalette.ink)
+                                .background(answers[question.id] == Double(offset) ? scene.color.wash : SleepPalette.surface, in: RoundedRectangle(cornerRadius: 8))
+                                .overlay(RoundedRectangle(cornerRadius: 8).stroke(answers[question.id] == Double(offset) ? scene.color.tint : .clear, lineWidth: 1.5))
+                        }.buttonStyle(.plain).foregroundStyle(answers[question.id] == Double(offset) ? scene.color.tint : SleepPalette.ink)
                             .accessibilityIdentifier("psqiOption\(offset)")
                     }
                 }
                 if let error { Text(error).font(.subheadline).foregroundStyle(SleepPalette.rose) }
-                HStack {
-                    Button { move(-1) } label: { Label("上一项", systemImage: "arrow.left") }.disabled(index == 0)
-                    Spacer()
-                    Button {
-                        if question.input == .clock { storeClock() }
-                        guard answers[question.id] != nil else { error = "请先填写这一项。"; return }
-                        if let value = answers[question.id], question.input == .minutes || question.input == .hours {
-                            let limit = question.input == .hours ? 24.0 : 1440.0
-                            guard value.isFinite, value >= 0, value <= limit else { error = "请输入 0 到 \(Int(limit)) 之间的数字。"; return }
-                        }
-                        if index < 17 { move(1) } else { do { try save(answers) } catch { self.error = error.localizedDescription } }
-                    } label: { Label(index == 17 ? "查看结果" : "下一项", systemImage: index == 17 ? "chart.bar.fill" : "arrow.right") }
-                        .buttonStyle(.borderedProminent).tint(GroveColor.lavender.tint).foregroundStyle(SleepPalette.onAccent).accessibilityIdentifier("psqiNext")
-                }
                 Text("仅作科普参考，不作诊断").font(.caption).foregroundStyle(SleepPalette.muted)
             }.padding(22)
-        }.scrollDismissesKeyboard(.interactively).background(SleepPalette.background).navigationTitle("近一个月的睡眠")
+        }.scrollDismissesKeyboard(.interactively).background(SleepPalette.background)
+            .onChange(of: index) { _, _ in
+                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) { proxy.scrollTo("psqiQuestionTop", anchor: .top) }
+            }
+        }.safeAreaInset(edge: .bottom) { navigationControls }
+            .navigationTitle("近一个月的睡眠").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("稍后再做") { dismiss() } }
                 ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("完成输入") { editingNumber = false } }
             }
             .onAppear { restore() }
+    }
+    private var navigationControls: some View {
+        HStack {
+            Button { move(-1) } label: { Image(systemName: "arrow.left").frame(minWidth: 44, minHeight: 44) }
+                .disabled(index == 0).accessibilityLabel("上一项")
+            Spacer(minLength: 12)
+            Button {
+                if question.input == .clock { storeClock() }
+                guard answers[question.id] != nil else { error = "请先填写这一项。"; return }
+                if let value = answers[question.id], question.input == .minutes || question.input == .hours {
+                    let limit = question.input == .hours ? 24.0 : 1440.0
+                    guard value.isFinite, value >= 0, value <= limit else { error = "请输入 0 到 \(Int(limit)) 之间的数字。"; return }
+                }
+                if index < 17 { move(1) } else { do { try save(answers) } catch { self.error = error.localizedDescription } }
+            } label: { Label(index == 17 ? "查看结果" : "下一项", systemImage: index == 17 ? "chart.bar.fill" : "arrow.right") }
+                .buttonStyle(.borderedProminent).tint(scene.color.tint).foregroundStyle(SleepPalette.onAccent).accessibilityIdentifier("psqiNext")
+        }.buttonBorderShape(.roundedRectangle(radius: 8)).controlSize(.large)
+            .padding(.horizontal, 22).padding(.vertical, 12).background(.regularMaterial)
     }
     private func storeClock() { let c = Calendar.current.dateComponents([.hour, .minute], from: clock); answers[question.id] = Double((c.hour ?? 0) * 60 + (c.minute ?? 0)) }
     private func move(_ step: Int) { editingNumber = false; index += step; error = nil; restore() }

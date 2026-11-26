@@ -91,6 +91,6 @@ struct AutomaticSyncStatusView: View {
             else { Image(systemName: enabled ? "icloud" : "iphone") }
             Text(enabled ? sync.message : "自动同步已关闭，记录保存在本机")
                 .font(.caption).fixedSize(horizontal: false, vertical: true)
-        }.foregroundStyle(SleepPalette.muted).accessibilityIdentifier("automaticSyncStatus")
+        }.foregroundStyle(SleepPalette.muted).accessibilityElement(children: .combine).accessibilityIdentifier("automaticSyncStatus")
     }
 }

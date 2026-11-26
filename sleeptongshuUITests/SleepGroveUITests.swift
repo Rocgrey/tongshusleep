@@ -80,16 +80,23 @@ final class SleepGroveUITests: XCTestCase {
         app.launch()
         app.openGroveSection("科普")
         app.segmentedControls["classroomSections"].buttons["自测"].tap()
+        XCTAssertFalse(app.staticTexts["已有 AIS 自评"].exists)
         app.buttons["grovePSQI"].tap()
         app.buttons["startPSQI"].tap()
+        let questionIDs = ["q1", "q2", "q3", "q4", "q5a", "q5b", "q5c", "q5d", "q5e", "q5f", "q5g", "q5h", "q5i", "q5j", "q6", "q7", "q8", "q9"]
         for question in 0..<18 {
+            XCTAssertTrue(app.otherElements["psqiArtwork-" + questionIDs[question]].waitForExistence(timeout: 5))
+            if [0, 5, 17].contains(question) { capture(app, "psqi-cartoon-" + questionIDs[question]) }
             if question == 1 || question == 3 {
                 let field = app.textFields["psqiNumber"]
+                for _ in 0..<4 where !field.isHittable { app.swipeUp() }
                 field.tap(); field.typeText(question == 1 ? "35" : "6.5")
-                app.swipeUp() // Dismiss decimal keyboard and reveal navigation.
+                app.buttons["完成输入"].tap()
             } else if question >= 4 {
                 let option = question == 4 || question == 5 ? 2 : question == 15 ? 0 : 1
-                app.buttons["psqiOption\(option)"].tap()
+                let answer = app.buttons["psqiOption\(option)"]
+                for _ in 0..<4 where !answer.isHittable || answer.frame.maxY >= app.buttons["psqiNext"].frame.minY - 8 { app.swipeUp() }
+                answer.tap()
             }
             let next = app.buttons["psqiNext"]
             for _ in 0..<3 where !next.isHittable { app.swipeUp() }
@@ -113,6 +120,27 @@ final class SleepGroveUITests: XCTestCase {
         capture(app, "noise-playing-selected-preset")
         app.buttons["noiseStop"].tap()
         XCTAssertTrue(app.staticTexts["留一点安静给自己"].exists)
+    }
+    func testPSQICartoonSupportsDarkLargeTextAndBackNavigation() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["-ui-testing", "-ui-testing-dark", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityL"]
+        app.launch()
+        app.openGroveSection("科普")
+        app.segmentedControls["classroomSections"].buttons["自测"].tap()
+        let entry = app.buttons["grovePSQI"]
+        for _ in 0..<4 where !entry.isHittable { app.swipeUp() }
+        entry.tap()
+        let start = app.buttons["startPSQI"]
+        for _ in 0..<4 where !start.isHittable { app.swipeUp() }
+        start.tap()
+        XCTAssertTrue(app.otherElements["psqiArtwork-q1"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["psqiNext"].isHittable)
+        capture(app, "psqi-cartoon-dark-large")
+        app.buttons["psqiNext"].tap()
+        XCTAssertTrue(app.otherElements["psqiArtwork-q2"].waitForExistence(timeout: 5))
+        app.buttons["上一项"].tap()
+        XCTAssertTrue(app.otherElements["psqiArtwork-q1"].waitForExistence(timeout: 5))
     }
     func testDarkLargeTypeAndNotificationRelaxRoute() {
         continueAfterFailure = false

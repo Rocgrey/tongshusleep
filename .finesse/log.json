@@ -34,5 +34,17 @@
     "motion": "breathing phase transitions and result-ring entry only, with Reduce Motion support",
     "assets": "existing licensed content covers, manufacturer product photo, 24 native SF Symbol and Canvas sound illustrations",
     "validation": "see docs/RELEASE_V052.md"
+  },
+  {
+    "date": "2026-11-26",
+    "target": "SleepGrove 0.5.3 PSQI question flow",
+    "register": "product",
+    "designLanguage": "apple",
+    "mode": "app",
+    "palette": "existing adaptive coral, lavender, mint, honey and sky",
+    "composition": "original pillow character and question-specific props; fixed bottom navigation; one question at a time",
+    "motion": "short question transition only; Reduce Motion supported; no idle animation",
+    "assets": "original native Canvas cartoon scene with system-symbol props; no remote assets",
+    "validation": "see docs/RELEASE_V053.md"
   }
 ]

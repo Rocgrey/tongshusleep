@@ -19,7 +19,6 @@ struct SleepDashboardView: View {
     @State private var selectedID: UUID?
     @State private var showsHistory = false
     @State private var showsEditor = false
-    @State private var showsAIS = false
     @State private var help: MetricHelp?
     @State private var module: GroveModule?
     @State private var trendDays = 7
@@ -88,10 +87,6 @@ struct SleepDashboardView: View {
                         else { vitals(record) }
                         analysis(record)
                         }
-                        if record.source != .sample {
-                            Button { showsAIS = true } label: { Label("睡眠自评", systemImage: "list.clipboard") }
-                                .font(.subheadline).accessibilityIdentifier("openSleepAIS")
-                        }
                         if record.source == .sample {
                             Label("当前为预览记录，真实睡眠单独保存。可在本地数据中移除预览记录。", systemImage: "info.circle")
                                 .font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
@@ -116,7 +111,7 @@ struct SleepDashboardView: View {
                     DisclosureGroup("系统健康与同步状态") {
                         SystemSleepImportView().padding(.top, 12)
                         AutomaticSyncStatusView()
-                    }.font(.subheadline).accessibilityIdentifier("optionalSystemHealth")
+                    }.font(.subheadline)
                     HomeContentView()
                 }.padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 26)
                     .frame(maxWidth: 680).frame(maxWidth: .infinity)
@@ -136,7 +131,6 @@ struct SleepDashboardView: View {
             }
             .onChange(of: scenePhase) { _, phase in if phase == .active { Task { await health.refreshSleepIfNeeded(in: context) } } }
             .sheet(isPresented: $showsEditor) { SleepEditorView() }
-            .sheet(isPresented: $showsAIS) { if let record = selected { SleepAISView(record: record) } }
             .sheet(item: $help) { MetricHelpSheet(help: $0) }
             .sheet(item: $module) { GroveModuleContent(module: $0) }
             .sheet(isPresented: $showsHistory) {

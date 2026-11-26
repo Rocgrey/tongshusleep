@@ -59,10 +59,6 @@ struct SleepClassroomView: View {
                         NavigationLink { PSQIView() } label: {
                             GroveFeatureRow(title: "PSQI 睡眠自测", subtitle: "18 项 · 回顾近 1 个月 · 0–21 分", icon: "moon.stars.fill", tint: GroveColor.lavender.tint)
                         }.buttonStyle(.plain).accessibilityIdentifier("grovePSQI")
-                        Divider()
-                        NavigationLink { GroveSelfAssessmentView() } label: {
-                            GroveFeatureRow(title: "已有 AIS 自评", subtitle: "为真实睡眠记录补充已有 AIS 自评总分", icon: "list.clipboard")
-                        }.buttonStyle(.plain)
                         Text("自评帮助记录自己的感受，不能替代设备记录，也不会自动生成分期。").font(.subheadline).foregroundStyle(SleepPalette.muted)
                     }
                 }.padding(16).frame(maxWidth: 760).frame(maxWidth: .infinity)

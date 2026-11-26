@@ -7,7 +7,6 @@ struct SleepUploadView: View {
     @Environment(\.dismiss) private var dismiss
     @Query private var records: [SleepRecord]
     let recordID: UUID
-    @State private var ais = ""
     @State private var isLoading = false
     @State private var completed = false
     @State private var message: String?
@@ -33,10 +32,6 @@ struct SleepUploadView: View {
                         LabeledContent("参考分", value: record.score.map(String.init) ?? "未记录")
                     }
                     Section {
-                        TextField("AIS 总分（0～24，选填）", text: $ais).keyboardType(.numberPad).accessibilityIdentifier("uploadAIS")
-                    } header: { Text("睡眠问卷结果") }
-                    footer: { Text("只有完成过对应问卷时才填写总分；未填写的结果不会被补算。") }
-                    Section {
                         Button { Task { await upload(record) } } label: {
                             HStack {
                                 if isLoading { ProgressView() } else { Image(systemName: alreadyUploaded ? "checkmark.icloud" : "icloud.and.arrow.up") }
@@ -44,7 +39,7 @@ struct SleepUploadView: View {
                             }.frame(maxWidth: .infinity, minHeight: 44).contentShape(Rectangle())
                         }.disabled(isLoading || alreadyUploaded).accessibilityIdentifier("submitSleepUpload")
                         if let message { Text(message).font(.system(size: 13)).foregroundStyle(SleepPalette.teal).accessibilityIdentifier("uploadMessage") }
-                    } footer: { Text("本次仅上传这条记录的时间、时长、已有睡眠阶段和已填写的问卷总分、笔记；本机原记录保留。") }
+                    } footer: { Text("本次仅上传这条记录的时间、时长、已有睡眠阶段和笔记；本机原记录保留。") }
                 } else { ContentUnavailableView("记录暂不可用", systemImage: "moon.zzz") }
             }.disabled(isLoading).scrollContentBackground(.hidden).background(SleepPalette.background)
                 .navigationTitle("睡眠上报").navigationBarTitleDisplayMode(.inline)
@@ -61,12 +56,7 @@ struct SleepUploadView: View {
         isLoading = true
         defer { isLoading = false }
         do {
-            func score(_ value: String, maximum: Int) throws -> Int? {
-                if value.isEmpty { return nil }
-                guard let result = Int(value), (0...maximum).contains(result) else { throw APIError.validation("问卷总分超出范围，请检查。") }
-                return result
-            }
-            let request = try SleepUploadRequest(record: record, ais: score(ais, maximum: 24))
+            let request = try SleepUploadRequest(record: record)
             let result = try await SleepUploadAPI(client: account.client).upload(request)
             guard result.id > 0, result.user_id == session.user.id else { throw APIError.invalidResponse }
             receipts.save(service: account.client.serviceID, userID: session.user.id, recordID: recordID, remoteID: result.id)

@@ -14,14 +14,9 @@ final class SleepUploadTests: XCTestCase {
         XCTAssertEqual(request.sleep_start_time.count, 19)
         XCTAssertNil(json["isi_score"])
         XCTAssertNil(request.rem_minutes)
-        let result = try SleepUploadRequest(record: record, ais: 4)
-        XCTAssertEqual(result.ais_score, 4)
-        XCTAssertThrowsError(try SleepUploadRequest(record: record, ais: 25))
-        let legacy = try APIJSON.decode(SleepUploadResult.self, from: Data(#"{"id":1,"user_id":7,"isi_score":16}"#.utf8))
+        let legacy = try APIJSON.decode(SleepUploadResult.self, from: Data(#"{"id":1,"user_id":7,"isi_score":16,"ais_score":4}"#.utf8))
         XCTAssertEqual(legacy.user_id, 7)
-        let scored = try JSONSerialization.jsonObject(with: result.encoded()) as! [String: Any]
-        XCTAssertNil(scored["isi_score"])
-        XCTAssertEqual(scored["ais_score"] as? Int, 4)
+        XCTAssertNil(json["ais_score"])
         record.sourceRawValue = SleepDataSource.sample.rawValue
         XCTAssertThrowsError(try SleepUploadRequest(record: record))
     }
@@ -36,16 +31,21 @@ final class SleepUploadTests: XCTestCase {
         XCTAssertFalse(receipts.contains(service: "server1", userID: 2, recordID: id))
         XCTAssertFalse(receipts.contains(service: "server2", userID: 1, recordID: id))
     }
-    func testLocallySavedAISSurvivesDeviceRefreshAndIsIncludedInAutomaticUpload() throws {
+    func testLegacyAISSurvivesDeviceRefreshButIsAbsentFromNewUploads() throws {
         var payload = try XCTUnwrap(SampleSleepRecords.makeMonth().first?.payload)
         payload.source = .band; payload.metadata = SleepMetadata(aisScore: 5)
         let record = SleepRecord(payload)
         payload.metadata = SleepMetadata(externalSource: "设备")
         record.replace(with: payload)
         XCTAssertEqual(record.metadata?.aisScore, 5)
-        XCTAssertEqual(try DeviceSyncRequest.sleep(record).sleep?.ais_score, 5)
+        let automatic = try DeviceSyncRequest.sleep(record)
+        let json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(automatic)) as! [String: Any]
+        let sleep = try XCTUnwrap(json["sleep"] as? [String: Any])
+        XCTAssertNil(sleep["ais_score"])
+        let manual = try JSONSerialization.jsonObject(with: SleepUploadRequest(record: record).encoded()) as! [String: Any]
+        XCTAssertNil(manual["ais_score"])
         var metadata = record.metadata!; metadata.aisScore = nil
         record.metadataData = try JSONEncoder().encode(metadata)
-        XCTAssertNil(try DeviceSyncRequest.sleep(record).sleep?.ais_score)
+        XCTAssertNotNil(try DeviceSyncRequest.sleep(record).sleep)
     }
 }

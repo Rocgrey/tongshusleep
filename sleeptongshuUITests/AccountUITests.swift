@@ -116,16 +116,14 @@ final class AccountUITests: XCTestCase {
         XCTAssertFalse(app.buttons["openSleepUpload"].exists)
         let sync = app.buttons["系统健康与同步状态"]
         show(sync); sync.tap()
-        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "automaticSyncStatus").firstMatch.exists)
+        let status = app.descendants(matching: .any).matching(identifier: "automaticSyncStatus").firstMatch
+        for _ in 0..<4 where !status.exists { app.swipeUp() }
+        XCTAssertTrue(status.waitForExistence(timeout: 5))
         XCTAssertFalse(app.textFields["uploadISI"].exists)
         XCTAssertFalse(app.buttons["上传这晚睡眠"].exists)
         capture("64-sleep-automatic-sync")
-        let selfReport = app.buttons["openSleepAIS"]
-        show(selfReport); selfReport.tap()
-        XCTAssertTrue(app.textFields["sleepAIS"].waitForExistence(timeout: 5))
-        app.textFields["sleepAIS"].tap(); app.textFields["sleepAIS"].typeText("5")
-        app.buttons["saveSleepAIS"].tap()
-        XCTAssertFalse(app.textFields["sleepAIS"].exists)
+        XCTAssertFalse(app.buttons["openSleepAIS"].exists)
+        XCTAssertFalse(app.textFields["uploadAIS"].exists)
     }
     func testInvalidEmailShowsValidationWithoutEnteringApp() {
         app.segmentedControls["accountLoginMethod"].buttons["邮箱"].tap()

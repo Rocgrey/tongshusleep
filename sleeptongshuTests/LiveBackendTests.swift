@@ -45,7 +45,7 @@ final class LiveBackendTests: XCTestCase {
         let start = Date.now.addingTimeInterval(-9 * 3600)
         let record = SleepRecord(SleepPayload(id: UUID(), start: start, end: start.addingTimeInterval(8 * 3600), source: .manual,
                                                segments: [], heartSamples: [], note: "AUTOMATED SWIFT CHECK - synthetic record"))
-        let request = try SleepUploadRequest(record: record, ais: 2)
+        let request = try SleepUploadRequest(record: record)
         let result = try await SleepUploadAPI(client: client).upload(request)
         XCTAssertEqual(result.user_id, user.id)
         _ = try await client.request("health/sleep-record/\(result.id)", method: "DELETE", authenticated: true)
