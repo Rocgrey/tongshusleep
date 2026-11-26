@@ -30,6 +30,7 @@ struct SyncDetails: Codable {
     var average_stress: Double? = nil
     var average_systolic: Double? = nil
     var average_diastolic: Double? = nil
+    var average_temperature: Double? = nil
     var sleep_efficiency: Int? = nil
     var awake_minutes: Int? = nil
     var sleep_input_minutes: Int? = nil
@@ -66,6 +67,7 @@ struct DeviceSyncRequest: Codable {
             average_respiratory_rate: observation ? night?.mean(.respiration) : record.averageRespiratoryRate,
             average_hrv: mean(.hrv), average_stress: mean(.stress),
             average_systolic: mean(.systolic), average_diastolic: mean(.diastolic),
+            average_temperature: mean(.temperature),
             sleep_efficiency: record.efficiency, awake_minutes: record.awakeMinutes,
             sleep_input_minutes: night?.sleepInputMinutes,
             average_basis: observation ? "夜间实际采样均值，尚未识别睡眠区间" : "来源实际记录的睡眠期间均值")
@@ -105,7 +107,11 @@ struct DeviceSyncRequest: Codable {
     }
 }
 struct DeviceSyncReceipt: Decodable { var id: Int; var user_id: Int; var applied: Bool }
-struct SyncCapabilities: Decodable { var device_sync_version: Int; var idempotent: Bool }
+struct SyncCapabilities: Decodable {
+    var device_sync_version: Int
+    var idempotent: Bool
+    var supported_vital_kinds: [String]? = nil
+}
 struct SyncRemoteRecord: Decodable, Sendable {
     struct Payload: Decodable, Sendable { var record_key: String; var revision_at: Double; var kind: String }
     var user_id: Int
@@ -140,6 +146,15 @@ struct SyncRemotePage: Decodable, Sendable { var total: Int; var items: [SyncRem
         return result.device_sync_version == 1 && result.idempotent
     }
     func upload(_ request: DeviceSyncRequest, token: String) async throws -> DeviceSyncReceipt {
+        // Older deployments reject new kinds. Keep the complete local snapshot queued
+        // instead of silently discarding temperature or confirming a partial upload.
+        if request.vitals.contains(where: { $0.kind == "temperature" }) {
+            let data = try await client.request("health/sync-capabilities", authenticated: true, token: token)
+            let capabilities = try APIJSON.decode(SyncCapabilities.self, from: data)
+            guard capabilities.supported_vital_kinds?.contains("temperature") == true else {
+                throw APIError.business(422, "平台尚未启用体温同步，本机完整记录已保留。")
+            }
+        }
         let body = try await SyncPreparationWorker.shared.encode(request)
         let data = try await client.request("health/device-sync", method: "POST", body: body, authenticated: true, token: token)
         return try APIJSON.decode(DeviceSyncReceipt.self, from: data)

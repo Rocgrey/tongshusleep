@@ -392,8 +392,9 @@ final class SleepAppUITests: XCTestCase {
         press(app.segmentedControls["monitorMode"].buttons["设备检测"])
         capture("14-wearable-device-page")
         press(app.buttons["wearableVitals"])
-        XCTAssertTrue(app.buttons["查看血氧趋势"].waitForExistence(timeout: 5))
-        press(app.buttons["查看血氧趋势"])
+        XCTAssertTrue(app.buttons["vitalMetricMenu"].waitForExistence(timeout: 5))
+        press(app.buttons["vitalMetricMenu"])
+        app.buttons["血氧"].tap()
         XCTAssertFalse(app.staticTexts["已隐藏项目"].exists)
         capture("15-vitals-oxygen-chart")
         scrollDown()
@@ -411,7 +412,8 @@ final class SleepAppUITests: XCTestCase {
         app.swipeDown()
         app.swipeDown()
         #endif
-        press(app.buttons["查看HRV趋势"])
+        press(app.buttons["vitalMetricMenu"])
+        app.buttons["HRV"].tap()
         capture("16-vitals-hrv-chart")
     }
 

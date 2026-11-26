@@ -4,16 +4,33 @@ import Charts
 struct StageTimeline: View {
     let record: SleepRecord
     @State private var selected: SleepSegment?
-    @ScaledMetric(relativeTo: .body) private var chartHeight = 170.0
+    @ScaledMetric(relativeTo: .body) private var chartHeight = 156.0
     private var levels: [Int] { Array(Set(record.segments.map { $0.stage.level })).sorted() }
     var body: some View {
-        Chart(record.segments) { segment in
+        let segments = record.segments
+        Chart {
+            ForEach(levels, id: \.self) { level in
+                RectangleMark(xStart: .value("开始", record.start), xEnd: .value("结束", record.end),
+                              yStart: .value("下界", Double(level) - 0.45), yEnd: .value("上界", Double(level) + 0.45))
+                    .foregroundStyle(SleepPalette.muted.opacity(0.04)).accessibilityHidden(true)
+            }
+            ForEach(Array(segments.dropLast().enumerated()), id: \.offset) { index, segment in
+                let next = segments[index + 1]
+                if abs(next.start.timeIntervalSince(segment.end)) < 1,
+                   segment.stage != .unobserved, next.stage != .unobserved {
+                    RuleMark(x: .value("转换", segment.end), yStart: .value("从", segment.stage.level), yEnd: .value("至", next.stage.level))
+                        .foregroundStyle(next.stage.color.opacity(0.35)).lineStyle(StrokeStyle(lineWidth: 1.5))
+                        .accessibilityHidden(true)
+                }
+            }
+            ForEach(segments) { segment in
             RectangleMark(xStart: .value("开始", segment.start), xEnd: .value("结束", segment.end),
                           yStart: .value("阶段下界", Double(segment.stage.level) - 0.32),
                           yEnd: .value("阶段上界", Double(segment.stage.level) + 0.32))
             .foregroundStyle(segment.stage.color).cornerRadius(3)
             .accessibilityLabel(segment.stage.label)
             .accessibilityValue("\(record.displayClock(segment.start)) 至 \(record.displayClock(segment.end))，\(segment.minutes)分钟")
+        }
         }
         .chartXScale(domain: record.start...record.end)
         .chartYScale(domain: (Double(levels.first ?? 0) - 0.6)...(Double(levels.last ?? 3) + 0.6))
@@ -34,6 +51,7 @@ struct StageTimeline: View {
                 }
             }
         }
+        .chartPlotStyle { plot in plot.clipShape(RoundedRectangle(cornerRadius: 8)) }
         .chartOverlay { proxy in
             GeometryReader { geometry in
                 Color.clear.contentShape(Rectangle()).onTapGesture { location in

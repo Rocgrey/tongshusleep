@@ -2,7 +2,6 @@ import SwiftUI
 import AVFoundation
 import MediaPlayer
 import Combine
-import AudioToolbox
 
 @MainActor final class AudioCoordinator {
     static let shared = AudioCoordinator()
@@ -38,38 +37,60 @@ enum AudioCountdown {
 }
 struct BreathingView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+    @StateObject private var cue = BreathingCuePlayer()
     @State private var running = false
     @State private var elapsed: TimeInterval = 0
     @State private var lastTick = Date.now
-    @State private var cues = true
+    @AppStorage("breathingCueEnabled") private var cues = true
+    private var phaseIndex: Int { let second = max(0, Int(elapsed)) % 19; return second < 4 ? 0 : second < 11 ? 1 : 2 }
     var body: some View {
         TimelineView(.animation(minimumInterval: 1, paused: !running)) { context in
             let phase = BreathingCycle.phase(elapsed: elapsed)
             ScrollView { VStack(spacing: 28) {
-                Text("把呼吸，慢慢交还给自己").font(.title2.bold()).multilineTextAlignment(.center)
-                Text("不用追赶节奏，感到舒服最重要").font(.subheadline).foregroundStyle(SleepPalette.muted)
                 ZStack {
+                    ForEach(0..<3) { index in
+                        Circle().stroke(SleepPalette.teal.opacity(0.04 + Double(index) * 0.025), lineWidth: 1)
+                            .padding(CGFloat(index) * 14)
+                    }
                     Circle().stroke(SleepPalette.teal.opacity(0.15), lineWidth: 20)
                     Circle().fill(SleepPalette.teal.opacity(0.2)).scaleEffect(phase.expanded ? 0.95 : 0.62)
                         .animation(reduceMotion ? nil : .easeInOut(duration: phase.expanded ? 4 : 8), value: phase.expanded)
                     VStack { Text(phase.title).font(.largeTitle.bold()); Text("\(phase.remaining)").font(.title.monospacedDigit()) }
                 }.frame(width: 230, height: 230).accessibilityElement(children: .combine)
+                HStack(spacing: 18) {
+                    Label("吸气 4秒", systemImage: "arrow.up")
+                    Label("屏息 7秒", systemImage: "pause")
+                    Label("呼气 8秒", systemImage: "arrow.down")
+                }.font(.caption).foregroundStyle(SleepPalette.muted)
                 HStack {
-                    Button { running.toggle(); lastTick = .now } label: { Label(running ? "暂停" : "开始", systemImage: running ? "pause.fill" : "play.fill") }.buttonStyle(.borderedProminent)
-                    Button { running = false; elapsed = 0 } label: { Label("结束", systemImage: "stop.fill") }.buttonStyle(.bordered)
+                    Button {
+                        running.toggle(); lastTick = .now
+                        if running && cues { cue.play(phase: phaseIndex) } else { cue.stop() }
+                    } label: { Label(running ? "暂停" : "开始", systemImage: running ? "pause.fill" : "play.fill").padding(.vertical, 8) }.buttonStyle(.borderedProminent)
+                    Button { running = false; elapsed = 0; cue.stop() } label: { Label("结束", systemImage: "stop.fill").padding(.vertical, 8) }.buttonStyle(.bordered)
                 }
-                Text("4 秒吸气 · 7 秒屏息 · 8 秒呼气\n量力而行，不适时停止，恢复自然呼吸。").font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                Text("把呼吸，慢慢交还给自己").font(.title3.bold()).multilineTextAlignment(.center)
                 Toggle("阶段提示音", isOn: $cues).frame(maxWidth: 300)
-                Text("手机录音或声音播放期间不发出提示音。").font(.caption).foregroundStyle(SleepPalette.muted)
+                HStack {
+                    Image(systemName: "speaker.wave.1")
+                    Slider(value: $cue.volume, in: 0.1...1).accessibilityLabel("提示音音量")
+                    Button { cue.play(phase: phaseIndex) } label: { Image(systemName: "speaker.wave.2.fill").frame(width: 44, height: 44) }
+                        .accessibilityLabel("试听轻柔提示音").accessibilityIdentifier("previewBreathingCue")
+                }.frame(maxWidth: 350)
+                if let message = cue.message { Text(message).font(.caption).foregroundStyle(SleepPalette.rose) }
+                Text("开始及切换阶段时响起轻柔提示音。听不到时请调高手机媒体音量，并检查是否连着耳机。录音或声音陪伴期间不播放提示音。").font(.caption).foregroundStyle(SleepPalette.muted)
+                Text("量力而行，不适时停止，恢复自然呼吸。").font(.caption).foregroundStyle(SleepPalette.muted)
                 Spacer(minLength: 0)
                 }.padding(24).padding(.top, 30).frame(maxWidth: .infinity) }.background(SleepPalette.background)
                 .onChange(of: context.date) { _, now in if running { elapsed += max(0, now.timeIntervalSince(lastTick)) }; lastTick = now }
                 .onChange(of: phase.title) { _, _ in
-                    if running, cues, !AudioCoordinator.shared.recording, !WhiteNoisePlayer.shared.playing {
-                        AudioServicesPlaySystemSound(1057)
-                    }
+                    if running, cues { cue.play(phase: phaseIndex) }
                 }
         }.navigationTitle("4-7-8 呼吸").navigationBarTitleDisplayMode(.inline).toolbar(.visible, for: .navigationBar)
+            .onChange(of: cues) { _, enabled in if !enabled { cue.stop() } }
+            .onChange(of: scenePhase) { _, phase in if phase != .active { running = false; cue.stop() } }
+            .onDisappear { running = false; cue.stop() }
     }
 }
 

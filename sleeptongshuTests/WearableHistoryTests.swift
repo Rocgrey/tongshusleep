@@ -20,6 +20,25 @@ final class WearableHistoryTests: XCTestCase {
     "pedoData":{"type":1,"state":0,"calorie":0,"step":0,"distance":0}}}
     """
 
+    func testBIOAutomaticTemperatureUsesHighWordAndRejectsMissingOrUnknownValues() throws {
+        func decode(type: Int, high: UInt32, low: UInt32 = 3200) throws -> WearableDecodedHistory {
+            let packed = (high << 16) | low
+            let json = """
+            {"seq":1,"health":{"timeStamp":{"dateTime":{"seconds":1794398520},"timeZone":80},
+            "temperatureData":{"type":\(type),"eviBody":0,"estiArm":\(packed)}}}
+            """
+            return WearableHistoryDecoder.decode(try report(json), now: now)
+        }
+        let first = try decode(type: 1, high: 3650)
+        XCTAssertEqual(first.rows.first?.temperature, 36.5)
+        XCTAssertEqual(first.vitals.first?.kind, .temperature)
+        XCTAssertEqual(first.vitals.first?.displayUnit, "℃")
+        XCTAssertEqual(first.vitals.first?.value, try decode(type: 1, high: 3650, low: 0).vitals.first?.value)
+        for high: UInt32 in [0, 2499, 4501, 65535] { XCTAssertTrue(try decode(type: 1, high: high).vitals.isEmpty) }
+        XCTAssertTrue(try decode(type: 0, high: 3650).vitals.isEmpty)
+        XCTAssertFalse(WearableHistoryDecoder.decode(try report(complete), now: now).vitals.contains { $0.kind == .temperature })
+    }
+
     func testBIOBatteryPercentIncludesLowValuesWithoutChangingLegacyGrids() {
         for value: UInt32 in [0, 1, 7, 9, 42, 100] {
             let reading = WearableHistoryDecoder.battery(value, model: "BIO9", firmware: "103.0.0.11")

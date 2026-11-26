@@ -101,7 +101,6 @@ struct GroveRelaxView: View {
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 24) {
-                    GrovePageHeading(title: "让今晚，慢下来", subtitle: "留一点时间，给呼吸和安静")
                     NavigationLink { GoodnightView() } label: {
                         VStack(alignment: .leading, spacing: 12) {
                             ContentCover(name: "kepu-02", ratio: 2)
@@ -114,6 +113,7 @@ struct GroveRelaxView: View {
                             }
                         }.foregroundStyle(SleepPalette.ink)
                     }.buttonStyle(.plain)
+                    GrovePageHeading(title: "让今晚，慢下来", subtitle: "留一点时间，给呼吸和安静")
                     SectionHeading(title: "睡前的小练习")
                     NavigationLink { BreathingView() } label: {
                         GroveFeatureRow(title: "4-7-8 呼吸", subtitle: "吸气 4 秒 · 屏息 7 秒 · 呼气 8 秒", icon: "wind")
@@ -128,7 +128,7 @@ struct GroveRelaxView: View {
                     NavigationLink { ReminderSettingsView() } label: {
                         GroveFeatureRow(title: "设置睡前提醒", subtitle: "到点提醒，点击后自主开始监测或放松", icon: "bell.badge", tint: SleepPalette.awake)
                     }.buttonStyle(.plain)
-                }.padding(22).frame(maxWidth: 680).frame(maxWidth: .infinity)
+                }.padding(20).frame(maxWidth: 680).frame(maxWidth: .infinity)
             }.background(SleepPalette.background).toolbar(.hidden, for: .navigationBar)
                 .task(id: "\(isSelected)|\(routes.deliveryID)|\(routes.target ?? "")") {
                     guard isSelected else { return }
@@ -155,7 +155,7 @@ struct GroveProductsView: View {
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 24) {
-                    GrovePageHeading(title: "掌心安睡仪", subtitle: "了解产品，再选择适合自己的陪伴")
+                    ProductIntroductionView()
                     if let message = content.message { Text(message).font(.caption).foregroundStyle(SleepPalette.muted) }
                     if content.isLoading { ProgressView("正在更新商品") }
                     let products = content.items.filter { $0.kind == "product" }

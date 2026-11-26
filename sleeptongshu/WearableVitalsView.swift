@@ -29,6 +29,7 @@ struct WearableVitalsView: View {
         case .heart: SleepPalette.awake
         case .oxygen: SleepPalette.teal
         case .hrv: SleepPalette.deep
+        case .temperature: SleepPalette.rose
         default: SleepPalette.teal
         }
     }
@@ -42,7 +43,7 @@ struct WearableVitalsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                SectionHeading(title: "身体的变化，慢慢看", subtitle: "只看已有记录 · 数据保存在本机")
+                Text("真实采样 · 数据保存在本机").font(.caption).foregroundStyle(SleepPalette.muted)
                 if let error = store.error { Text(error).foregroundStyle(.red) }
                 if store.visibleSamples.isEmpty {
                     ContentUnavailableView("暂无体征记录", systemImage: "heart.text.clipboard",
@@ -52,14 +53,17 @@ struct WearableVitalsView: View {
                     if deviceSamples.isEmpty {
                         ContentUnavailableView("这几天没有记录", systemImage: "calendar", description: Text("试试更长的时间范围，或连接设备读取新记录。"))
                     } else {
-                        metricPicker
+                        Picker("体征指标", selection: $kind) {
+                            ForEach(kinds) { Text($0.title).tag($0) }
+                        }.pickerStyle(.menu).accessibilityIdentifier("vitalMetricMenu")
                         if !selected.isEmpty {
-                            overview
-                            reference
-                            Divider()
                             timeline
+                            metricPicker
+                            overview
                             Divider()
                             dailyChart
+                            Divider()
+                            reference
                             Divider()
                             distribution
                             Divider()
@@ -67,7 +71,7 @@ struct WearableVitalsView: View {
                         }
                     }
                 }
-            }.padding(22).padding(.bottom, 32).frame(maxWidth: 680).frame(maxWidth: .infinity)
+            }.padding(20).padding(.bottom, 32).frame(maxWidth: 680).frame(maxWidth: .infinity)
         }
         .background(SleepPalette.background).foregroundStyle(SleepPalette.ink)
         .navigationTitle("体征记录").navigationBarTitleDisplayMode(.inline).toolbar(.visible, for: .navigationBar)
@@ -173,7 +177,7 @@ struct WearableVitalsView: View {
             .frame(height: 190).accessibilityLabel("\(kind.title)记录图")
             Text(kind == .oxygen ? "每个点是一条记录，淡绿色区域是 95%–100% 的一般参考。空白表示没有记录。" : "每个点是一条记录。点越高，数值越大；空白表示没有记录，不补画成连续变化。")
                 .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
-        }
+        }.accessibilityElement(children: .contain).accessibilityIdentifier("wearableVitalTimeline")
     }
 
     private var dailyChart: some View {

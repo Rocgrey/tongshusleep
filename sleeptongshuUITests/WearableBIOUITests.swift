@@ -76,9 +76,12 @@ final class WearableBIOUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["体征记录"].waitForExistence(timeout: 5))
         let picker = app.buttons["vitalDevicePicker"]
         XCTAssertTrue(picker.label.contains("BIO"))
-        XCTAssertTrue(app.buttons["查看血压高压趋势"].exists)
-        app.buttons["查看HRV趋势"].tap()
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "这里显示设备给出的 SDNN")).firstMatch.exists)
+        app.buttons["vitalMetricMenu"].tap()
+        XCTAssertTrue(app.buttons["血压高压"].exists)
+        app.buttons["HRV"].tap()
+        let note = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "这里显示设备给出的 SDNN")).firstMatch
+        for _ in 0..<8 where !note.isHittable { app.swipeUp() }
+        XCTAssertTrue(note.exists)
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "bio-vitals-current-device-synthetic"; screenshot.lifetime = .keepAlways; add(screenshot)
     }

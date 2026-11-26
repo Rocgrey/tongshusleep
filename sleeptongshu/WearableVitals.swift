@@ -4,7 +4,7 @@ import CryptoKit
 import CoreFoundation
 
 enum VitalKind: String, Codable, CaseIterable, Identifiable {
-    case heart, oxygen, respiration, systolic, diastolic, hrv, stress, glucose
+    case heart, oxygen, respiration, systolic, diastolic, hrv, stress, temperature, glucose
     case cholesterol, triglycerides, hdl, ldl, uricAcid
     var id: String { rawValue }
     var isVisible: Bool { ![.glucose, .cholesterol, .triglycerides, .hdl, .ldl, .uricAcid].contains(self) }
@@ -17,6 +17,7 @@ enum VitalKind: String, Codable, CaseIterable, Identifiable {
         case .diastolic: "血压低压"
         case .hrv: "HRV"
         case .stress: "压力"
+        case .temperature: "体温"
         case .glucose, .cholesterol, .triglycerides, .hdl, .ldl, .uricAcid: "已隐藏项目"
         }
     }
@@ -26,6 +27,7 @@ enum VitalKind: String, Codable, CaseIterable, Identifiable {
         case .oxygen: "%"
         case .systolic, .diastolic: "mmHg"
         case .hrv, .stress: "设备值"
+        case .temperature: "℃"
         case .glucose: "设备原值"
         case .cholesterol, .triglycerides, .hdl, .ldl: "mmol/L"
         case .uricAcid: "umol/L"
@@ -40,6 +42,7 @@ enum VitalKind: String, Codable, CaseIterable, Identifiable {
         case .systolic: return (40...300).contains(value)
         case .diastolic: return (20...200).contains(value)
         case .hrv, .stress: return value > 0 && value < 255
+        case .temperature: return (25...45).contains(value)
         case .glucose: return value > 0 && value < 1000
         case .cholesterol, .triglycerides, .hdl, .ldl: return value > 0 && value < 100
         case .uricAcid: return value > 0 && value < 2000
@@ -123,11 +126,11 @@ final class WearableVitalsStore: ObservableObject {
         if arguments.contains("-ui-testing") {
             let store = WearableVitalsStore(url: nil)
             if arguments.contains("-ui-testing-vitals") {
-                let kinds: [(VitalKind, Double)] = [(.heart, 64), (.oxygen, 98), (.hrv, 42)]
+                let kinds: [(VitalKind, Double)] = [(.heart, 64), (.oxygen, 98), (.hrv, 42), (.temperature, 36.4)]
                 let points = (0..<7).flatMap { day in
                     kinds.map { kind, value in
                         WearableVital(device: "ui-fixture", deviceLabel: "示例戒指", date: Date.now.addingTimeInterval(-Double(day) * 86400),
-                                      kind: kind, value: value + Double(day % 2), origin: "界面测试示例")
+                                      kind: kind, value: value + Double(day % 2) * (kind == .temperature ? 0.2 : 1), origin: "界面测试示例")
                     }
                 }
                 try? store.merge(points)

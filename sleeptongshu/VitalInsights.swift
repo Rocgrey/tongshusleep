@@ -10,6 +10,7 @@ extension VitalKind {
         case .diastolic: "两次心跳之间的血压，也就是血压中的较小数字。"
         case .hrv: "相邻两次心跳之间，间隔时间有多大变化。它和身体恢复、紧张程度有关，不是心率。"
         case .stress: "设备根据身体信号给出的压力参考，不等于你的真实心情。"
+        case .temperature: "手环根据腕部传感器估算的体温，单位为摄氏度。贴合程度、室温和活动都会影响读数。"
         default: "此项目已不再展示。"
         }
     }
@@ -23,6 +24,7 @@ extension VitalKind {
         case .diastolic: "成人安静时一般参考：60–80 mmHg"
         case .hrv: "没有适用于所有人的统一正常值"
         case .stress: "暂不设置正常范围"
+        case .temperature: "以同一设备、相近时段的个人变化为参考"
         default: "暂无参考"
         }
     }
@@ -35,6 +37,7 @@ extension VitalKind {
         case .systolic, .diastolic: "血压要把高压和低压一起看。设备读数只供观察，不能替代上臂式血压计，也不能用来决定吃药或停药。"
         case .hrv: "这台设备的算法和单位还没有确认，因此只保留设备给出的数字，不写成毫秒。请和自己同一设备的多天记录比较，不和别人比高低。"
         case .stress: "目前还没有确认设备怎样计分、满分多少。这里只看个人变化，不按数字判断焦虑程度或身体是否健康。"
+        case .temperature: "腕部估算值不等同于口温或腋温，不能直接套用体温计的正常范围。感觉发热或不舒服时，请用体温计复测；没有采样的时段不补值。"
         default: ""
         }
     }

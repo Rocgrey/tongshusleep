@@ -82,9 +82,13 @@ enum WearableHistoryDecoder {
                 row.respiration = Double(health.breathData.breathrate); add(.respiration, row.respiration)
             }
             if health.hasPedoData { row.steps = health.pedoData.step }
-            if health.hasTemperatureData, health.temperatureData.type.rawValue == 1 {
+            if health.hasTemperatureData, health.temperatureData.hasType,
+               health.temperatureData.hasEstiArm, health.temperatureData.type.rawValue == 1 {
                 let temperature = Double(health.temperatureData.estiArm >> 16) / 100
-                if (25...45).contains(temperature) { row.temperature = temperature }
+                if VitalKind.temperature.accepts(temperature) {
+                    row.temperature = temperature
+                    add(.temperature, temperature, label: "设备历史 · 估算体温")
+                }
             }
             rows.append(row)
         }

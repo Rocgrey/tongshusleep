@@ -39,19 +39,32 @@ struct SleepDashboardView: View {
         let systemSleepSelected = source == .health
         NavigationStack {
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 25) {
+                LazyVStack(alignment: .leading, spacing: 18) {
                     brandHeader
-                    GroveSleepShortcuts(module: $module)
                     Picker("睡眠来源", selection: Binding(get: { source }, set: { sourceOverride = $0; selectedID = nil })) {
                         ForEach(SleepDashboardSource.allCases, id: \.self) { Text($0.label).tag($0) }
                     }.pickerStyle(.segmented).accessibilityIdentifier("sleepDashboardSource")
-                    if systemSleepSelected { SystemSleepImportView() }
                     if let record = selected {
                         dateNavigation(record, records: records, selectedIndex: selectedIndex)
                         if let night = record.metadata?.bioNight, !record.hasSleepDuration {
                             BIONightView(record: record, night: night).id(record.id)
                         } else {
+                        if record.hasStages {
+                            VStack(alignment: .leading, spacing: 14) {
+                                HStack {
+                                    Text("整夜睡眠轨迹").font(.headline).foregroundStyle(SleepPalette.ink)
+                                    Spacer(minLength: 8)
+                                    SourceTag(source: record.source)
+                                }
+                                StageTimeline(record: record).id(record.id)
+                                ViewThatFits(in: .horizontal) {
+                                    HStack(spacing: 14) { stageLegend(record) }
+                                    VStack(alignment: .leading, spacing: 7) { stageLegend(record) }
+                                }
+                            }.padding(.vertical, 6).accessibilityElement(children: .contain).accessibilityIdentifier("sleepStageHero")
+                        }
                         overview(record)
+                        GroveSleepShortcuts(module: $module)
                         if record.hasSleepDuration {
                             let cutoff = Calendar.current.date(byAdding: .day, value: 1 - trendDays, to: Calendar.current.startOfDay(for: .now)) ?? .now
                             let trend = records.filter { $0.seriesKey == record.seriesKey && $0.isVisible && $0.day >= cutoff && $0.end <= .now && $0.hasSleepDuration }
@@ -96,15 +109,16 @@ struct SleepDashboardView: View {
                         actions: { Button("添加记录") { showsEditor = true }.buttonStyle(.borderedProminent) }
                         .padding(.vertical, 40)
                     }
+                    if selected == nil || (selected?.metadata?.bioNight != nil && selected?.hasSleepDuration == false) { GroveSleepShortcuts(module: $module) }
                     DeviceStepsSummaryView()
                     GroveHealthSummary()
                     if !systemSleepSelected { DeviceRecentVitalsView() }
                     DisclosureGroup("系统健康与同步状态") {
-                        if !systemSleepSelected { SystemSleepImportView().padding(.top, 12) }
+                        SystemSleepImportView().padding(.top, 12)
                         AutomaticSyncStatusView()
                     }.font(.subheadline).accessibilityIdentifier("optionalSystemHealth")
                     HomeContentView()
-                }.padding(.horizontal, 22).padding(.top, 14).padding(.bottom, 26)
+                }.padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 26)
                     .frame(maxWidth: 680).frame(maxWidth: .infinity)
             }
             .background(SleepPalette.background)
@@ -218,20 +232,6 @@ struct SleepDashboardView: View {
                         .accessibilityLabel("睡眠时长目标完成 \(Int(progress * 100))%，不是睡眠评分")
                 }
             }
-            if record.hasStages {
-                GeometryReader { proxy in
-                    HStack(spacing: 2) {
-                        ForEach(record.segments) { segment in
-                            Rectangle().fill(segment.stage.color)
-                                .frame(width: max(0, (proxy.size.width - CGFloat(max(0, record.segments.count - 1)) * 2) * segment.end.timeIntervalSince(segment.start) / record.end.timeIntervalSince(record.start)))
-                        }
-                    }.clipShape(RoundedRectangle(cornerRadius: 4))
-                }.frame(height: 12).accessibilityHidden(true)
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 12) { stageLegend(record) }
-                    VStack(alignment: .leading, spacing: 6) { stageLegend(record) }
-                }
-            }
             if record.hasSleepDuration { VStack(spacing: 7) {
                 GeometryReader { proxy in
                     ZStack(alignment: .leading) {
@@ -298,7 +298,6 @@ struct SleepDashboardView: View {
                 Text(record.onlyInBed ? "仅有卧床记录，不能据此生成睡眠时长或分期。" : "未分期睡眠 · 只展示来源实际记录的睡眠时长，不推算深睡、浅睡或 REM。")
                     .font(.subheadline).foregroundStyle(SleepPalette.muted).fixedSize(horizontal: false, vertical: true)
             } else if !record.segments.isEmpty {
-                StageTimeline(record: record).id(record.id)
                 SleepStageBalance(record: record).id(record.id)
                 if record.segments.contains(where: { [.unobserved, .unspecified].contains($0.stage) }) {
                     Text("未分期睡眠 \(record.minutes(.unspecified)) 分 · 未记录 \(record.minutes(.unobserved)) 分。缺口不会计作清醒或深睡；分期比例可能不可用。")
@@ -452,7 +451,6 @@ struct TrendsView: View {
                         Text(stepsMode ? "活动趋势" : "睡眠趋势").font(.system(size: 27, weight: .bold)).foregroundStyle(SleepPalette.ink)
                         Text(stepsMode ? "让每一天的活动都看得见" : "比起某一晚，更在意每一天的节奏").font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
                     }
-                    GroveHealthSummary()
                     Picker("统计内容", selection: $stepsMode) { Text("睡眠").tag(false); Text("步数").tag(true) }
                         .pickerStyle(.segmented).accessibilityIdentifier("trendCategory")
                     Picker("时间范围", selection: $days) { Text("近 7 天").tag(7); Text("近 30 天").tag(30) }.pickerStyle(.segmented)
@@ -462,6 +460,7 @@ struct TrendsView: View {
                     } else {
                         sleepTrends
                     }
+                    GroveHealthSummary()
                 }.padding(22).frame(maxWidth: 680).frame(maxWidth: .infinity)
             }.background(SleepPalette.background).toolbar(.hidden, for: .navigationBar)
                 .sheet(item: $detail) { record in RecordDetailView(record: record) }
@@ -482,6 +481,11 @@ struct TrendsView: View {
         } else {
             VStack(alignment: .leading, spacing: 15) {
                 if let record = periodRecords.last { SourceTag(source: record.source) }
+                Picker("统计指标", selection: $metric) { ForEach(TrendMetric.allCases) { Text($0.rawValue).tag($0) } }
+                    .pickerStyle(.segmented).accessibilityIdentifier("trendMetric")
+                if durations.isEmpty {
+                    Text("这段时间仅有卧床记录，尚无可统计的真实睡眠时长。").font(.subheadline).foregroundStyle(SleepPalette.muted)
+                } else { SleepTrendChart(records: periodRecords, metric: metric, goal: goal) }
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("日均睡眠时长").font(.subheadline).foregroundStyle(SleepPalette.muted)
@@ -490,11 +494,6 @@ struct TrendsView: View {
                     Spacer()
                     Text("\(periodRecords.count) 条记录").font(.system(size: 11)).foregroundStyle(SleepPalette.muted)
                 }
-                Picker("统计指标", selection: $metric) { ForEach(TrendMetric.allCases) { Text($0.rawValue).tag($0) } }
-                    .pickerStyle(.segmented).accessibilityIdentifier("trendMetric")
-                if durations.isEmpty {
-                    Text("这段时间仅有卧床记录，尚无可统计的真实睡眠时长。").font(.subheadline).foregroundStyle(SleepPalette.muted)
-                } else { SleepTrendChart(records: periodRecords, metric: metric, goal: goal) }
                 Text("按睡眠结束日汇总；同一天的夜间睡眠与午睡合并计算时长。没有睡眠记录的日期不计入日均。")
                     .font(.caption).foregroundStyle(SleepPalette.muted)
                 Label(metric == .duration ? "虚线为你的睡眠目标" : "缺少睡眠阶段的记录不参与此项统计", systemImage: "info.circle")

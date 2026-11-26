@@ -9,7 +9,8 @@ extension XCUIApplication {
         if let module {
             tabBars.buttons["睡眠"].tap()
             let shortcut = buttons["grove-" + module]
-            for _ in 0..<12 where !shortcut.isHittable { swipeDown() }
+            for _ in 0..<4 where !shortcut.isHittable { swipeDown() }
+            for _ in 0..<12 where !shortcut.isHittable { swipeUp() }
             XCTAssertTrue(shortcut.waitForExistence(timeout: 5))
             shortcut.tap()
         } else {

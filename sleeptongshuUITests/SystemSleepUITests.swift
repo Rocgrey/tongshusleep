@@ -18,9 +18,6 @@ final class SystemSleepUITests: XCTestCase {
         readSleep()
         app.openGroveSection("睡眠")
         XCTAssertTrue(app.segmentedControls["sleepDashboardSource"].buttons["系统健康"].isSelected)
-        let source = displayed.staticTexts["systemSleepSourceName"]
-        reveal(source)
-        XCTAssertTrue(source.label.contains("界面测试来源"))
         XCTAssertFalse(app.buttons["睡眠参考分说明"].exists)
         capture("system-sleep-overview-test-data")
         reveal(app.otherElements["sleepStageTimeline"])
@@ -30,6 +27,9 @@ final class SystemSleepUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["阶段详情"].waitForExistence(timeout: 5))
         capture("system-sleep-stage-detail-test-data")
         app.buttons["完成"].tap()
+        let source = displayed.staticTexts["systemSleepSourceName"]
+        reveal(source)
+        XCTAssertTrue(source.label.contains("界面测试来源"))
         for _ in 0..<8 where !app.buttons["readHealthOverview"].isHittable { app.swipeDown() }
         readSleep()
         app.openGroveSection("趋势")
@@ -76,11 +76,11 @@ final class SystemSleepUITests: XCTestCase {
         app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         app.launch()
         readSleep()
-        reveal(displayed.staticTexts["systemSleepSourceName"])
-        capture("system-sleep-large-type-test-data")
         reveal(app.otherElements["sleepStageTimeline"])
         XCTAssertTrue(app.otherElements["sleepStageTimeline"].exists)
         capture("system-sleep-large-type-stages-test-data")
+        reveal(displayed.staticTexts["systemSleepSourceName"])
+        capture("system-sleep-large-type-test-data")
     }
 
     func testUnifiedHealthReadSeparatesBedOnlyAndOpensLatestConfirmedSleep() {

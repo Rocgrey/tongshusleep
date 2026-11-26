@@ -143,4 +143,30 @@ import XCTest
         let json = String(decoding: try request.encoded(), as: UTF8.self)
         XCTAssertFalse(json.contains("isi_score")); XCTAssertTrue(json.contains("average_heart_rate"))
     }
+
+    func testTemperatureSleepMeanExcludesAwakeAndKeepsOriginalSamplesForSync() throws {
+        let start = StepDates.date("2026-11-11")!
+        let values: [Double] = [36.4, 39, 36.6]
+        let samples = values.enumerated().map { index, value in
+            WearableVital(device: "test", deviceLabel: "测试手环", date: start.addingTimeInterval(Double(index) * 60),
+                          kind: .temperature, value: value, origin: "测试")
+        }
+        let payload = SleepPayload(id: UUID(), start: start, end: start.addingTimeInterval(180), source: .band,
+            segments: [.init(stage: .deep, start: start, end: start.addingTimeInterval(60)),
+                       .init(stage: .awake, start: start.addingTimeInterval(60), end: start.addingTimeInterval(120)),
+                       .init(stage: .light, start: start.addingTimeInterval(120), end: start.addingTimeInterval(180))],
+            heartSamples: [], note: "", metadata: SleepMetadata(bioNight: .init(device: "test", endDay: "2026-11-11", readAt: start, samples: samples, sleepInputMinutes: 3)))
+        let request = try DeviceSyncRequest.sleep(SleepRecord(payload))
+        XCTAssertEqual(try XCTUnwrap(request.details.average_temperature), 36.5, accuracy: 0.001)
+        XCTAssertEqual(request.vitals.count, 3)
+        XCTAssertTrue(request.vitals.allSatisfy { $0.kind == "temperature" && $0.unit == "℃" })
+        let plainRecord = SampleSleepRecords.makeMonth()[0]
+        plainRecord.sourceRawValue = SleepDataSource.band.rawValue
+        let noTemperature = try DeviceSyncRequest.sleep(plainRecord)
+        XCTAssertFalse(String(decoding: try noTemperature.encoded(), as: UTF8.self).contains("average_temperature"))
+        let old = try JSONDecoder().decode(SyncCapabilities.self, from: Data(#"{"device_sync_version":1,"idempotent":true}"#.utf8))
+        XCTAssertNil(old.supported_vital_kinds)
+        let daily = DeviceSyncRequest.vitalDays(samples)
+        XCTAssertEqual(daily.count, 1); XCTAssertEqual(daily[0].vitals.count, 3)
+    }
 }

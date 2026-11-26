@@ -31,6 +31,24 @@ struct BIONightView: View {
             } }
             if !available.isEmpty {
                 SectionHeading(title: "夜间健康体征", subtitle: "有记录才展示 · 均值来自实际采样")
+                Picker("夜间指标", selection: $kind) { ForEach(available) { Text($0.title).tag($0) } }.pickerStyle(.menu)
+                    .accessibilityIdentifier("bioNightMetric")
+                Chart(samples) { sample in
+                    PointMark(x: .value("记录时间", sample.date), y: .value(selectedKind.title, sample.value))
+                        .symbolSize(26).foregroundStyle(selectedKind == .temperature ? SleepPalette.rose : selectedKind == .oxygen ? SleepPalette.deep : SleepPalette.teal)
+                }.chartXScale(domain: record.start...record.end)
+                    .chartXAxis { AxisMarks(values: .automatic(desiredCount: 3)) { value in
+                        AxisValueLabel { if let date = value.as(Date.self) { Text(record.displayClock(date)).font(.caption2) } }
+                    } }
+                    .frame(height: 175)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("bioNightChart")
+                Text("每个圆点是一条真实采样。没有圆点的时段没有记录，不连接成连续曲线。")
+                    .font(.caption).foregroundStyle(SleepPalette.muted)
+                if selectedKind == .temperature {
+                    Text(VitalKind.temperature.referenceText + "。" + VitalKind.temperature.referenceNote)
+                        .font(.caption).foregroundStyle(SleepPalette.muted)
+                }
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: dynamicType.isAccessibilitySize ? 240 : 135), alignment: .leading)], alignment: .leading, spacing: 22) {
                     ForEach(available) { metric in
                         VStack(alignment: .leading, spacing: 7) {
@@ -43,20 +61,6 @@ struct BIONightView: View {
                     }
                 }
                 Text(observation ? "这些是有记录时刻的平均值，采样可能有间断，不能代表整晚持续监测或睡眠期间均值。" : "仅统计已识别睡眠期间的有效采样；未记录的时段不参与平均。")
-                    .font(.caption).foregroundStyle(SleepPalette.muted)
-                Picker("夜间指标", selection: $kind) { ForEach(available) { Text($0.title).tag($0) } }.pickerStyle(.menu)
-                    .accessibilityIdentifier("bioNightMetric")
-                Chart(samples) { sample in
-                    PointMark(x: .value("记录时间", sample.date), y: .value(selectedKind.title, sample.value))
-                        .symbolSize(26).foregroundStyle(selectedKind == .oxygen ? SleepPalette.deep : SleepPalette.teal)
-                }.chartXScale(domain: record.start...record.end)
-                    .chartXAxis { AxisMarks(values: .automatic(desiredCount: 3)) { value in
-                        AxisValueLabel { if let date = value.as(Date.self) { Text(record.displayClock(date)).font(.caption2) } }
-                    } }
-                    .frame(height: 175)
-                    .accessibilityElement(children: .contain)
-                    .accessibilityIdentifier("bioNightChart")
-                Text("每个圆点是一条真实采样。没有圆点的时段没有记录，不连接成连续曲线。")
                     .font(.caption).foregroundStyle(SleepPalette.muted)
             }
             VStack(alignment: .leading, spacing: 8) {

@@ -10,5 +10,17 @@
     "motion": "feedback only, reduced-motion breathing, no idle animation on home",
     "assets": "existing authorized catalog covers and product assets",
     "validation": "iPhone SE simulator, light/dark and accessibility text; see docs/SLEEPGROVE_V050.md"
+  },
+  {
+    "date": "2026-11-26",
+    "target": "SleepGrove 0.5.1 native sleep, relaxation and product pages",
+    "register": "product",
+    "designLanguage": "apple",
+    "mode": "app",
+    "palette": "existing adaptive teal surfaces, consistent stage colors, rose temperature",
+    "composition": "sleep-stage timeline before summary, scatter charts before reference text, real product image first",
+    "motion": "only breathing exercise and feedback; no new home animation",
+    "assets": "manufacturer banner-product.jpg; exact published product-promo.mp4; original soft PCM cues",
+    "validation": "SE simulator light/dark, accessibility typography, temperature charts; see docs/RELEASE_V051.md"
   }
 ]
