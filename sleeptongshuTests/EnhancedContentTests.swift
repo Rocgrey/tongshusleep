@@ -182,6 +182,39 @@ private final class ContentTransport: URLProtocol {
         XCTAssertNil(ClassroomItem.https("http://insecure.test"))
         XCTAssertNil(ClassroomItem.https("https://name:password@example.test/video"))
     }
+    func testKnownLecturesHaveFiveDistinctAvailableCovers() async throws {
+        let store = ContentStore(directory: directory)
+        var covers = Set<String>()
+        for number in 1...5 {
+            let item = try await store.freshItem("course-l\(number)", client: client)
+            XCTAssertEqual(item.cover, "course-l\(number)")
+            covers.insert(item.resolvedCover())
+            XCTAssertNotNil(UIImage(named: item.resolvedCover()))
+        }
+        XCTAssertEqual(covers.count, 5)
+    }
+    func testLegacyChapterArtResolvedWithoutReplacingCustomPublisherCovers() async throws {
+        let store = ContentStore(directory: directory)
+        var chapter = try await store.freshItem("course-l2", client: client)
+        for legacy in ["", "course-cover", "https://sleep.tongshugene.net/assets/video/course-cover.jpg?v=old"] {
+            chapter.cover = legacy
+            XCTAssertEqual(chapter.resolvedCover(), "course-l2")
+        }
+        chapter.cover = "https://content.example.com/series.jpg"
+        XCTAssertEqual(chapter.resolvedCover(seriesCover: chapter.cover), "course-l2")
+        let custom = "https://content.example.com/new-chapter-art.jpg"
+        chapter.cover = custom
+        XCTAssertEqual(chapter.resolvedCover(seriesCover: "course-cover"), custom)
+        chapter.cover = "https://content.example.com/new-art/course-cover.jpg"
+        XCTAssertEqual(chapter.resolvedCover(seriesCover: "course-cover"), chapter.cover)
+        chapter.media_url = "https://other.example.com/video/course-l2.mp4"
+        chapter.cover = "course-cover"
+        XCTAssertEqual(chapter.resolvedCover(), "course-cover")
+        chapter.media_url = "https://vid.sleep.phoenixtreeai.com/video/new-course.mp4"
+        chapter.cover = ""
+        XCTAssertEqual(chapter.resolvedCover(seriesCover: "published-series-cover"), "published-series-cover")
+        XCTAssertEqual(chapter.resolvedCover(), "")
+    }
     func testProductLinksOnlyOpenKnownJDHosts() {
         var product = item("test-product")
         product.external_url = "https://item.m.jd.com/product/10229068197495.html"

@@ -20,6 +20,20 @@ struct ClassroomItem: Codable, Identifiable, Hashable {
     var updated_at: Double
     var external_url: String?
     var mediaURL: URL? { Self.https(media_url) }
+    /// Keep publisher-supplied chapter art; replace legacy series art only for these known videos.
+    func resolvedCover(seriesCover: String? = nil) -> String {
+        let supplied = cover.trimmingCharacters(in: .whitespacesAndNewlines)
+        let coverURL = Self.https(supplied)
+        let officialSeriesArt = coverURL?.host?.lowercased() == "sleep.tongshugene.net"
+            && coverURL?.path == "/assets/video/course-cover.jpg"
+        let legacySeriesArt = supplied.isEmpty || supplied == "course-cover" || supplied == seriesCover
+            || officialSeriesArt
+        if legacySeriesArt, let video = mediaURL, video.host?.lowercased() == "vid.sleep.phoenixtreeai.com",
+           let chapter = (1...5).first(where: { video.path == "/video/course-l\($0).mp4" }) {
+            return "course-l\(chapter)"
+        }
+        return supplied.isEmpty ? (seriesCover ?? supplied) : supplied
+    }
     var purchaseURL: URL? {
         guard let url = Self.https(external_url), let host = url.host?.lowercased(),
               ["3.cn", "jd.com", "www.jd.com", "item.jd.com", "item.m.jd.com"].contains(host) else { return nil }

@@ -154,7 +154,7 @@ struct ContentTile: View {
     let item: ClassroomItem
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            ContentCover(name: item.cover)
+            ContentCover(name: item.resolvedCover())
                 .overlay(alignment: .bottomTrailing) {
                     if item.kind == "course" {
                         Image(systemName: "play.fill").font(.caption.weight(.bold)).foregroundStyle(SleepPalette.teal)
@@ -175,7 +175,7 @@ struct CourseLessonRow: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     var body: some View {
         AnyLayout(typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12)) : AnyLayout(HStackLayout(alignment: .center, spacing: 14))) {
-            ContentCover(name: item.cover.isEmpty ? fallbackCover : item.cover, ratio: 16 / 9).frame(width: typeSize.isAccessibilitySize ? 180 : 112)
+            ContentCover(name: item.resolvedCover(seriesCover: fallbackCover), ratio: 16 / 9).frame(width: typeSize.isAccessibilitySize ? 180 : 112)
                 .overlay { Image(systemName: "play.circle.fill").font(.title).foregroundStyle(.white).shadow(color: .black.opacity(0.5), radius: 3) }
             VStack(alignment: .leading, spacing: 6) {
                 Text(item.title).font(.subheadline.weight(.semibold)).foregroundStyle(SleepPalette.ink)
@@ -232,7 +232,7 @@ struct ClassroomDetailView: View {
                 else {
                     if item.kind == "product" {
                         Button { if let url = item.purchaseURL { openURL(url) } } label: { ContentCover(name: item.cover) }.buttonStyle(GrovePressStyle())
-                    } else { ContentCover(name: item.cover) }
+                    } else { ContentCover(name: item.resolvedCover(seriesCover: content.items.first(where: { $0.id == item.parent_id })?.cover)) }
                     Text(item.title).font(.title2.bold())
                     Text(item.summary).foregroundStyle(.secondary)
                     Text(item.body).font(.body).lineSpacing(7).textSelection(.enabled)
@@ -308,7 +308,8 @@ struct ClassroomVideoView: View {
                                     stop(); selectedLesson = chapter
                                 } label: {
                                     HStack(spacing: 12) {
-                                        Image(systemName: chapter.id == currentLesson.id ? "play.circle.fill" : "play.circle").font(.title2)
+                                        ContentCover(name: chapter.resolvedCover(seriesCover: content.items.first(where: { $0.id == chapter.parent_id })?.cover), ratio: 16 / 9)
+                                            .frame(width: 88)
                                         Text(chapter.title).frame(maxWidth: .infinity, alignment: .leading)
                                         if chapter.id == currentLesson.id { Text("当前播放").font(.caption) }
                                     }.padding(.vertical, 12)
@@ -341,7 +342,7 @@ struct ClassroomVideoView: View {
                     if status == .failed { message = "视频暂时无法播放，请检查网络或稍后重试。" }
                 }
         } else {
-            ContentCover(name: currentLesson.cover)
+            ContentCover(name: currentLesson.resolvedCover(seriesCover: content.items.first(where: { $0.id == currentLesson.parent_id })?.cover))
                 .overlay { if message == nil { ProgressView().tint(SleepPalette.teal) } }
         }
     }
