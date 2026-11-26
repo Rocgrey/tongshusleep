@@ -17,7 +17,7 @@ struct PSQIView: View {
                 Text("18 项计分内容，汇总为 7 个方面，总分 0–21。分数越高，表示自己感受到的睡眠困扰越多。中文题目采用便于理解的表述。").foregroundStyle(SleepPalette.muted)
                 Button { takingTest = true } label: {
                     Label("开始睡眠自测", systemImage: "pencil.and.list.clipboard").frame(maxWidth: .infinity).padding(.vertical, 10)
-                }.buttonStyle(.borderedProminent).tint(GroveColor.lavender.tint).foregroundStyle(SleepPalette.onAccent).accessibilityIdentifier("startPSQI")
+                }.buttonStyle(GroveButtonStyle(.primary, color: GroveColor.lavender.tint)).foregroundStyle(SleepPalette.onAccent).accessibilityIdentifier("startPSQI")
                 Text("仅作科普参考，不作诊断。困扰方向和改善建议根据你的回答整理，并非 PSQI 官方的失眠类型划分。结果只保存在本机，不随睡眠记录自动上传。")
                     .font(.caption).foregroundStyle(SleepPalette.muted)
                 if let message = history.message { Text(message).foregroundStyle(SleepPalette.rose) }
@@ -39,7 +39,7 @@ struct PSQIView: View {
                                 }
                                 Spacer(); Text("\(entry.result.total) / 21").font(.headline).foregroundStyle(GroveColor.lavender.tint)
                             }
-                        }.buttonStyle(.plain)
+                        }.buttonStyle(GrovePressStyle())
                         Button(role: .destructive) { do { try history.delete(entry.id) } catch { self.error = error.localizedDescription } } label: {
                             Image(systemName: "trash").frame(width: 44, height: 44)
                         }.accessibilityLabel("删除这次自测")
@@ -54,7 +54,7 @@ struct PSQIView: View {
             .sheet(isPresented: $takingTest) {
                 NavigationStack { PSQIForm { answers in selected = try history.save(answers); takingTest = false } }
             }
-            .navigationDestination(isPresented: Binding(get: { selected != nil && !takingTest }, set: { if !$0 { selected = nil } })) { if let selected { PSQIResultView(entry: selected) } }
+            .navigationDestination(isPresented: Binding(get: { selected != nil && !takingTest }, set: { if !$0 { selected = nil } })) { if let selected { PSQIResultView(entry: selected, history: history.entries) } }
             .alert("自测记录", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) { Button("知道了") { error = nil } } message: { Text(error ?? "") }
     }
 }
@@ -86,10 +86,10 @@ private struct PSQIForm: View {
                 case .clock:
                     DatePicker("通常时间", selection: $clock, displayedComponents: .hourAndMinute).datePickerStyle(.wheel).labelsHidden()
                         .onChange(of: clock) { _, date in let c = Calendar.current.dateComponents([.hour, .minute], from: date); answers[question.id] = Double((c.hour ?? 0) * 60 + (c.minute ?? 0)) }
-                    Button("确认这个时间") { storeClock() }.buttonStyle(.bordered)
+                    Button("确认这个时间") { storeClock() }.buttonStyle(GroveButtonStyle(.secondary))
                 case .minutes, .hours:
                     HStack {
-                        TextField(question.input == .minutes ? "分钟" : "小时，可填小数", text: $number).keyboardType(.decimalPad).textFieldStyle(.roundedBorder).focused($editingNumber).accessibilityIdentifier("psqiNumber")
+                        TextField(question.input == .minutes ? "分钟" : "小时，可填小数", text: $number).keyboardType(.decimalPad).textFieldStyle(GroveInputStyle()).focused($editingNumber).accessibilityIdentifier("psqiNumber")
                             .onChange(of: number) { _, value in answers[question.id] = Double(value.replacingOccurrences(of: ",", with: ".")) }
                         Text(question.input == .minutes ? "分钟" : "小时")
                     }
@@ -102,7 +102,7 @@ private struct PSQIForm: View {
                             }.padding(16).frame(maxWidth: .infinity, minHeight: 48)
                                 .background(answers[question.id] == Double(offset) ? scene.color.wash : SleepPalette.surface, in: RoundedRectangle(cornerRadius: 8))
                                 .overlay(RoundedRectangle(cornerRadius: 8).stroke(answers[question.id] == Double(offset) ? scene.color.tint : .clear, lineWidth: 1.5))
-                        }.buttonStyle(.plain).foregroundStyle(answers[question.id] == Double(offset) ? scene.color.tint : SleepPalette.ink)
+                        }.buttonStyle(GrovePressStyle()).foregroundStyle(answers[question.id] == Double(offset) ? scene.color.tint : SleepPalette.ink)
                             .accessibilityIdentifier("psqiOption\(offset)")
                     }
                 }
@@ -135,7 +135,7 @@ private struct PSQIForm: View {
                 }
                 if index < 17 { move(1) } else { do { try save(answers) } catch { self.error = error.localizedDescription } }
             } label: { Label(index == 17 ? "查看结果" : "下一项", systemImage: index == 17 ? "chart.bar.fill" : "arrow.right") }
-                .buttonStyle(.borderedProminent).tint(scene.color.tint).foregroundStyle(SleepPalette.onAccent).accessibilityIdentifier("psqiNext")
+                .buttonStyle(GroveButtonStyle(.primary, color: scene.color.tint)).foregroundStyle(SleepPalette.onAccent).accessibilityIdentifier("psqiNext")
         }.buttonBorderShape(.roundedRectangle(radius: 8)).controlSize(.large)
             .padding(.horizontal, 22).padding(.vertical, 12).background(.regularMaterial)
     }
@@ -152,6 +152,8 @@ private struct PSQIForm: View {
 
 private struct PSQIResultView: View {
     let entry: PSQIEntry
+    let history: [PSQIEntry]
+    private var comparison: PSQIComparison { PSQIComparison(entry: entry, history: history) }
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
@@ -170,6 +172,7 @@ private struct PSQIResultView: View {
                 }.groveWash(.lavender)
                 Text("分数越高表示自述困扰越多，不是睡眠表现的百分制评分。原研究常以超过 5 分提示值得进一步关注，不能据此判断疾病或严重程度。")
                     .font(.subheadline).foregroundStyle(SleepPalette.muted)
+                historySection
                 VStack(alignment: .leading, spacing: 18) {
                     Text("七个方面，各 0–3 分").font(.headline)
                     ForEach(Array(entry.result.components.enumerated()), id: \.offset) { offset, value in
@@ -192,9 +195,54 @@ private struct PSQIResultView: View {
                 }
                 if entry.result.concerns.isEmpty { Text("继续保持规律作息；即使自测分数不高，若长期疲惫或困扰影响生活，也值得寻求专业帮助。") }
                 Text("困扰方向由入睡耗时、夜间醒来频率与睡眠时长整理，不是官方失眠分型。仅作科普参考，不作诊断。").font(.caption).foregroundStyle(SleepPalette.muted)
+                Link(destination: URL(string: "https://sleep.tongshugene.net/#contact")!) {
+                    Label("咨询睡眠顾问", systemImage: "bubble.left.and.bubble.right.fill")
+                        .frame(maxWidth: .infinity).padding(.vertical, 8)
+                }.buttonStyle(GroveButtonStyle(.primary)).accessibilityIdentifier("psqiAdvisor")
+                Text("前往官网的睡眠顾问联系区。自测答案不会随链接发送。")
+                    .font(.caption).foregroundStyle(SleepPalette.muted)
                 PSQIReference()
             }.padding(20).frame(maxWidth: 680).frame(maxWidth: .infinity)
         }.background(SleepPalette.background).navigationTitle("这次自测").navigationBarTitleDisplayMode(.inline)
+    }
+    private var historySection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Label("和上次的自己比一比", systemImage: "chart.xyaxis.line").font(.headline)
+            if let previous = comparison.previous, let delta = comparison.delta {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 16) { scoreChange(previous, delta: delta) }
+                    VStack(alignment: .leading, spacing: 12) { scoreChange(previous, delta: delta) }
+                }
+                Text(delta < 0 ? "这次比上次少了 \(-delta) 分，自述睡眠困扰有所减少。继续留意哪些习惯让自己睡得更舒服。" : delta > 0 ? "这次比上次多了 \(delta) 分，自述睡眠困扰有所增加。可以从下方分项找到值得照顾的方向。" : "两次总分相同，也可以看看下方各方面的变化。")
+                    .font(.subheadline).fixedSize(horizontal: false, vertical: true)
+                Chart(comparison.timeline) { point in
+                    LineMark(x: .value("自测时间", point.date), y: .value("分数", point.result.total))
+                        .foregroundStyle(GroveColor.lavender.tint)
+                    PointMark(x: .value("自测时间", point.date), y: .value("分数", point.result.total))
+                        .foregroundStyle(GroveColor.coral.tint)
+                }.chartYScale(domain: 0...21).frame(height: 140)
+                    .accessibilityLabel("截至这次的自测历史，分数越低表示自述困扰越少")
+                ForEach(Array(PSQI.componentNames.enumerated()), id: \.offset) { index, name in
+                    HStack {
+                        Text(name); Spacer()
+                        Text("\(previous.result.components[index]) → \(entry.result.components[index]) 分").monospacedDigit()
+                    }.font(.caption).foregroundStyle(SleepPalette.muted)
+                }
+            } else {
+                Text("这是你的第一份可对比记录。下次完成后，会在这里展示分数变化和历史曲线。")
+                    .font(.subheadline).foregroundStyle(SleepPalette.muted)
+            }
+            Text("每次都回顾近 1 个月；相隔很近的自测覆盖期会重叠。分数变化反映回答的变化，不代表身体状态在一天内同幅度改变。")
+                .font(.caption).foregroundStyle(SleepPalette.muted)
+        }.groveWash(.sky).accessibilityElement(children: .contain).accessibilityIdentifier("psqiHistoryComparison")
+    }
+    @ViewBuilder private func scoreChange(_ previous: PSQIEntry, delta: Int) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("上次 · \(previous.date.formatted(date: .abbreviated, time: .shortened))").font(.caption).foregroundStyle(SleepPalette.muted)
+            Text("\(previous.result.total) → \(entry.result.total) 分").font(.title2.bold()).monospacedDigit()
+        }
+        Label(delta == 0 ? "持平" : "\(abs(delta)) 分", systemImage: delta < 0 ? "arrow.down.right" : delta > 0 ? "arrow.up.right" : "equal")
+            .font(.headline).foregroundStyle(delta > 0 ? GroveColor.coral.tint : GroveColor.mint.tint)
     }
 }
 

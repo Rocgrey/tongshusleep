@@ -104,6 +104,14 @@ final class SleepGroveUITests: XCTestCase {
         }
         XCTAssertTrue(app.navigationBars["这次自测"].waitForExistence(timeout: 5))
         capture(app, "psqi-result-test-answers")
+        let history = app.otherElements["psqiHistoryComparison"]
+        for _ in 0..<6 where !history.isHittable { app.swipeUp() }
+        XCTAssertTrue(history.exists)
+        capture(app, "psqi-history-test-answers")
+        let advisor = app.descendants(matching: .any).matching(identifier: "psqiAdvisor").firstMatch
+        for _ in 0..<12 where !advisor.isHittable { app.swipeUp() }
+        XCTAssertTrue(advisor.isHittable)
+        capture(app, "psqi-advisor-test-answers")
         app.openGroveSection("助眠")
         for _ in 0..<4 where !app.buttons["groveNoise"].isHittable { app.swipeUp() }
         app.buttons["groveNoise"].tap()

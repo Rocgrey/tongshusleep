@@ -1,6 +1,26 @@
 import AVFoundation
 import Combine
 
+/// Rank installed Mandarin female voices without depending on undocumented voice names.
+enum BreathingVoiceSelection {
+    struct Candidate {
+        let identifier: String
+        let language: String
+        let female: Bool
+        let quality: Int
+    }
+    static func preferred(_ voices: [Candidate]) -> Candidate? {
+        voices.filter { $0.female && ["zh-CN", "zh-Hans", "zh-TW"].contains($0.language) }
+            .sorted {
+                let left = $0.language == "zh-TW" ? 0 : 1
+                let right = $1.language == "zh-TW" ? 0 : 1
+                if left != right { return left > right }
+                if $0.quality != $1.quality { return $0.quality > $1.quality }
+                return $0.identifier < $1.identifier
+            }.first
+    }
+}
+
 /// A short original bell with a soft attack/tail; no bundled/licensed recording.
 enum BreathingCueTone {
     static let rate = 22050
@@ -42,7 +62,21 @@ enum BreathingCueTone {
     private var introID: ObjectIdentifier?
     private var introCompletion: (() -> Void)?
     private var introWatchdog: Task<Void, Never>?
-    override init() { super.init(); speech.delegate = self }
+    private var selectedVoice: AVSpeechSynthesisVoice?
+    @Published private(set) var voiceDescription = ""
+    override init() { super.init(); speech.delegate = self; refreshVoice() }
+
+    func refreshVoice() {
+        let voices = AVSpeechSynthesisVoice.speechVoices()
+        let choice = BreathingVoiceSelection.preferred(voices.map {
+            .init(identifier: $0.identifier, language: $0.language, female: $0.gender == .female, quality: $0.quality.rawValue)
+        })
+        selectedVoice = choice.flatMap { AVSpeechSynthesisVoice(identifier: $0.identifier) }
+        guard let voice = selectedVoice else {
+            voiceDescription = "未找到中文女声。可在系统设置 → 辅助功能 → 朗读与语音（或朗读内容）中下载中文女声。"; return
+        }
+        voiceDescription = voice.quality == .default ? "轻声女声 · \(voice.name)。想更自然，可在系统辅助功能的中文声音中下载增强或优质声音，返回后自动优先使用。" : "轻声女声 · \(voice.name) · 高质量声音"
+    }
 
     private func acquire() -> Bool {
         guard !AudioCoordinator.shared.recording else {
@@ -100,11 +134,12 @@ enum BreathingCueTone {
         AudioCoordinator.shared.endPlayback(owner: owner)
     }
     private func utterance(_ text: String) -> AVSpeechUtterance? {
-        guard let voice = AVSpeechSynthesisVoice(language: "zh-CN") else {
+        guard let voice = selectedVoice else {
             message = "中文语音暂不可用，可在系统辅助功能的朗读内容中下载中文声音；轻柔提示音仍可使用。"; return nil
         }
         let word = AVSpeechUtterance(string: text)
-        word.voice = voice; word.rate = 0.42; word.volume = volume
+        word.voice = voice; word.rate = 0.38; word.pitchMultiplier = 1.02; word.volume = volume
+        word.preUtteranceDelay = 0; word.postUtteranceDelay = 0.08
         return word
     }
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {

@@ -101,7 +101,7 @@ struct SleepDashboardView: View {
                         ContentUnavailableView {
                             Label(systemSleepSelected ? "暂无系统睡眠" : "从第一晚开始", systemImage: "moon.zzz")
                         } description: { Text(systemSleepSelected ? HealthOverviewStore.noSleepMessage : "添加睡眠时间，逐渐了解自己的节奏。") }
-                        actions: { Button("添加记录") { showsEditor = true }.buttonStyle(.borderedProminent) }
+                        actions: { Button("添加记录") { showsEditor = true }.buttonStyle(GroveButtonStyle(.primary)) }
                         .padding(.vertical, 40)
                     }
                     if selected == nil || (selected?.metadata?.bioNight != nil && selected?.hasSleepDuration == false) { GroveSleepShortcuts(module: $module) }
@@ -138,7 +138,7 @@ struct SleepDashboardView: View {
                     List(records) { record in
                         Button { selectedID = record.id; showsHistory = false } label: {
                             RecordRow(record: record)
-                        }.buttonStyle(.plain)
+                        }.buttonStyle(GrovePressStyle())
                     }
                     .navigationTitle("睡眠记录").navigationBarTitleDisplayMode(.inline)
                     .toolbar { ToolbarItem(placement: .cancellationAction) { Button("关闭") { showsHistory = false } } }
@@ -210,7 +210,7 @@ struct SleepDashboardView: View {
                 Spacer(minLength: 8)
                 if record.source != .healthKit && record.metadata?.bioNight == nil { Button {
                     help = SleepMetricGuide.score(record)
-                } label: { scoreRing(record) }.buttonStyle(.plain).accessibilityLabel("睡眠参考分说明") }
+                } label: { scoreRing(record) }.buttonStyle(GrovePressStyle()).accessibilityLabel("睡眠参考分说明") }
                 else if record.hasSleepDuration {
                     let progress = Double(record.asleepMinutes) / max(1, goal * 60)
                     ZStack {
@@ -244,7 +244,7 @@ struct SleepDashboardView: View {
                 timeValue(record.source == .phone ? "结束采集" : "睡眠结束", value: record.sleepEnd.map(record.displayClock) ?? "--", symbol: "sun.max.fill")
                 Button { help = SleepMetricGuide.efficiency(record) } label: {
                     timeValue("睡眠效率", value: record.efficiency.map { "\($0)%" } ?? "--", symbol: "leaf.fill", showsInfo: true)
-                }.buttonStyle(.plain).accessibilityLabel("睡眠效率说明")
+                }.buttonStyle(GrovePressStyle()).accessibilityLabel("睡眠效率说明")
             }
         }
         .padding(.vertical, 10)
@@ -305,7 +305,7 @@ struct SleepDashboardView: View {
                             Text(stage == .awake ? "清醒时段" : record.share(stage).map { "\($0)%" } ?? "--")
                                 .font(.system(size: 12, weight: .medium)).foregroundStyle(SleepPalette.muted)
                         }.foregroundStyle(SleepPalette.ink).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle()) }
-                            .buttonStyle(.plain).accessibilityLabel("\(stage.label)说明")
+                            .buttonStyle(GrovePressStyle()).accessibilityLabel("\(stage.label)说明")
                     }
                 } }
                 if record.hasStages {
@@ -319,7 +319,7 @@ struct SleepDashboardView: View {
                                     Text(SleepMetricGuide.referenceText(stage)).font(.system(size: 11)).multilineTextAlignment(.trailing)
                                     Image(systemName: "info.circle").font(.system(size: 12))
                                 }.frame(minHeight: 44).contentShape(Rectangle()).foregroundStyle(SleepPalette.muted)
-                            }.buttonStyle(.plain).accessibilityLabel("\(stage.label)参考范围")
+                            }.buttonStyle(GrovePressStyle()).accessibilityLabel("\(stage.label)参考范围")
                         }
                         Text("成人的一般参考。年龄和设备会影响结果，不必每晚都达到。")
                             .font(.system(size: 10)).foregroundStyle(SleepPalette.muted)
@@ -348,7 +348,7 @@ struct SleepDashboardView: View {
                     Text(record.awakenings.map { "\($0) 次" } ?? "--")
                     Image(systemName: "info.circle")
                 }.frame(minHeight: 44).contentShape(Rectangle()).font(.system(size: 13)).foregroundStyle(SleepPalette.muted)
-            }.buttonStyle(.plain).accessibilityLabel("夜间清醒说明")
+            }.buttonStyle(GrovePressStyle()).accessibilityLabel("夜间清醒说明")
             if !record.heartSamples.isEmpty {
                 Text("睡眠心率变化").font(.system(size: 12, weight: .medium)).foregroundStyle(SleepPalette.muted).padding(.top, 5)
                 HeartRateChart(samples: record.heartSamples)
@@ -370,7 +370,7 @@ struct SleepDashboardView: View {
                     Text(unit).font(.system(size: 10)).foregroundStyle(SleepPalette.muted)
                 }
             }.padding(16).frame(maxWidth: .infinity, alignment: .leading).background(SleepPalette.surface)
-        }.buttonStyle(.plain).accessibilityLabel("\(title)，\(value)\(unit)，查看说明")
+        }.buttonStyle(GrovePressStyle()).accessibilityLabel("\(title)，\(value)\(unit)，查看说明")
     }
 
     private func analysis(_ record: SleepRecord) -> some View {
@@ -503,7 +503,7 @@ struct TrendsView: View {
             SectionHeading(title: "每日记录", subtitle: "点开一晚，查看完整数据")
             LazyVStack(spacing: 0) {
                 ForEach(periodRecords.reversed()) { record in
-                    Button { detail = record } label: { RecordRow(record: record) }.buttonStyle(.plain)
+                    Button { detail = record } label: { RecordRow(record: record) }.buttonStyle(GrovePressStyle())
                     Divider().padding(.vertical, 8)
                 }
             }
@@ -549,7 +549,7 @@ struct RecordDetailView: View {
                                     if let share = record.share(stage) { Text("\(share)%") }
                                     Image(systemName: "info.circle")
                                 }
-                            }.buttonStyle(.plain)
+                            }.buttonStyle(GrovePressStyle())
                         }
                     }
                 }

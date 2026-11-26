@@ -93,7 +93,7 @@ struct EncryptedBandSetupView: View {
                     Button { showsFolder = true } label: {
                         Label(importing ? "正在读取文件夹" : "选择配套 App 的文件夹", systemImage: "folder.badge.plus")
                             .frame(maxWidth: .infinity, minHeight: 48)
-                    }.buttonStyle(.borderedProminent).disabled(importing || scanner.encryptedBandTarget == nil || band.isBusy)
+                    }.buttonStyle(GroveButtonStyle(.primary)).disabled(importing || scanner.encryptedBandTarget == nil || band.isBusy)
                         .accessibilityIdentifier("importBandCredentialFolder")
                     Text("在文件选择器中进入“浏览 → 我的 iPhone”，选择设备配套 App 的文件夹。只有文件夹实际包含绑定缓存时才能读取；找不到时，可以使用已有的 32 位设备凭证。不要解绑或恢复出厂设置。")
                         .font(.caption).foregroundStyle(SleepPalette.muted)
@@ -112,7 +112,7 @@ struct EncryptedBandSetupView: View {
                     DisclosureGroup("已有设备凭证") {
                         VStack(alignment: .leading, spacing: 12) {
                             SecureField("32 位设备凭证", text: $manual)
-                                .textInputAutocapitalization(.never).autocorrectionDisabled().textFieldStyle(.roundedBorder)
+                                .textInputAutocapitalization(.never).autocorrectionDisabled().textFieldStyle(GroveInputStyle())
                                 .accessibilityIdentifier("manualBandCredential")
                             Button { bind(manual) } label: { Label("保存并自动读取", systemImage: "lock.open") }
                                 .disabled(scanner.encryptedBandTarget == nil || band.isBusy || manual.isEmpty)

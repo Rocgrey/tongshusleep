@@ -56,7 +56,7 @@ struct HealthSourceSelectionView: View {
                         Text("系统中已不可见的导入记录不参与统计；原始来源和独立备注仍在本机保留。重新读取到相同睡眠后可恢复显示。")
                             .font(.caption).foregroundStyle(SleepPalette.muted)
                         ForEach(records.filter { !$0.isVisible }) { record in
-                            Button { archivedDetail = record } label: { RecordRow(record: record) }.buttonStyle(.plain)
+                            Button { archivedDetail = record } label: { RecordRow(record: record) }.buttonStyle(GrovePressStyle())
                         }
                     }
                 }
@@ -120,7 +120,7 @@ struct HealthAccessGuide: View {
                     openURL(URL(string: "x-apple-health://")!) { accepted in cannotOpen = !accepted }
                 } label: {
                     Label("打开健康 App", systemImage: "arrow.up.forward.app").frame(maxWidth: .infinity).padding(.vertical, 6)
-                }.buttonStyle(.borderedProminent).accessibilityIdentifier("openSystemHealth")
+                }.buttonStyle(GroveButtonStyle(.primary)).accessibilityIdentifier("openSystemHealth")
                 if cannotOpen {
                     Text("请回到手机桌面，手动打开健康 App。")
                         .font(.system(size: 13)).foregroundStyle(SleepPalette.muted)

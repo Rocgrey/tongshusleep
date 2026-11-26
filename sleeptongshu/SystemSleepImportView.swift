@@ -15,7 +15,7 @@ struct SystemHealthReadButton: View {
                 Image(systemName: "arrow.down.circle")
             }.foregroundStyle(SleepPalette.onAccent).padding(16).frame(maxWidth: .infinity, minHeight: 54)
                 .background(SleepPalette.teal, in: RoundedRectangle(cornerRadius: 8))
-        }.buttonStyle(.plain).disabled(health.isLoading).accessibilityIdentifier("readHealthOverview")
+        }.buttonStyle(GrovePressStyle()).disabled(health.isLoading).accessibilityIdentifier("readHealthOverview")
     }
 }
 

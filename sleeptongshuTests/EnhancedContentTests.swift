@@ -29,10 +29,23 @@ private final class ContentTransport: URLProtocol {
         }
         for style in [UIUserInterfaceStyle.light, .dark] {
             let traits = UITraitCollection(userInterfaceStyle: style)
-            for theme in AppAppearance.allCases {
+            let accents = AppAppearance.allCases.map { ($0.rawValue, $0.readableAccent) }
+                + GroveColor.allCases.map { ("grove-\($0.rawValue)", UIColor($0.tint)) }
+            for (name, accent) in accents {
                 let foreground = luminance(UIColor(SleepPalette.onAccent), traits)
-                let background = luminance(theme.readableAccent, traits)
-                XCTAssertGreaterThanOrEqual((max(foreground, background) + 0.05) / (min(foreground, background) + 0.05), 4.5, theme.rawValue)
+                // Verify both ends of the translucent button gradient over its possible surfaces.
+                for surface in [SleepPalette.background, SleepPalette.surface] {
+                    for opacity in [1.0, style == .dark ? 0.94 : 0.96] {
+                        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+                        var sr: CGFloat = 0, sg: CGFloat = 0, sb: CGFloat = 0, sa: CGFloat = 0
+                        accent.resolvedColor(with: traits).getRed(&r, green: &g, blue: &b, alpha: &a)
+                        UIColor(surface).resolvedColor(with: traits).getRed(&sr, green: &sg, blue: &sb, alpha: &sa)
+                        let alpha = CGFloat(opacity)
+                        let blended = UIColor(red: r * alpha + sr * (1 - alpha), green: g * alpha + sg * (1 - alpha), blue: b * alpha + sb * (1 - alpha), alpha: 1)
+                        let background = luminance(blended, traits)
+                        XCTAssertGreaterThanOrEqual((max(foreground, background) + 0.05) / (min(foreground, background) + 0.05), 4.5, name)
+                    }
+                }
             }
         }
     }

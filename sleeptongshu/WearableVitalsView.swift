@@ -112,7 +112,7 @@ struct WearableVitalsView: View {
                         }.frame(maxWidth: .infinity, minHeight: 64, alignment: .leading).padding(14)
                             .foregroundStyle(kind == item ? SleepPalette.teal : SleepPalette.ink)
                             .background(kind == item ? SleepPalette.teal.opacity(0.09) : SleepPalette.surface, in: RoundedRectangle(cornerRadius: 8))
-                    }.buttonStyle(.plain).accessibilityLabel("查看\(item.title)趋势")
+                    }.buttonStyle(GrovePressStyle()).accessibilityLabel("查看\(item.title)趋势")
                 }
             }
         }

@@ -86,7 +86,7 @@ struct GroveSleepShortcuts: View {
                 Text(title).font(.caption.weight(.semibold)).foregroundStyle(SleepPalette.ink)
             }.frame(maxWidth: .infinity, minHeight: 72).padding(8)
                 .background(color.opacity(0.09), in: RoundedRectangle(cornerRadius: 8))
-        }.buttonStyle(.plain).accessibilityIdentifier("grove-" + destination.rawValue)
+        }.buttonStyle(GrovePressStyle()).accessibilityIdentifier("grove-" + destination.rawValue)
     }
 }
 
@@ -112,22 +112,22 @@ struct GroveRelaxView: View {
                                 Spacer(); Image(systemName: "arrow.up.right")
                             }
                         }.foregroundStyle(SleepPalette.ink)
-                    }.buttonStyle(.plain)
+                    }.buttonStyle(GrovePressStyle())
                     GroveSectionBanner(title: "让今晚，慢下来", subtitle: "留一点时间，给呼吸和安静", symbol: "moon.stars.fill", color: .honey)
                     SectionHeading(title: "睡前的小练习")
                     NavigationLink { BreathingView() } label: {
                         GroveFeatureRow(title: "4-7-8 呼吸", subtitle: "吸气 4 秒 · 屏息 7 秒 · 呼气 8 秒", icon: "wind", tint: GroveColor.lavender.tint).groveWash(.lavender)
-                    }.buttonStyle(.plain).accessibilityIdentifier("groveBreathing")
+                    }.buttonStyle(GrovePressStyle()).accessibilityIdentifier("groveBreathing")
                     Divider()
                     NavigationLink { WhiteNoiseView() } label: {
                         GroveFeatureRow(title: "声音陪伴", subtitle: "24 种音色，让声音按时渐弱停下", icon: "waveform", tint: GroveColor.coral.tint).groveWash(.coral)
-                    }.buttonStyle(.plain).accessibilityIdentifier("groveNoise")
+                    }.buttonStyle(GrovePressStyle()).accessibilityIdentifier("groveNoise")
                     ForEach(content.items.filter { ["noise", "breathing", "goodnight", "story"].contains($0.kind) }) { item in
-                        NavigationLink { ClassroomDetailView(item: item) } label: { ContentTile(item: item) }.buttonStyle(.plain)
+                        NavigationLink { ClassroomDetailView(item: item) } label: { ContentTile(item: item) }.buttonStyle(GrovePressStyle())
                     }
                     NavigationLink { ReminderSettingsView() } label: {
                         GroveFeatureRow(title: "设置睡前提醒", subtitle: "到点提醒，点击后自主开始监测或放松", icon: "bell.badge", tint: SleepPalette.awake)
-                    }.buttonStyle(.plain)
+                    }.buttonStyle(GrovePressStyle())
                 }.padding(20).frame(maxWidth: 680).frame(maxWidth: .infinity)
             }.background(SleepPalette.background).toolbar(.hidden, for: .navigationBar)
                 .task(id: "\(isSelected)|\(routes.deliveryID)|\(routes.target ?? "")") {
@@ -208,23 +208,23 @@ struct GroveCenterView: View {
                     GroveSectionBanner(title: "照顾好每一个自己", subtitle: "用户中心 · 记录、设备与休息习惯", symbol: "person.crop.circle.fill", color: .honey)
                     Button { account.open(.profile) } label: {
                         GroveFeatureRow(title: account.session?.user.username ?? "我的账号", subtitle: "账号资料与健康记录同步", icon: "person.crop.circle.fill")
-                    }.buttonStyle(.plain).accessibilityIdentifier("groveAccount")
+                    }.buttonStyle(GrovePressStyle()).accessibilityIdentifier("groveAccount")
                     Divider()
                     SectionHeading(title: "记录与设备")
                     Button { module = .monitoring } label: {
                         GroveFeatureRow(title: "监测与设备", subtitle: "设备连接、手机监测与本地数据", icon: "sensor.fill")
-                    }.buttonStyle(.plain)
+                    }.buttonStyle(GrovePressStyle())
                     Button { module = .health } label: {
                         GroveFeatureRow(title: "身体状态", subtitle: "从系统健康读取真实记录", icon: "heart.text.clipboard", tint: GroveColor.coral.tint).groveWash(.coral)
-                    }.buttonStyle(.plain)
+                    }.buttonStyle(GrovePressStyle())
                     Divider()
                     SectionHeading(title: "为自己设定节奏")
                     NavigationLink { ReminderSettingsView() } label: {
                         GroveFeatureRow(title: "睡眠计划与提醒", subtitle: "每日内容、睡前时间与通知设置", icon: "bell", tint: SleepPalette.awake)
-                    }.buttonStyle(.plain)
+                    }.buttonStyle(GrovePressStyle())
                     NavigationLink { AppSettingsView() } label: {
                         GroveFeatureRow(title: "设置", subtitle: "外观、候选语音与本机存储", icon: "gearshape", tint: SleepPalette.deep)
-                    }.buttonStyle(.plain).accessibilityIdentifier("enhancedSettings")
+                    }.buttonStyle(GrovePressStyle()).accessibilityIdentifier("enhancedSettings")
                     Text("SleepGrove · \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")")
                         .font(.caption).foregroundStyle(SleepPalette.muted).frame(maxWidth: .infinity).padding(.top, 20)
                 }.padding(22).frame(maxWidth: 680).frame(maxWidth: .infinity)

@@ -76,7 +76,7 @@ struct PasswordRecoveryView: View {
                                 Label(store.challenge == nil ? "获取验证码" : "确认重置密码", systemImage: store.challenge == nil ? "paperplane" : "lock.rotation")
                                 Spacer()
                             }.padding(.vertical, 8)
-                        }.buttonStyle(.borderedProminent).tint(SleepPalette.teal)
+                        }.buttonStyle(GroveButtonStyle(.primary)).tint(SleepPalette.teal)
                             .accessibilityIdentifier("recoverySubmit")
                         if store.challenge != nil {
                             TimelineView(.periodic(from: .now, by: 1)) { context in

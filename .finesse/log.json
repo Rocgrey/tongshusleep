@@ -1,5 +1,17 @@
 [
   {
+    "date": "2026-11-26",
+    "target": "SleepGrove 0.5.4 result, lesson catalog and shared native controls",
+    "register": "product",
+    "designLanguage": "apple",
+    "mode": "app",
+    "palette": "existing adaptive brand accents and five tonal colors; tested gradient text contrast",
+    "composition": "existing navigation retained; chapter cover rows, result comparison and inline product video",
+    "motion": "180ms press/hover feedback only; Reduce Motion disables scaling and displacement",
+    "assets": "existing published course covers and manufacturer product image/video; installed Mandarin female voices",
+    "validation": "native Xcode builds, unit and small-screen UI tests; see docs/RELEASE_V054.md"
+  },
+  {
     "date": "2026-11-25",
     "target": "SleepGrove native SwiftUI iOS",
     "register": "product",

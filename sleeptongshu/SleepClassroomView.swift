@@ -41,24 +41,30 @@ struct SleepClassroomView: View {
                     }
                     if content.canOpenBundledLibrary {
                         Button { content.openBundledLibrary() } label: { Label("查看随 App 课堂", systemImage: "books.vertical") }
-                            .buttonStyle(.borderedProminent)
+                            .buttonStyle(GroveButtonStyle(.primary))
                     }
                     if selection == "课程" {
                         LazyVStack(alignment: .leading, spacing: 24) {
                             ForEach(content.courses) { item in
                                 Button { playFirstLesson(of: item) } label: { ContentTile(item: item) }
-                                    .buttonStyle(.plain).accessibilityIdentifier("classroomItem-" + item.id)
+                                    .buttonStyle(GrovePressStyle()).accessibilityIdentifier("classroomItem-" + item.id)
+                                ForEach(content.children(item.id)) { lesson in
+                                    Button { playingItem = lesson } label: { CourseLessonRow(item: lesson, fallbackCover: item.cover) }
+                                        .buttonStyle(GrovePressStyle())
+                                        .disabled(lesson.mediaURL == nil)
+                                        .accessibilityIdentifier("classroomLesson-" + lesson.id)
+                                }
                             }
                         }
                         if content.courses.isEmpty { empty("课程正在准备中") }
                     } else if selection == "阅读" {
-                        ForEach(content.articles) { item in NavigationLink { ClassroomDetailView(item: item) } label: { ContentTile(item: item) }.buttonStyle(.plain) }
+                        ForEach(content.articles) { item in NavigationLink { ClassroomDetailView(item: item) } label: { ContentTile(item: item) }.buttonStyle(GrovePressStyle()) }
                         if content.articles.isEmpty { empty("暂无已发布文章") }
                     } else {
                         GroveSectionBanner(title: "给睡眠一个回顾", subtitle: "从自己的感受出发，找到改善方向", symbol: "list.clipboard.fill", color: .lavender)
                         NavigationLink { PSQIView() } label: {
                             GroveFeatureRow(title: "PSQI 睡眠自测", subtitle: "18 项 · 回顾近 1 个月 · 0–21 分", icon: "moon.stars.fill", tint: GroveColor.lavender.tint)
-                        }.buttonStyle(.plain).accessibilityIdentifier("grovePSQI")
+                        }.buttonStyle(GrovePressStyle()).accessibilityIdentifier("grovePSQI")
                         Text("自评帮助记录自己的感受，不能替代设备记录，也不会自动生成分期。").font(.subheadline).foregroundStyle(SleepPalette.muted)
                     }
                 }.padding(16).frame(maxWidth: 760).frame(maxWidth: .infinity)
@@ -158,8 +164,27 @@ struct ContentTile: View {
             Text(item.title).font(.headline).foregroundStyle(.primary).fixedSize(horizontal: false, vertical: true)
             Text(item.summary).font(.caption).foregroundStyle(.secondary).lineLimit(3)
             Label(item.category, systemImage: item.kind == "course" ? "play.circle" : "book").font(.caption).foregroundStyle(SleepPalette.teal)
-        }.padding(10).background(SleepPalette.surface, in: RoundedRectangle(cornerRadius: 8))
-            .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(SleepPalette.line.opacity(0.5)) }
+        }.padding(10).groveSurface()
+    }
+}
+
+/// Published chapters stay visible even when their media has not yet been supplied.
+struct CourseLessonRow: View {
+    let item: ClassroomItem
+    var fallbackCover = "course-cover"
+    @Environment(\.dynamicTypeSize) private var typeSize
+    var body: some View {
+        AnyLayout(typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12)) : AnyLayout(HStackLayout(alignment: .center, spacing: 14))) {
+            ContentCover(name: item.cover.isEmpty ? fallbackCover : item.cover, ratio: 16 / 9).frame(width: typeSize.isAccessibilitySize ? 180 : 112)
+                .overlay { Image(systemName: "play.circle.fill").font(.title).foregroundStyle(.white).shadow(color: .black.opacity(0.5), radius: 3) }
+            VStack(alignment: .leading, spacing: 6) {
+                Text(item.title).font(.subheadline.weight(.semibold)).foregroundStyle(SleepPalette.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(item.mediaURL == nil ? "视频正在准备" : item.duration.flatMap { $0.isFinite && $0 > 0 ? "约 \(($0 / 60).rounded(.up).formatted(.number.precision(.fractionLength(0)))) 分钟 · 点击播放" : nil } ?? "点击播放")
+                    .font(.caption).foregroundStyle(SleepPalette.muted)
+            }.frame(maxWidth: .infinity, alignment: .leading)
+            Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(SleepPalette.teal)
+        }.padding(12).groveSurface()
     }
 }
 struct ProductTile: View {
@@ -171,7 +196,7 @@ struct ProductTile: View {
             AnyLayout(typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12)) : AnyLayout(HStackLayout(alignment: .top, spacing: 12))) {
                 Button { if let url = item.purchaseURL { openURL(url) } } label: {
                     ContentCover(name: item.cover, ratio: 1).frame(width: typeSize.isAccessibilitySize ? 180 : 108)
-                }.buttonStyle(.plain).accessibilityLabel("查看京东商品：" + item.title)
+                }.buttonStyle(GrovePressStyle()).accessibilityLabel("查看京东商品：" + item.title)
                     .accessibilityIdentifier("productImage-" + item.id).disabled(item.purchaseURL == nil)
                 VStack(alignment: .leading, spacing: 8) {
                     Text(item.title).font(.headline).fixedSize(horizontal: false, vertical: true)
@@ -181,13 +206,12 @@ struct ProductTile: View {
             Text("前往京东查看商品详情并完成购买").font(.caption).foregroundStyle(SleepPalette.muted)
             HStack {
                 Button { if let url = item.purchaseURL { openURL(url) } } label: { Label("前往京东购买", systemImage: "arrow.up.right.square") }
-                    .buttonStyle(.borderedProminent).foregroundStyle(SleepPalette.onAccent).disabled(item.purchaseURL == nil)
+                    .buttonStyle(GroveButtonStyle(.primary)).foregroundStyle(SleepPalette.onAccent).disabled(item.purchaseURL == nil)
                 Spacer(minLength: 8)
                 Button { UIPasteboard.general.url = item.purchaseURL } label: { Image(systemName: "doc.on.doc").frame(width: 44, height: 44) }
                     .accessibilityLabel("复制商品链接").disabled(item.purchaseURL == nil)
             }
-        }.padding(12).background(SleepPalette.surface, in: RoundedRectangle(cornerRadius: 8))
-            .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(SleepPalette.line) }
+        }.padding(12).groveSurface()
     }
 }
 struct ClassroomDetailView: View {
@@ -207,27 +231,25 @@ struct ClassroomDetailView: View {
                 if unavailable { ContentUnavailableView("内容暂不可用", systemImage: "book.closed", description: Text("内容可能已下架，返回课堂刷新后再试。")) }
                 else {
                     if item.kind == "product" {
-                        Button { if let url = item.purchaseURL { openURL(url) } } label: { ContentCover(name: item.cover) }.buttonStyle(.plain)
+                        Button { if let url = item.purchaseURL { openURL(url) } } label: { ContentCover(name: item.cover) }.buttonStyle(GrovePressStyle())
                     } else { ContentCover(name: item.cover) }
                     Text(item.title).font(.title2.bold())
                     Text(item.summary).foregroundStyle(.secondary)
                     Text(item.body).font(.body).lineSpacing(7).textSelection(.enabled)
                     ForEach(content.children(item.id)) { chapter in
                         Button { lesson = chapter } label: {
-                            HStack {
-                                Image(systemName: "play.circle.fill").font(.title2)
-                                VStack(alignment: .leading, spacing: 5) { Text(chapter.title).font(.headline); Text("完整播放").font(.caption) }
-                                Spacer()
+                            VStack(alignment: .leading, spacing: 8) {
+                                CourseLessonRow(item: chapter, fallbackCover: item.cover)
                                 if let key = progressKey(chapter), let progress = LearningProgress.read(key), progress.duration > 0 { ProgressView(value: min(1, progress.seconds / progress.duration)).frame(width: 45) }
-                            }.padding(.vertical, 12)
-                        }.buttonStyle(.plain).foregroundStyle(SleepPalette.teal)
+                            }
+                        }.buttonStyle(GrovePressStyle()).disabled(chapter.mediaURL == nil)
                     }
                     if item.kind == "product", let url = item.purchaseURL {
-                        Button { external = url } label: { Label("前往京东购买", systemImage: "arrow.up.right.square") }.buttonStyle(.borderedProminent)
+                        Button { external = url } label: { Label("前往京东购买", systemImage: "arrow.up.right.square") }.buttonStyle(GroveButtonStyle(.primary))
                         Button { UIPasteboard.general.url = url } label: { Label("复制链接", systemImage: "doc.on.doc") }
                     }
                     if item.kind == "noise", item.mediaURL != nil {
-                        Button { lesson = item } label: { Label("播放已发布音频", systemImage: "play.circle") }.buttonStyle(.borderedProminent)
+                        Button { lesson = item } label: { Label("播放已发布音频", systemImage: "play.circle") }.buttonStyle(GroveButtonStyle(.primary))
                     }
                 }
             }.padding(20).frame(maxWidth: 720).frame(maxWidth: .infinity)
@@ -290,7 +312,7 @@ struct ClassroomVideoView: View {
                                         Text(chapter.title).frame(maxWidth: .infinity, alignment: .leading)
                                         if chapter.id == currentLesson.id { Text("当前播放").font(.caption) }
                                     }.padding(.vertical, 12)
-                                }.buttonStyle(.plain).foregroundStyle(SleepPalette.teal)
+                                }.buttonStyle(GrovePressStyle()).foregroundStyle(SleepPalette.teal)
                                     .accessibilityIdentifier("playLesson-" + chapter.id)
                             }
                         }

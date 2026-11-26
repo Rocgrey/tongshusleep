@@ -145,20 +145,20 @@ struct MonitoringView: View {
                     Label(phone.isStarting ? "正在准备…" : "开始今晚监测", systemImage: "play.fill")
                         .foregroundStyle(trackingEnabled ? SleepPalette.onAccent : SleepPalette.muted)
                         .frame(maxWidth: .infinity).padding(.vertical, 8)
-                }.buttonStyle(.borderedProminent).disabled(!trackingEnabled || phone.isStarting).accessibilityIdentifier("startMonitoring")
+                }.buttonStyle(GroveButtonStyle(.primary)).disabled(!trackingEnabled || phone.isStarting).accessibilityIdentifier("startMonitoring")
                 Text("睡前开始，醒来后手动结束；最长监测 23 小时。")
                     .font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
             } else if phone.isRecording {
                 Label("麦克风信号 \(Int(phone.currentDB)) dBFS", systemImage: "mic.fill").font(.system(size: 12))
                 Button { phone.stop() } label: {
                     Label("结束本次监测", systemImage: "stop.fill").foregroundStyle(SleepPalette.onAccent).frame(maxWidth: .infinity).padding(.vertical, 8)
-                }.buttonStyle(.borderedProminent).accessibilityIdentifier("stopMonitoring")
+                }.buttonStyle(GroveButtonStyle(.primary)).accessibilityIdentifier("stopMonitoring")
                 Text("醒来后点“结束本次监测”，再保存报告。当前显示监测时长，不代表已经睡着；本版不会自动判断你已醒来。")
                     .font(.system(size: 12)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
             } else {
                 HStack {
                     Button { savePhone() } label: { Label("保存睡眠报告", systemImage: "checkmark").foregroundStyle(SleepPalette.onAccent).frame(maxWidth: .infinity) }
-                        .buttonStyle(.borderedProminent).accessibilityIdentifier("saveMonitoring")
+                        .buttonStyle(GroveButtonStyle(.primary)).accessibilityIdentifier("saveMonitoring")
                     Button { showDiscard = true } label: { Image(systemName: "trash").frame(width: 40, height: 36) }
                         .accessibilityLabel("舍弃采集").tint(.red)
                 }
@@ -226,7 +226,7 @@ struct MonitoringView: View {
                     Label(scanner.isScanning ? "停止搜索" : "搜索蓝牙", systemImage: scanner.isScanning ? "stop.fill" : "magnifyingglass")
                         .foregroundStyle(SleepPalette.onAccent)
                         .frame(maxWidth: .infinity).padding(.vertical, 7)
-                }.buttonStyle(.borderedProminent).accessibilityIdentifier("scanBluetooth")
+                }.buttonStyle(GroveButtonStyle(.primary)).accessibilityIdentifier("scanBluetooth")
             }
             if scanner.connectedName == nil && !ring.isBusy && !encryptedBand.isBusy && !scanner.isHandingOff {
               if !scanner.rememberedDevices.isEmpty {
@@ -243,7 +243,7 @@ struct MonitoringView: View {
                                 Spacer()
                                 Image(systemName: "arrow.triangle.2.circlepath")
                             }.contentShape(Rectangle())
-                        }.buttonStyle(.plain).disabled(scanner.connectingID != nil)
+                        }.buttonStyle(GrovePressStyle()).disabled(scanner.connectingID != nil)
                         Menu {
                             Button("忘记此设备", role: .destructive) { scanner.forget(device) }
                         } label: { Image(systemName: "ellipsis").frame(width: 40, height: 40) }
@@ -263,7 +263,7 @@ struct MonitoringView: View {
                         Spacer()
                         Image(systemName: "chevron.right").font(.system(size: 12))
                     }.padding(.vertical, 8).contentShape(Rectangle())
-                }.buttonStyle(.plain).disabled(scanner.connectedName != nil || scanner.connectingID != nil || ring.isBusy)
+                }.buttonStyle(GrovePressStyle()).disabled(scanner.connectedName != nil || scanner.connectingID != nil || ring.isBusy)
                 Divider()
               }
             }

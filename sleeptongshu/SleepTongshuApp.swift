@@ -32,6 +32,7 @@ struct SleepTongshuApp: App {
             if let container {
                 AppEntryView().environmentObject(account).environmentObject(content).environmentObject(routes)
                     .modelContainer(container).tint(Color(uiColor: (AppAppearance(rawValue: appearance) ?? .fresh).readableAccent))
+                    .buttonStyle(GrovePressStyle())
                     .scrollContentBackground(.hidden)
                     .background(SleepPalette.background)
                     .onOpenURL { routes.open($0) }

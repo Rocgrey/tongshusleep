@@ -18,7 +18,7 @@ struct HomeContentView: View {
                     NavigationLink { BreathingView() } label: { Label("呼吸", systemImage: "wind") }
                     NavigationLink { WhiteNoiseView() } label: { Label("白噪音", systemImage: "waveform") }
                 }
-            }.font(.subheadline).buttonStyle(.bordered)
+            }.font(.subheadline).buttonStyle(GroveButtonStyle(.secondary))
             if let daily = content.daily() {
                 NavigationLink { ClassroomDetailView(item: daily) } label: {
                     HStack(spacing: 14) {
@@ -26,7 +26,7 @@ struct HomeContentView: View {
                         VStack(alignment: .leading, spacing: 5) { Text("今日阅读").font(.caption).foregroundStyle(SleepPalette.teal); Text(daily.title).font(.headline).foregroundStyle(.primary).lineLimit(3) }
                         Spacer(minLength: 0)
                     }
-                }.buttonStyle(.plain)
+                }.buttonStyle(GrovePressStyle())
             }
             if let course = content.courses.first(where: \.featured) {
                 NavigationLink { ClassroomDetailView(item: course) } label: {

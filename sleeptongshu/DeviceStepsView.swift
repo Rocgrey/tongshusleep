@@ -34,7 +34,7 @@ struct DeviceStepsSummaryView: View {
                     Spacer(minLength: 0)
                     Image(systemName: "chevron.right").font(.caption).foregroundStyle(SleepPalette.muted)
                 }.padding(.vertical, 8).contentShape(Rectangle())
-            }.buttonStyle(.plain).accessibilityIdentifier("openDeviceSteps")
+            }.buttonStyle(GrovePressStyle()).accessibilityIdentifier("openDeviceSteps")
         }
         if let error = steps.saveError { Text(error).font(.caption).foregroundStyle(SleepPalette.rose) }
     }

@@ -167,7 +167,7 @@ struct HealthOverviewView: View {
                         Text(health.days(for: metric).last?.date.formatted(.dateTime.month().day()) ?? "")
                             .font(.system(size: 10)).foregroundStyle(SleepPalette.muted)
                     }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-                }.buttonStyle(.plain).accessibilityIdentifier("healthLatest-\(metric.rawValue)")
+                }.buttonStyle(GrovePressStyle()).accessibilityIdentifier("healthLatest-\(metric.rawValue)")
             }
         }
     }
@@ -292,7 +292,7 @@ struct HealthOverviewView: View {
                         Text(change.map { signed($0.recent - $0.previous) } ?? health.days(for: metric).last.map { format($0.value, metric: metric) } ?? "—").font(.system(size: 18, weight: .medium, design: .rounded))
                         Image(systemName: "chevron.right").font(.system(size: 10)).foregroundStyle(SleepPalette.muted)
                     }.contentShape(Rectangle()).padding(.vertical, 5)
-                }.buttonStyle(.plain)
+                }.buttonStyle(GrovePressStyle())
             }
             Text("与前两周比较，每日先取中位数，睡眠用每日时长。HRV 上下波动不一定是心理压力，也受呼吸、运动、测量条件等影响。")
                 .font(.system(size: 11)).foregroundStyle(SleepPalette.muted).lineSpacing(4)
@@ -430,6 +430,6 @@ struct HealthMetricTile: View {
                 .background(SleepPalette.surface, in: RoundedRectangle(cornerRadius: 8))
                 .overlay(alignment: .topTrailing) { Image(systemName: "arrow.up.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(metric.healthTint.opacity(0.6)).padding(14) }
                 .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(metric.healthTint.opacity(0.08)) }.contentShape(Rectangle())
-        }.buttonStyle(.plain).accessibilityIdentifier("healthMetric-\(metric.rawValue)")
+        }.buttonStyle(GrovePressStyle()).accessibilityIdentifier("healthMetric-\(metric.rawValue)")
     }
 }

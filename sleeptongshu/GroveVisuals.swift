@@ -58,5 +58,7 @@ struct GroveProgressRings: View {
 extension View {
     func groveWash(_ color: GroveColor) -> some View {
         padding(16).background(color.wash, in: RoundedRectangle(cornerRadius: 8))
+            .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(color.tint.opacity(0.12), lineWidth: 0.5) }
+            .shadow(color: color.tint.opacity(0.035), radius: 4, y: 2)
     }
 }

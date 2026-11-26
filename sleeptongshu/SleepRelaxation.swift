@@ -73,10 +73,11 @@ struct BreathingView: View {
                             preparing = true
                             cue.introduction { guard preparing else { return }; preparing = false; startClock() }
                         } else { startClock() }
-                    } label: { Label(running || preparing ? "暂停" : "开始", systemImage: running || preparing ? "pause.fill" : "play.fill").padding(.vertical, 8) }.buttonStyle(.borderedProminent).tint(GroveColor.lavender.tint).foregroundStyle(SleepPalette.onAccent)
-                    Button { running = false; preparing = false; elapsed = 0; cue.stop() } label: { Label("结束", systemImage: "stop.fill").padding(.vertical, 8) }.buttonStyle(.bordered)
+                    } label: { Label(running || preparing ? "暂停" : "开始", systemImage: running || preparing ? "pause.fill" : "play.fill").padding(.vertical, 8) }.buttonStyle(GroveButtonStyle(.primary, color: GroveColor.lavender.tint)).foregroundStyle(SleepPalette.onAccent)
+                    Button { running = false; preparing = false; elapsed = 0; cue.stop() } label: { Label("结束", systemImage: "stop.fill").padding(.vertical, 8) }.buttonStyle(GroveButtonStyle(.secondary))
                 }
                 Toggle("轻声语音引导", isOn: $voice).frame(maxWidth: 300)
+                if voice { Text(cue.voiceDescription).font(.caption).foregroundStyle(SleepPalette.muted).fixedSize(horizontal: false, vertical: true) }
                 Toggle("阶段提示音", isOn: $cues).frame(maxWidth: 300)
                 HStack {
                     Image(systemName: "speaker.wave.1")
@@ -97,7 +98,7 @@ struct BreathingView: View {
             .onChange(of: cues) { _, _ in if running { cue.play(phase: phaseIndex, tone: cues, voice: voice) } }
             .onChange(of: voice) { _, _ in preparing = false; if running { cue.play(phase: phaseIndex, tone: cues, voice: voice) } else { cue.stop() } }
             .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)) { _ in running = false; preparing = false; cue.stop() }
-            .onChange(of: scenePhase) { _, phase in if phase != .active { running = false; preparing = false; cue.stop() } }
+            .onChange(of: scenePhase) { _, phase in if phase != .active { running = false; preparing = false; cue.stop() } else { cue.refreshVoice() } }
             .onDisappear { running = false; preparing = false; cue.stop() }
     }
     private func startClock() { lastTick = .now; running = true; cue.play(phase: phaseIndex, tone: cues, voice: voice) }
@@ -204,7 +205,7 @@ struct WhiteNoiseView: View {
                             }.foregroundStyle(SleepPalette.ink).padding(10)
                                 .background(selection == sound.id ? GroveColor.allCases[sound.id % 5].wash : SleepPalette.surface, in: RoundedRectangle(cornerRadius: 8))
                                 .overlay(RoundedRectangle(cornerRadius: 8).stroke(selection == sound.id ? GroveColor.allCases[sound.id % 5].tint : .clear, lineWidth: 2))
-                        }.buttonStyle(.plain).accessibilityIdentifier("noise-\(sound.id)")
+                        }.buttonStyle(GrovePressStyle()).accessibilityIdentifier("noise-\(sound.id)")
                             .accessibilityLabel(sound.title + "，点按播放")
                     }
                 }.accessibilityIdentifier("groveNoiseSelection")
@@ -225,8 +226,8 @@ struct WhiteNoiseView: View {
             HStack(spacing: 20) {
                 Button { if audio.playing { audio.pause() } else if audio.deadline != nil { audio.resume() } else { Task { await audio.start(minutes: minutes, sound: GroveNoise.library[selection]) } } } label: {
                     Label(audio.playing ? "暂停" : "播放", systemImage: audio.playing ? "pause.fill" : "play.fill").frame(minHeight: 32)
-                }.buttonStyle(.borderedProminent).tint(GroveColor.lavender.tint).foregroundStyle(SleepPalette.onAccent).disabled(audio.loading).accessibilityIdentifier("noisePlayPause")
-                Button { audio.stop() } label: { Label("停止", systemImage: "stop.fill").frame(minHeight: 32) }.buttonStyle(.bordered).accessibilityIdentifier("noiseStop")
+                }.buttonStyle(GroveButtonStyle(.primary, color: GroveColor.lavender.tint)).foregroundStyle(SleepPalette.onAccent).disabled(audio.loading).accessibilityIdentifier("noisePlayPause")
+                Button { audio.stop() } label: { Label("停止", systemImage: "stop.fill").frame(minHeight: 32) }.buttonStyle(GroveButtonStyle(.secondary)).accessibilityIdentifier("noiseStop")
             }
             HStack { Image(systemName: "speaker.wave.1"); Slider(value: $audio.volume, in: 0...1).accessibilityLabel("音量"); Image(systemName: "speaker.wave.3") }.tint(GroveColor.coral.tint)
             Picker(selection: $minutes) { ForEach([5,15,30,45,60,90], id: \.self) { Text("\($0) 分钟").tag($0) } } label: { Label("关闭定时", systemImage: "timer") }
@@ -272,7 +273,7 @@ struct GoodnightView: View {
                 Image("kepu-02").resizable().scaledToFit().clipShape(RoundedRectangle(cornerRadius: 8))
                 Text("今晚，先放下未完成").font(.largeTitle.bold())
                 Text(content.items.first(where: { $0.kind == "goodnight" })?.body ?? "给自己一点不必赶路的时间。放松肩膀，慢慢呼吸，让今天到这里就好。").font(.title3).lineSpacing(9)
-                NavigationLink { BreathingView() } label: { Label("一起慢慢呼吸", systemImage: "wind") }.buttonStyle(.borderedProminent)
+                NavigationLink { BreathingView() } label: { Label("一起慢慢呼吸", systemImage: "wind") }.buttonStyle(GroveButtonStyle(.primary))
                 NavigationLink { WhiteNoiseView() } label: { Label("听一会儿白噪音", systemImage: "waveform") }
             }.padding(24).frame(maxWidth: 680)
         }.background(SleepPalette.background).navigationTitle("晚安").toolbar(.visible, for: .navigationBar)

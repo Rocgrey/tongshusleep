@@ -23,7 +23,7 @@ struct AppEntryView: View {
                 ContentUnavailableView {
                     Label("登录信息已保留", systemImage: "wifi.exclamationmark")
                 } description: { Text(account.message ?? "请联网后继续使用。") }
-                actions: { Button("重新连接") { Task { await account.restore() } }.buttonStyle(.borderedProminent) }
+                actions: { Button("重新连接") { Task { await account.restore() } }.buttonStyle(GroveButtonStyle(.primary)) }
             } else { NavigationStack { AccountLoginView().toolbar(.hidden, for: .navigationBar) } }
         }
         .task {
@@ -136,11 +136,10 @@ struct AccountLoginView: View {
                         if account.isLoading { ProgressView().tint(SleepPalette.muted) }
                         Text(account.isLoading ? "请稍候" : register ? "注册" : "登录")
                         Image(systemName: "arrow.right")
-                    }.font(.system(size: 16, weight: .semibold)).frame(maxWidth: .infinity, minHeight: 54)
+                    }.font(.system(size: 16, weight: .semibold)).frame(maxWidth: .infinity, minHeight: 34)
                         .foregroundStyle(account.isLoading ? SleepPalette.muted : SleepPalette.onAccent)
-                        .background(account.isLoading ? SleepPalette.line : SleepPalette.teal, in: RoundedRectangle(cornerRadius: 8))
                         .contentShape(Rectangle())
-                }.buttonStyle(.plain).disabled(account.isLoading).accessibilityIdentifier("accountSubmit")
+                }.buttonStyle(GroveButtonStyle(.primary)).disabled(account.isLoading).accessibilityIdentifier("accountSubmit")
                 Button {
                     register.toggle()
                 } label: {
@@ -148,7 +147,7 @@ struct AccountLoginView: View {
                         Text(register ? "已有账号，去登录" : "还没有账号？去注册")
                         Image(systemName: "arrow.right")
                     }.font(.system(size: 14)).frame(maxWidth: .infinity, minHeight: 44).contentShape(Rectangle())
-                }.buttonStyle(.plain).foregroundStyle(SleepPalette.teal).disabled(account.isLoading)
+                }.buttonStyle(GrovePressStyle()).foregroundStyle(SleepPalette.teal).disabled(account.isLoading)
                 Label("登录后自动同步真实睡眠、步数和设备体征到当前账号，可在个人页关闭。", systemImage: "lock.shield")
                     .font(.system(size: 12)).foregroundStyle(SleepPalette.muted)
             }.padding(.horizontal, 26).padding(.bottom, 32).frame(maxWidth: 460).frame(maxWidth: .infinity)
@@ -174,8 +173,7 @@ struct AccountLoginView: View {
             HStack(spacing: 12) {
                 Image(systemName: symbol).frame(width: 20).foregroundStyle(SleepPalette.muted)
                 content().font(.system(size: 14)).textFieldStyle(.plain).frame(minHeight: 52)
-            }.padding(.horizontal, 14).frame(minHeight: 52).background(SleepPalette.surface, in: RoundedRectangle(cornerRadius: 8))
-                .overlay { RoundedRectangle(cornerRadius: 8).stroke(SleepPalette.line) }
+            }.padding(.horizontal, 14).frame(minHeight: 52).groveSurface()
         }
     }
     private func submit() {
