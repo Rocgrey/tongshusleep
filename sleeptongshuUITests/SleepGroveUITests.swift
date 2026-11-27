@@ -13,7 +13,7 @@ final class SleepGroveUITests: XCTestCase {
         entry.tap()
         app.buttons["vitalMetricMenu"].tap()
         app.buttons["体温"].tap()
-        XCTAssertTrue(app.otherElements["wearableVitalTimeline"].exists)
+        XCTAssertTrue(app.otherElements["temperatureTrend"].exists)
         capture(app, "temperature-chart-synthetic-data")
         XCTAssertTrue(app.staticTexts["体温"].exists)
     }

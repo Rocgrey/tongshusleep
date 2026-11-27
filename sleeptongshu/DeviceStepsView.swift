@@ -52,6 +52,7 @@ struct DeviceRecentVitalsView: View {
         let device = steps.latest?.device ?? visible.last?.device
         let rows = visible.filter { $0.device == device }
         let latest = VitalKind.allCases.filter(\.isVisible).compactMap { kind in rows.last { $0.kind == kind } }
+        TemperatureTrendView(summary: TemperatureSummary(rows, device: device))
         if !latest.isEmpty {
             VStack(alignment: .leading, spacing: 14) {
                 SectionHeading(title: "设备最近体征", subtitle: latest.first?.deviceLabel)

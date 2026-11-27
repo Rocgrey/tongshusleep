@@ -1,6 +1,6 @@
 import SwiftUI
 
-// finesse: native product UI; shared 8pt surfaces, tonal depth, interaction-only motion.
+// Native Swiss-style controls share the existing palette and retain system focus behavior.
 struct GroveButtonStyle: ButtonStyle {
     enum Emphasis { case primary, secondary }
     let emphasis: Emphasis
@@ -10,33 +10,33 @@ struct GroveButtonStyle: ButtonStyle {
     @Environment(\.displayScale) private var scale
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.isFocused) private var focused
     @State private var hovering = false
     init(_ emphasis: Emphasis, color: Color = SleepPalette.teal) { self.emphasis = emphasis; self.color = color }
     func makeBody(configuration: Configuration) -> some View {
         let accent = configuration.role == .destructive ? GroveColor.coral.tint : color
         let primary = emphasis == .primary
         configuration.label
-            .font(.subheadline.weight(.semibold))
+            .font(SleepPalette.TypeStyle.action)
             .foregroundStyle(primary ? SleepPalette.onAccent : accent)
-            .padding(.horizontal, 16).padding(.vertical, 10).frame(minHeight: 44)
+            .padding(.horizontal, SleepPalette.Layout.inset).padding(.vertical, 10).frame(minHeight: SleepPalette.Layout.touch)
             .background {
-                RoundedRectangle(cornerRadius: 8).fill(
-                    LinearGradient(colors: primary ? [accent, accent.opacity(scheme == .dark ? 0.94 : 0.96)] : [SleepPalette.surface, accent.opacity(0.08)],
-                                   startPoint: hovering ? .top : .topLeading, endPoint: .bottomTrailing))
+                RoundedRectangle(cornerRadius: SleepPalette.Layout.radius)
+                    .fill(primary ? accent : SleepPalette.surface)
             }
             .overlay {
-                RoundedRectangle(cornerRadius: 8).strokeBorder(
-                    LinearGradient(colors: [primary ? Color.white.opacity(0.4) : accent.opacity(0.3), accent.opacity(contrast == .increased ? 0.7 : 0.16)], startPoint: .top, endPoint: .bottom),
-                    lineWidth: contrast == .increased ? 1.5 : 1 / scale)
+                RoundedRectangle(cornerRadius: SleepPalette.Layout.radius).strokeBorder(
+                    focused ? SleepPalette.ink : primary ? accent : SleepPalette.controlLine,
+                    lineWidth: focused ? 2 : contrast == .increased ? 1.5 : 1 / scale)
             }
-            .shadow(color: accent.opacity(enabled ? 0.10 : 0), radius: configuration.isPressed ? 1 : 2, y: 1)
-            .shadow(color: accent.opacity(enabled ? 0.12 : 0), radius: configuration.isPressed ? 2 : hovering ? 7 : 4, y: configuration.isPressed ? 1 : 3)
-            .opacity(enabled ? 1 : 0.48)
-            .scaleEffect(reduceMotion ? 1 : configuration.isPressed ? 0.98 : 1)
-            .offset(y: reduceMotion ? 0 : hovering && enabled && !configuration.isPressed ? -2 : 0)
+            .shadow(color: SleepPalette.ink.opacity(primary && enabled ? SleepPalette.Interaction.shadowOpacity : 0),
+                    radius: configuration.isPressed ? 0 : SleepPalette.Interaction.shadowRadius, y: 1)
+            .opacity(enabled ? configuration.isPressed ? SleepPalette.Interaction.pressedOpacity : 1 : SleepPalette.Interaction.disabledOpacity)
+            .scaleEffect(reduceMotion ? 1 : configuration.isPressed ? SleepPalette.Interaction.pressedScale : 1)
+            .brightness(hovering && enabled ? (scheme == .dark ? 0.04 : -0.025) : 0)
             .onHover { hovering = $0 }
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: configuration.isPressed)
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: hovering)
+            .animation(reduceMotion ? nil : .easeOut(duration: SleepPalette.Interaction.duration), value: configuration.isPressed)
+            .animation(reduceMotion ? nil : .easeOut(duration: SleepPalette.Interaction.duration), value: hovering)
     }
 }
 
@@ -49,15 +49,23 @@ struct GrovePressStyle: ButtonStyle {
             if configuration.role == .destructive { configuration.label.foregroundStyle(GroveColor.coral.tint) }
             else { configuration.label }
         }.contentShape(Rectangle())
-            .opacity(enabled ? configuration.isPressed ? 0.84 : 1 : 0.48)
-            .scaleEffect(reduceMotion ? 1 : configuration.isPressed ? 0.98 : 1)
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: configuration.isPressed)
+            .opacity(enabled ? configuration.isPressed ? SleepPalette.Interaction.pressedOpacity : 1 : SleepPalette.Interaction.disabledOpacity)
+            .scaleEffect(reduceMotion ? 1 : configuration.isPressed ? SleepPalette.Interaction.pressedScale : 1)
+            .animation(reduceMotion ? nil : .easeOut(duration: SleepPalette.Interaction.duration), value: configuration.isPressed)
     }
 }
 
 struct GroveInputStyle: TextFieldStyle {
+    @Environment(\.isFocused) private var focused
     func _body(configuration: TextField<Self._Label>) -> some View {
-        configuration.padding(.horizontal, 12).padding(.vertical, 10).groveSurface()
+        configuration.padding(.horizontal, SleepPalette.Layout.item).padding(.vertical, 10)
+            .frame(minHeight: SleepPalette.Layout.touch)
+            .background(SleepPalette.surface, in: RoundedRectangle(cornerRadius: SleepPalette.Layout.radius))
+            .overlay {
+                RoundedRectangle(cornerRadius: SleepPalette.Layout.radius)
+                    .strokeBorder(focused ? SleepPalette.teal : SleepPalette.controlLine, lineWidth: focused ? 2 : 1)
+                    .allowsHitTesting(false)
+            }
     }
 }
 
@@ -65,10 +73,9 @@ private struct GroveSurface: ViewModifier {
     @Environment(\.displayScale) private var scale
     @Environment(\.colorSchemeContrast) private var contrast
     func body(content: Content) -> some View {
-        content.background(SleepPalette.surface, in: RoundedRectangle(cornerRadius: 8))
-            .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(SleepPalette.line, lineWidth: contrast == .increased ? 1.5 : 1 / scale) }
-            .shadow(color: SleepPalette.ink.opacity(0.035), radius: 2, y: 1)
-            .shadow(color: SleepPalette.ink.opacity(0.025), radius: 6, y: 3)
+        content.background(SleepPalette.surface, in: RoundedRectangle(cornerRadius: SleepPalette.Layout.radius))
+            .overlay { RoundedRectangle(cornerRadius: SleepPalette.Layout.radius).strokeBorder(SleepPalette.line, lineWidth: contrast == .increased ? 1.5 : 1 / scale).allowsHitTesting(false) }
+            .shadow(color: SleepPalette.ink.opacity(SleepPalette.Interaction.shadowOpacity / 2), radius: SleepPalette.Interaction.shadowRadius, y: 1)
     }
 }
 extension View {

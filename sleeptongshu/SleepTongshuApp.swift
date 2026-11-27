@@ -56,21 +56,48 @@ struct SleepTongshuApp: App {
 }
 
 enum SleepPalette {
-    static let background = Color(uiColor: AppAppearance.adaptive(0xFAF7F5, 0x17191E))
-    static let surface = Color(uiColor: AppAppearance.adaptive(0xFFFFFF, 0x1D2826))
-    static let ink = Color(uiColor: AppAppearance.adaptive(0x3B3435, 0xF1EBEF))
+    static let background = Color(uiColor: AppAppearance.adaptive(0xF6F7F8, 0x141618))
+    static let surface = Color(uiColor: AppAppearance.adaptive(0xFFFFFF, 0x1E2226))
+    static let ink = Color(uiColor: AppAppearance.adaptive(0x20262C, 0xF2F5F7))
     static let onAccent = Color(uiColor: AppAppearance.adaptive(0xFFFFFF, 0x112825))
-    static let muted = Color(uiColor: AppAppearance.adaptive(0x71666A, 0xBDB3BF))
+    static let muted = Color(uiColor: AppAppearance.adaptive(0x52606C, 0xB6C0CA))
     static var teal: Color { Color(uiColor: UIColor { traits in
         let color = AppAppearance.current.accent
         return traits.userInterfaceStyle == .dark ? color.withAlphaComponent(1).lighter : color
     }) }
-    static let rose = Color(red: 0.80, green: 0.28, blue: 0.40)
+    static let rose = Color(uiColor: AppAppearance.adaptive(0xB63E58, 0xFFB0BE))
     static let mint = Color(red: 0.37, green: 0.73, blue: 0.67)
     static let deep = Color(red: 0.30, green: 0.37, blue: 0.77)
     static let rem = Color(red: 0.66, green: 0.57, blue: 0.88)
     static let awake = Color(red: 0.91, green: 0.59, blue: 0.36)
-    static let line = Color(uiColor: AppAppearance.adaptive(0xDFE7E5, 0x374A45))
+    static let line = Color(uiColor: AppAppearance.adaptive(0xD6DDE3, 0x414B55))
+    static let controlLine = Color(uiColor: AppAppearance.adaptive(0x7A8793, 0x8796A5))
+
+    // Shared native tokens; retain the existing palette and three appearance choices.
+    enum Layout {
+        static let compact: CGFloat = 8
+        static let item: CGFloat = 12
+        static let inset: CGFloat = 16
+        static let page: CGFloat = 20
+        static let section: CGFloat = 24
+        static let radius: CGFloat = 8
+        static let touch: CGFloat = 44
+        static let contentWidth: CGFloat = 680
+    }
+    enum TypeStyle {
+        static let heading = Font.title2.weight(.semibold)
+        static let value = Font.largeTitle.weight(.semibold)
+        static let action = Font.subheadline.weight(.semibold)
+        static let note = Font.caption
+    }
+    enum Interaction {
+        static let duration = 0.18
+        static let pressedOpacity = 0.84
+        static let disabledOpacity = 0.48
+        static let pressedScale: CGFloat = 0.98
+        static let shadowOpacity = 0.06
+        static let shadowRadius: CGFloat = 3
+    }
 }
 
 extension SleepStage {
@@ -284,8 +311,8 @@ struct SectionHeading: View {
     var subtitle: String? = nil
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(title).font(.system(size: 18, weight: .bold)).foregroundStyle(SleepPalette.ink)
-            if let subtitle { Text(subtitle).font(.system(size: 12)).foregroundStyle(SleepPalette.muted) }
+            Text(title).font(.headline).foregroundStyle(SleepPalette.ink)
+            if let subtitle { Text(subtitle).font(SleepPalette.TypeStyle.note).foregroundStyle(SleepPalette.muted) }
         }
     }
 }

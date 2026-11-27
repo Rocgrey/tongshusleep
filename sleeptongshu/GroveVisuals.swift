@@ -21,16 +21,16 @@ struct GroveSectionBanner: View {
     let symbol: String
     var color: GroveColor = .coral
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: SleepPalette.Layout.inset) {
             Image(systemName: symbol).font(.system(size: 34, weight: .medium))
                 .symbolRenderingMode(.hierarchical).foregroundStyle(color.tint)
                 .frame(width: 66, height: 72)
             VStack(alignment: .leading, spacing: 6) {
-                Text(title).font(.title2.bold()).foregroundStyle(SleepPalette.ink)
+                Text(title).font(SleepPalette.TypeStyle.heading).foregroundStyle(SleepPalette.ink)
                 Text(subtitle).font(.subheadline).foregroundStyle(SleepPalette.muted)
             }
-        }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 18).padding(.horizontal, 16)
-            .background(color.wash, in: RoundedRectangle(cornerRadius: 8))
+        }.frame(maxWidth: .infinity, alignment: .leading).padding(SleepPalette.Layout.inset)
+            .background(color.wash.opacity(0.65), in: RoundedRectangle(cornerRadius: SleepPalette.Layout.radius))
     }
 }
 
@@ -57,8 +57,7 @@ struct GroveProgressRings: View {
 
 extension View {
     func groveWash(_ color: GroveColor) -> some View {
-        padding(16).background(color.wash, in: RoundedRectangle(cornerRadius: 8))
-            .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(color.tint.opacity(0.12), lineWidth: 0.5) }
-            .shadow(color: color.tint.opacity(0.035), radius: 4, y: 2)
+        padding(SleepPalette.Layout.inset).background(color.wash.opacity(0.65), in: RoundedRectangle(cornerRadius: SleepPalette.Layout.radius))
+            .overlay { RoundedRectangle(cornerRadius: SleepPalette.Layout.radius).strokeBorder(SleepPalette.line, lineWidth: 0.5).allowsHitTesting(false) }
     }
 }

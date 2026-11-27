@@ -42,7 +42,7 @@ struct WearableVitalsView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: SleepPalette.Layout.section) {
                 Text("真实采样 · 数据保存在本机").font(.caption).foregroundStyle(SleepPalette.muted)
                 if let error = store.error { Text(error).foregroundStyle(.red) }
                 if store.visibleSamples.isEmpty {
@@ -57,7 +57,9 @@ struct WearableVitalsView: View {
                             ForEach(kinds) { Text($0.title).tag($0) }
                         }.pickerStyle(.menu).accessibilityIdentifier("vitalMetricMenu")
                         if !selected.isEmpty {
-                            timeline
+                            if kind == .temperature {
+                                TemperatureTrendView(summary: TemperatureSummary(deviceSamples, device: device, dayCount: days))
+                            } else { timeline }
                             metricPicker
                             overview
                             Divider()
@@ -71,7 +73,7 @@ struct WearableVitalsView: View {
                         }
                     }
                 }
-            }.padding(20).padding(.bottom, 32).frame(maxWidth: 680).frame(maxWidth: .infinity)
+            }.padding(SleepPalette.Layout.page).padding(.bottom, 32).frame(maxWidth: SleepPalette.Layout.contentWidth).frame(maxWidth: .infinity)
         }
         .background(SleepPalette.background).foregroundStyle(SleepPalette.ink)
         .navigationTitle("体征记录").navigationBarTitleDisplayMode(.inline).toolbar(.visible, for: .navigationBar)

@@ -16,7 +16,7 @@ struct GroveModuleSheet<Content: View>: View {
             HStack {
                 Text("SleepGrove").font(.caption.weight(.semibold)).foregroundStyle(SleepPalette.muted)
                 Spacer()
-                Button { dismiss() } label: { Image(systemName: "xmark").frame(width: 44, height: 44) }
+                Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 16, weight: .semibold)).frame(width: 44, height: 44) }
                     .accessibilityLabel("返回主页").accessibilityIdentifier("closeGroveModule")
             }.padding(.horizontal, 20)
             content()
@@ -42,7 +42,7 @@ struct GrovePageHeading: View {
     let title: String
     let subtitle: String
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: SleepPalette.Layout.compact) {
             Text("SleepGrove").font(.caption.weight(.semibold)).foregroundStyle(SleepPalette.teal)
             Text(title).font(.largeTitle.bold()).foregroundStyle(SleepPalette.ink)
             Text(subtitle).font(.subheadline).foregroundStyle(SleepPalette.muted)
@@ -56,9 +56,9 @@ struct GroveFeatureRow: View {
     let icon: String
     var tint = SleepPalette.teal
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: SleepPalette.Layout.inset) {
             Image(systemName: icon).font(.title2).foregroundStyle(tint)
-                .frame(width: 52, height: 56).background(tint.opacity(0.09), in: RoundedRectangle(cornerRadius: 8))
+                .frame(width: 52, height: 56).background(tint.opacity(0.06), in: RoundedRectangle(cornerRadius: SleepPalette.Layout.radius))
             VStack(alignment: .leading, spacing: 5) {
                 Text(title).font(.headline).foregroundStyle(SleepPalette.ink)
                 Text(subtitle).font(.caption).foregroundStyle(SleepPalette.muted).fixedSize(horizontal: false, vertical: true)

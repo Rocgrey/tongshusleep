@@ -69,6 +69,34 @@ struct VitalBucket: Identifiable {
     let count: Int
 }
 
+/// A single device's actual readings. Missing days stay absent, including across DST.
+struct TemperatureSummary {
+    let samples: [WearableVital]
+    let days: [VitalDay]
+    let range: Range<Date>
+    var latest: WearableVital? { samples.last }
+    var mean: Double? { samples.isEmpty ? nil : samples.reduce(0) { $0 + $1.value } / Double(samples.count) }
+    var domain: ClosedRange<Double> {
+        let low = samples.map(\.value).min() ?? 35
+        let high = samples.map(\.value).max() ?? 37
+        let padding = max(0.2, (high - low) * 0.2)
+        return (low - padding)...(high + padding)
+    }
+
+    init(_ input: [WearableVital], device: String? = nil, dayCount: Int = 7, now: Date = .now, calendar: Calendar = .current) {
+        let count = min(30, max(1, dayCount))
+        let today = calendar.startOfDay(for: now)
+        let start = calendar.date(byAdding: .day, value: 1 - count, to: today) ?? today
+        let end = calendar.date(byAdding: .day, value: 1, to: today) ?? now
+        range = start..<end
+        let valid = input.filter { $0.kind == .temperature && VitalKind.temperature.accepts($0.value) && $0.date >= start && $0.date <= now }
+        let source = device ?? valid.max { $0.date < $1.date }?.device
+        let unique = Dictionary(valid.filter { $0.device == source }.map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
+        samples = unique.values.sorted { $0.date == $1.date ? $0.id < $1.id : $0.date < $1.date }
+        days = VitalInsights.daily(samples, calendar: calendar)
+    }
+}
+
 enum VitalInsights {
     static func daily(_ samples: [WearableVital], calendar: Calendar = .current) -> [VitalDay] {
         Dictionary(grouping: samples) { calendar.startOfDay(for: $0.date) }.map { date, values in

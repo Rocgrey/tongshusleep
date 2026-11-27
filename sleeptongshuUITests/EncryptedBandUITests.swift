@@ -14,19 +14,19 @@ final class EncryptedBandUITests: XCTestCase {
         XCTAssertTrue(notice.exists)
         XCTAssertTrue(notice.label.contains("没有读取结束标记"))
     }
-    func testCredentialSetupRequiresExplicitDeviceAndDoesNotStartBluetoothOrFakeSync() {
+    func testDevicePageNoLongerExposesCredentialImport() {
         let app = XCUIApplication()
         app.launchArguments = ["-ui-testing", "-preview-monitor", "-preview-wearable"]
         app.launch()
-        let setup = app.buttons["encryptedBandSetup"]
-        for _ in 0..<8 where !setup.isHittable { app.swipeUp() }
-        XCTAssertTrue(setup.isHittable)
-        setup.tap()
-        XCTAssertTrue(app.staticTexts["encryptedBandNeedsConnection"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["importBandCredentialFolder"].isEnabled)
-        XCTAssertFalse(app.staticTexts["本次文件读取完成"].exists)
-        let attachment = XCTAttachment(screenshot: app.screenshot()); attachment.name = "encrypted-band-setup-no-device"; attachment.lifetime = .keepAlways; add(attachment)
-        app.buttons["完成"].tap()
+        XCTAssertTrue(app.buttons["scanBluetooth"].waitForExistence(timeout: 5))
+        for _ in 0..<5 {
+            XCTAssertFalse(app.buttons["encryptedBandSetup"].exists)
+            XCTAssertFalse(app.buttons["importBandCredentialFolder"].exists)
+            XCTAssertFalse(app.staticTexts["导入设备绑定凭证"].exists)
+            app.swipeUp()
+        }
+        for _ in 0..<5 where !app.buttons["scanBluetooth"].isHittable { app.swipeDown() }
         XCTAssertTrue(app.buttons["scanBluetooth"].exists)
+        let attachment = XCTAttachment(screenshot: app.screenshot()); attachment.name = "device-page-without-credential-import"; attachment.lifetime = .keepAlways; add(attachment)
     }
 }
